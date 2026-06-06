@@ -4,8 +4,8 @@ modelo.py - Arquitectura CNN-BiLSTM-Attention para clasificacion de gestos
 Protesis transradial - Fusion sensorial y Deep Learning
 
 ARQUITECTURA:
-  Entrada: (window_size=40, num_features=18)
-           - 12 canales sEMG + 6 canales ACC (early fusion)
+  Entrada: (window_size=40, num_features=8)
+           - 5 canales EMG (simula LMG) + 3 canales ACC (simula IMU)
            - 40 pasos temporales = 200 ms a 200 Hz
 
   Capa 1 (Conv1D):  Filtros=64, kernel=3, ReLU, BatchNorm
@@ -34,7 +34,7 @@ ARQUITECTURA:
     -> Distribucion sobre: Rest, Pinch, Tripod, Power, Finger_Ext
 
 ARQUITECTURA (resumen):
-  Input(40,18) -> Conv1D(64) -> Conv1D(128) -> BiLSTM(64) ->
+  Input(40,8) -> Conv1D(64) -> Conv1D(128) -> BiLSTM(64) ->
   Attention -> Dense(64) -> Softmax(5)
 """
 
@@ -99,7 +99,7 @@ class MecanismoAtencion(layers.Layer):
 # ============================================================
 def construir_modelo(
     window_size: int = 40,
-    num_features: int = 18,
+    num_features: int = 8,
     num_clases: int = 5,
     l2_reg: float = 1e-4,
     dropout_rate: float = 0.5,
@@ -109,7 +109,7 @@ def construir_modelo(
 
     Args:
         window_size: Pasos temporales (40 = 200 ms a 200 Hz)
-        num_features: Canales totales (18 = 12 EMG + 6 ACC)
+        num_features: Canales totales (8 = 5 EMG + 3 ACC)
         num_clases: Gestos a clasificar (5)
         l2_reg: Factor de regularizacion L2
         dropout_rate: Tasa de dropout en la capa densa
