@@ -59,12 +59,13 @@ STRIDE_SAMPLES = int(STRIDE_MS * TASA_FINAL / 1000)      # 4
 
 # Mapeo: clase_tesis -> lista de IDs originales de NinaPro DB5
 # Solo se conservan las muestras con estas etiquetas.
+# IDs verificados directamente sobre los archivos .mat del dataset.
 MAPEO_GESTOS = {
     0: [0],    # Rest           (reposo)
-    1: [10],   # Pinch          (pinza pulgar-indice)
-    2: [11],   # Tripod         (agarre tripode)
-    3: [9],    # Power          (punio de fuerza)
-    4: [5],    # Finger_Ext     (extension/abduccion de dedos)
+    1: [17],   # Pinch          (pinza pulgar-indice)
+    2: [18],   # Tripod         (agarre tripode)
+    3: [42],   # Power          (punio de fuerza)
+    4: [44],   # Finger_Ext     (extension/abduccion de dedos)
 }
 
 NOMBRES_GESTOS = ["Rest", "Pinch", "Tripod", "Power", "Finger_Ext"]
@@ -85,17 +86,19 @@ class CargadorNinaProDB5:
       - restimulus:  (N, 1)   int8     -- etiquetas corregidas (0..41)
       - repetition:  (N, 1)   int8     -- numero de repeticion (1..6)
 
-    Solamente se procesan archivos del Ejercicio 1 (E1),
-    que contiene los gestos de mano individuales.
+    Se procesan todos los archivos .mat del dataset; el filtro
+    por etiquetas ocurre a nivel de filas via RESTIMULUS, usando
+    el diccionario MAPEO_GESTOS para conservar solo las 5 clases
+    objetivo y descartar automaticamente el resto.
     """
 
     def __init__(self, ruta_dataset: str):
         self.ruta = Path(ruta_dataset)
-        # Busca solo archivos de E1 (gestos de mano)
-        self.archivos = sorted(self.ruta.glob("**/*E1*.mat"))
+        # Busca todos los archivos .mat recursivamente
+        self.archivos = sorted(self.ruta.glob("**/*.mat"))
         if not self.archivos:
-            self.archivos = sorted(self.ruta.glob("**/*E1*.MAT"))
-        print(f"[NINAPRO] Archivos E1 encontrados: {len(self.archivos)}")
+            self.archivos = sorted(self.ruta.glob("**/*.MAT"))
+        print(f"[NINAPRO] Archivos .mat encontrados: {len(self.archivos)}")
         if self.archivos:
             print(f"[NINAPRO] Primer archivo: {self.archivos[0].name}")
             print(f"[NINAPRO] Ultimo archivo: {self.archivos[-1].name}")
@@ -439,13 +442,14 @@ def cargar_procesar_dataset(
     """
     Orquesta la carga y preprocesamiento de todo NinaPro DB5 E1.
 
-    Flujo por cada archivo:
+    Flujo por cada archivo .mat:
       1. Cargar EMG (16ch), ACC (6ch), restimulus
       2. Seleccionar canales: EMG[:5], ACC[:3]
-      3. Mapear etiquetas a 5 clases (descartar el resto)
+      3. Mapear restimulus a 5 clases segun MAPEO_GESTOS
+         (descarta filas con etiquetas fuera de {0,17,18,42,44})
       4. Remuestrear ACC (200 -> 50 -> 200 Hz)
       5. Ventana deslizante con early fusion (8 canales)
-      6. Acumular ventanas de todos los sujetos
+      6. Acumular ventanas de todos los archivos
 
     Args:
         ruta_dataset: Directorio con los archivos .mat
@@ -462,7 +466,7 @@ def cargar_procesar_dataset(
 
     if not sujetos:
         raise FileNotFoundError(
-            f"No se encontraron archivos E1 validos en {ruta_dataset}"
+            f"No se encontraron archivos .mat validos en {ruta_dataset}"
         )
 
     todas_X = []
@@ -515,8 +519,8 @@ def cargar_procesar_dataset(
 
     if not todas_X:
         raise RuntimeError(
-            "No se generaron ventanas. Verifique que los archivos E1 "
-            "contengan las clases del mapeo {0,5,9,10,11}."
+            "No se generaron ventanas. Verifique que los archivos .mat "
+            "contengan las clases del mapeo {0,17,18,42,44}."
         )
 
     X_total = np.concatenate(todas_X, axis=0)
