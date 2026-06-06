@@ -57,15 +57,23 @@ STRIDE_MS = 20
 VENTANA_SAMPLES = int(VENTANA_MS * TASA_FINAL / 1000)   # 40
 STRIDE_SAMPLES = int(STRIDE_MS * TASA_FINAL / 1000)      # 4
 
-# Mapeo: clase_tesis -> lista de IDs originales de NinaPro DB5
-# Solo se conservan las muestras con estas etiquetas.
-# IDs verificados directamente sobre los archivos .mat del dataset.
-MAPEO_GESTOS = {
-    0: [0],    # Rest           (reposo)
-    1: [17],   # Pinch          (pinza pulgar-indice)
-    2: [18],   # Tripod         (agarre tripode)
-    3: [42],   # Power          (punio de fuerza)
-    4: [44],   # Finger_Ext     (extension/abduccion de dedos)
+# Mapeos condicionales por ejercicio (archivo .mat):
+#   E1 (Exercise A): solo Rest
+#   E2 (Exercise B): Rest, Power, Finger_Ext
+#   E3 (Exercise C): Rest, Pinch, Tripod
+# Cada dict: {clase_tesis: [lista_de_IDs_originales_en_restimulus]}
+MAPEO_E1 = {
+    0: [0],    # Rest
+}
+MAPEO_E2 = {
+    0: [0],    # Rest
+    3: [6],    # Power   (6 en DB5 = fingers flexed in fist)
+    4: [5],    # Finger_Ext (5 en DB5 = abduction of all fingers)
+}
+MAPEO_E3 = {
+    0: [0],    # Rest
+    1: [15],   # Pinch   (15 en DB5 = tip pinch)
+    2: [13],   # Tripod  (13 en DB5 = tripod grasp)
 }
 
 NOMBRES_GESTOS = ["Rest", "Pinch", "Tripod", "Power", "Finger_Ext"]
@@ -431,29 +439,102 @@ class SlidingWindowPreprocessor:
 
 
 # ============================================================
+# SUB-MUESTREO (Random Undersampling) PARA BALANCEAR CLASES
+# ============================================================
+def submuestrear_clase_0(
+    X: np.ndarray,
+    y: np.ndarray,
+    random_state: int = 42,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Reduce aleatoriamente la clase 0 (Rest) para balancear el dataset.
+
+    El desbalance es critico: clase 0 (reposo) suele tener ~40x mas
+    muestras que las clases activas. Si no se corrige, el modelo
+    aprende a predecir siempre 'Rest' y obtiene ~95% de accuracy
+    sin aprender ningun gesto.
+
+    Estrategia:
+      1. Cuenta las muestras de las 4 clases activas (1..4)
+      2. Calcula el promedio: target = (count_1+count_2+count_3+count_4)/4
+      3. Selecciona aleatoriamente 'target' muestras de la clase 0
+      4. Combina con todas las muestras de las clases 1..4
+
+    Args:
+        X: (N, 40, 8)  ventanas de features
+        y: (N, 5)      one-hot encoding
+        random_state: Semilla para reproducibilidad
+
+    Returns:
+        X_bal, y_bal: Dataset balanceado
+    """
+    rng = np.random.RandomState(random_state)
+    y_int = y.argmax(axis=1)
+
+    idx_clase_0 = np.where(y_int == 0)[0]
+    n_0_original = len(idx_clase_0)
+
+    # Contar clases activas
+    counts = {}
+    for c in range(1, NUM_CLASES):
+        counts[c] = int((y_int == c).sum())
+        print(f"  Count clase {c} ({NOMBRES_GESTOS[c]}): {counts[c]}")
+
+    # Promedio de las clases activas
+    target = int(np.mean(list(counts.values())))
+    print(f"  Promedio clases 1-4: {target}")
+
+    # Si clase 0 ya es menor o igual al target, no submuestrear
+    if n_0_original <= target:
+        print(f"  [SUB-MUESTREO] Clase 0 ({n_0_original}) <= target ({target}), "
+              f"no se aplica sub-muestreo.")
+        return X, y
+
+    # Submuestrear clase 0
+    idx_0_sel = rng.choice(idx_clase_0, size=target, replace=False)
+    idx_otras = np.where(y_int >= 1)[0]
+    idx_final = np.concatenate([idx_0_sel, idx_otras])
+    rng.shuffle(idx_final)
+
+    X_bal = X[idx_final]
+    y_bal = y[idx_final]
+
+    print(f"  [SUB-MUESTREO] Clase 0: {n_0_original} -> {target} "
+          f"(reducidas en {n_0_original - target})")
+    print(f"  [SUB-MUESTREO] Dataset balanceado: {len(idx_final)} ventanas")
+
+    return X_bal, y_bal
+
+
+# ============================================================
 # ORQUESTADOR PRINCIPAL
 # ============================================================
 def cargar_procesar_dataset(
     ruta_dataset: str,
-    mapeo: dict = None,
     ventana_ms: int = VENTANA_MS,
     stride_ms: int = STRIDE_MS,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Orquesta la carga y preprocesamiento de todo NinaPro DB5 E1.
+    Orquesta la carga y preprocesamiento de todo NinaPro DB5.
+
+    El mapeo de etiquetas es CONDICIONAL segun el archivo:
+      - E1 (Exercise A): solo Rest (0)
+      - E2 (Exercise B): Rest(0), Power(6->3), Finger_Ext(5->4)
+      - E3 (Exercise C): Rest(0), Pinch(15->1), Tripod(13->2)
+    Cualquier fila con restimulus fuera de estos rangos se descarta.
 
     Flujo por cada archivo .mat:
       1. Cargar EMG (16ch), ACC (6ch), restimulus
       2. Seleccionar canales: EMG[:5], ACC[:3]
-      3. Mapear restimulus a 5 clases segun MAPEO_GESTOS
-         (descarta filas con etiquetas fuera de {0,17,18,42,44})
-      4. Remuestrear ACC (200 -> 50 -> 200 Hz)
-      5. Ventana deslizante con early fusion (8 canales)
-      6. Acumular ventanas de todos los archivos
+      3. Seleccionar mapeo segun el nombre del archivo (E1/E2/E3)
+      4. Mapear y filtrar filas (descarta las no mapeadas)
+      5. Remuestrear ACC (200 -> 50 -> 200 Hz)
+      6. Ventana deslizante con early fusion (8 canales)
+      7. Acumular ventanas de todos los archivos
+      8. Sub-muestreo aleatorio de clase 0 (Rest) para balancear
 
     Args:
         ruta_dataset: Directorio con los archivos .mat
-        mapeo: Diccionario de mapeo de gestos
         ventana_ms: Tamano de ventana en ms
         stride_ms: Stride en ms
 
@@ -473,15 +554,27 @@ def cargar_procesar_dataset(
     todas_y = []
 
     for idx, (emg_raw, acc_raw, labels) in enumerate(sujetos):
+        nombre_archivo = cargador.archivos[idx].name
         print(f"\n{'='*50}")
-        print(f"PROCESANDO {cargador.archivos[idx].name} "
+        print(f"PROCESANDO {nombre_archivo} "
               f"({idx + 1}/{len(sujetos)})")
+
+        # Seleccionar mapeo segun el ejercicio (E1, E2, E3)
+        if "E2" in nombre_archivo:
+            mapeo_actual = MAPEO_E2
+            print(f"  [MAPEO] Exercise B: Rest(0), Power(6->3), Finger_Ext(5->4)")
+        elif "E3" in nombre_archivo:
+            mapeo_actual = MAPEO_E3
+            print(f"  [MAPEO] Exercise C: Rest(0), Pinch(15->1), Tripod(13->2)")
+        else:  # E1 u otros
+            mapeo_actual = MAPEO_E1
+            print(f"  [MAPEO] Exercise A: solo Rest(0)")
 
         # Paso 1: Seleccionar canales (simular hardware fisico)
         emg, acc = seleccionar_canales(emg_raw, acc_raw)
 
-        # Paso 2: Mapear etiquetas y filtrar
-        mask, labels_mapeadas = mapear_etiquetas(labels, mapeo)
+        # Paso 2: Mapear etiquetas segun el ejercicio y filtrar
+        mask, labels_mapeadas = mapear_etiquetas(labels, mapeo_actual)
 
         if mask.sum() == 0:
             print("  [!] Sin muestras de las clases objetivo, saltando.")
@@ -520,11 +613,17 @@ def cargar_procesar_dataset(
     if not todas_X:
         raise RuntimeError(
             "No se generaron ventanas. Verifique que los archivos .mat "
-            "contengan las clases del mapeo {0,17,18,42,44}."
+            "contengan las clases requeridas (E1={0}, E2={0,5,6}, E3={0,13,15})."
         )
 
     X_total = np.concatenate(todas_X, axis=0)
     y_total = np.concatenate(todas_y, axis=0)
+
+    # Aplicar sub-muestreo para balancear la clase 0 (Rest)
+    print(f"\n{'='*50}")
+    print("SUB-MUESTREO: Balanceando clase 0 (Rest)")
+    print("=" * 50)
+    X_total, y_total = submuestrear_clase_0(X_total, y_total)
 
     print(f"\n{'='*50}")
     print("DATASET FINAL")

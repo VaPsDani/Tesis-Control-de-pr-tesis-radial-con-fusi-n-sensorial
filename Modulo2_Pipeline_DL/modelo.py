@@ -145,8 +145,11 @@ def construir_modelo(
     # --- Bloque BiLSTM: Dependencias temporales bidireccionales ---
     # BiLSTM procesa la secuencia completa en ambos sentidos.
     # return_sequences=True para que Attention reciba toda la secuencia.
+    # BiLSTM con cuDNN activado (por defecto en TF 2.10).
+    # En NVIDIA RTX, cuDNN acelera ~3-5x la operacion LSTM.
     x = layers.Bidirectional(
-        layers.LSTM(units=32, return_sequences=True, kernel_regularizer=l2(l2_reg)),
+        layers.LSTM(units=32, return_sequences=True,
+                    kernel_regularizer=l2(l2_reg)),
         name="bilstm_1",
     )(x)
 
@@ -182,9 +185,8 @@ def resumen_modelo(modelo: Model):
     modelo.summary()
     total_params = modelo.count_params()
     print(f"[MODELO] Parametros totales: {total_params:,}")
-    print(f"[MODELO] Parametros entrenables: {sum(
-        tf.size(w).numpy() for w in modelo.trainable_weights
-    ):,}")
+    params_entrenables = sum(tf.size(w).numpy() for w in modelo.trainable_weights)
+    print(f"[MODELO] Parametros entrenables: {params_entrenables:,}")
 
     if total_params < 100_000:
         print("[OK] Modelo ligero, apto para TFLite Micro")

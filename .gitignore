@@ -20,7 +20,7 @@ build/
 .venv/
 venv/
 env/
-
+venv_tesis/
 # ========== TensorFlow / TFLite ==========
 *.tflite
 *.keras
