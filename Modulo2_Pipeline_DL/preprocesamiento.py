@@ -328,7 +328,7 @@ def mapear_etiquetas(
                           o -1 para las descartadas
     """
     if mapeo is None:
-        mapeo = MAPEO_GESTOS
+        mapeo = MAPEO_E1
 
     # Tabla inversa: id_original -> clase_destino
     tabla = {}
@@ -424,7 +424,7 @@ class SlidingWindowPreprocessor:
 
         X = np.array(ventanas_X, dtype=np.float32)
         y = np.array(ventanas_y, dtype=np.int32)
-        y_onehot = np.eye(5, dtype=np.float32)[y]
+        y_onehot = np.eye(NUM_CLASES, dtype=np.float32)[y]
 
         print(f"[VENTANEO] Dataset generado:")
         print(f"  Ventanas totales: {X.shape[0]}")
