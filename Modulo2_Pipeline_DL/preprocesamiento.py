@@ -133,7 +133,7 @@ class CargadorNinaProDB5:
 
     def extraer_sujeto(self, datos: dict):
         """
-        Extrae EMG, ACC y restimulus directamente del dict toplevel.
+        Extrae EMG, ACC, restimulus y repetition del dict toplevel.
 
         Las variables en NinaPro DB5 estan en el nivel superior
         del .mat (no anidadas en structs).
@@ -142,6 +142,7 @@ class CargadorNinaProDB5:
             emg: (N, 16)  float64  -- todos los canales
             acc: (N, 6)   float64  -- todos los canales
             labels: (N,)  int64    -- etiquetas restimulus
+            repetition: (N,) int64 -- numero de repeticion (1..6)
         """
         if "emg" not in datos or "acc" not in datos:
             claves = [k for k in datos.keys() if not k.startswith("__")]
@@ -159,31 +160,38 @@ class CargadorNinaProDB5:
             raise KeyError("No se encontro 'restimulus' ni 'stimulus'.")
         labels = np.asarray(labels, dtype=np.int64).ravel()
 
+        # Repeticion: necesario para GroupKFold (evitar data leakage)
+        repetition = datos.get("repetition")
+        if repetition is None:
+            raise KeyError("No se encontro 'repetition' en el .mat.")
+        repetition = np.asarray(repetition, dtype=np.int64).ravel()
+
         # Expandir 1D a 2D si es necesario
         if emg.ndim == 1:
             emg = emg.reshape(-1, 1)
         if acc.ndim == 1:
             acc = acc.reshape(-1, 1)
 
-        return emg, acc, labels
+        return emg, acc, labels, repetition
 
     def cargar_todos(self) -> list:
         """
-        Carga todos los archivos .mat E1 encontrados.
+        Carga todos los archivos .mat encontrados.
 
-        Retorna lista de tuplas (emg_raw, acc_raw, labels).
+        Retorna lista de tuplas (emg_raw, acc_raw, labels, repetition).
         emg_raw tiene 16 canales, acc_raw tiene 6 canales.
         """
         sujetos = []
         for ruta in self.archivos:
             try:
                 datos = self._cargar_mat(ruta)
-                emg, acc, labels = self.extraer_sujeto(datos)
-                sujetos.append((emg, acc, labels))
+                emg, acc, labels, repetition = self.extraer_sujeto(datos)
+                sujetos.append((emg, acc, labels, repetition))
                 clases_unicas = sorted(np.unique(labels))
+                reps_unicas = sorted(np.unique(repetition))
                 print(f"  [{ruta.name}] {emg.shape[0]} muestras, "
                       f"EMG={emg.shape[1]}ch, ACC={acc.shape[1]}ch, "
-                      f"clases={clases_unicas}")
+                      f"clases={clases_unicas}, reps={reps_unicas}")
             except Exception as e:
                 print(f"  [!] Error en {ruta.name}: {e}")
         return sujetos
@@ -380,8 +388,9 @@ class SlidingWindowPreprocessor:
         self.stride = stride_samples
 
     def generar_ventanas(
-        self, emg: np.ndarray, acc: np.ndarray, labels: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        self, emg: np.ndarray, acc: np.ndarray, labels: np.ndarray,
+        repetition: np.ndarray,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Aplica ventana deslizante con early fusion.
 
@@ -389,10 +398,12 @@ class SlidingWindowPreprocessor:
             emg: (N, 5)  sEMG (5 canales LMG simulados) a 200 Hz
             acc: (N, 3)  ACC reconstruido (3 ejes IMU) a 200 Hz
             labels: (N,) etiquetas mapeadas (0-4)
+            repetition: (N,) numero de repeticion (1..6)
 
         Returns:
             X: (ventanas, 40, 8)  early fusion EMG+ACC
             y: (ventanas, 5)      one-hot encoding
+            grupos: (ventanas,)   id de repeticion para GroupKFold
         """
         n = emg.shape[0]
 
@@ -402,6 +413,7 @@ class SlidingWindowPreprocessor:
 
         ventanas_X = []
         ventanas_y = []
+        ventanas_grupos = []
 
         for inicio in range(0, n - self.window_size + 1, self.stride):
             fin = inicio + self.window_size
@@ -416,6 +428,14 @@ class SlidingWindowPreprocessor:
             etiqueta = np.bincount(etiquetas_validas).argmax()
             ventanas_y.append(etiqueta)
 
+            # Grupo (repetition) por voto mayoritario dentro de la ventana
+            rep_en_ventana = repetition[inicio:fin]
+            rep_validas = rep_en_ventana[etiquetas_en_ventana >= 0]
+            if len(rep_validas) == 0:
+                rep_validas = rep_en_ventana
+            grupo = int(np.bincount(rep_validas).argmax())
+            ventanas_grupos.append(grupo)
+
         if len(ventanas_X) == 0:
             raise ValueError(
                 "No se generaron ventanas. Verifique la longitud de los datos "
@@ -425,6 +445,7 @@ class SlidingWindowPreprocessor:
         X = np.array(ventanas_X, dtype=np.float32)
         y = np.array(ventanas_y, dtype=np.int32)
         y_onehot = np.eye(NUM_CLASES, dtype=np.float32)[y]
+        grupos = np.array(ventanas_grupos, dtype=np.int32)
 
         print(f"[VENTANEO] Dataset generado:")
         print(f"  Ventanas totales: {X.shape[0]}")
@@ -434,8 +455,9 @@ class SlidingWindowPreprocessor:
         dist = {NOMBRES_GESTOS[c]: int(counts[i])
                 for i, c in enumerate(clases)}
         print(f"  Distribucion: {dist}")
+        print(f"  Grupos (repeticiones): {sorted(np.unique(grupos))}")
 
-        return X, y_onehot
+        return X, y_onehot, grupos
 
 
 # ============================================================
@@ -444,8 +466,9 @@ class SlidingWindowPreprocessor:
 def submuestrear_clase_0(
     X: np.ndarray,
     y: np.ndarray,
+    grupos: np.ndarray = None,
     random_state: int = 42,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Reduce aleatoriamente la clase 0 (Rest) para balancear el dataset.
 
@@ -463,10 +486,11 @@ def submuestrear_clase_0(
     Args:
         X: (N, 40, 8)  ventanas de features
         y: (N, 5)      one-hot encoding
+        grupos: (N,)    grupos de repeticion para GroupKFold (opcional)
         random_state: Semilla para reproducibilidad
 
     Returns:
-        X_bal, y_bal: Dataset balanceado
+        X_bal, y_bal, grupos_bal: Dataset balanceado (con grupos filtrados)
     """
     rng = np.random.RandomState(random_state)
     y_int = y.argmax(axis=1)
@@ -488,7 +512,9 @@ def submuestrear_clase_0(
     if n_0_original <= target:
         print(f"  [SUB-MUESTREO] Clase 0 ({n_0_original}) <= target ({target}), "
               f"no se aplica sub-muestreo.")
-        return X, y
+        if grupos is not None:
+            return X, y, grupos
+        return X, y, np.array([], dtype=np.int32)
 
     # Submuestrear clase 0
     idx_0_sel = rng.choice(idx_clase_0, size=target, replace=False)
@@ -498,12 +524,13 @@ def submuestrear_clase_0(
 
     X_bal = X[idx_final]
     y_bal = y[idx_final]
+    grupos_bal = grupos[idx_final] if grupos is not None else np.array([], dtype=np.int32)
 
     print(f"  [SUB-MUESTREO] Clase 0: {n_0_original} -> {target} "
           f"(reducidas en {n_0_original - target})")
     print(f"  [SUB-MUESTREO] Dataset balanceado: {len(idx_final)} ventanas")
 
-    return X_bal, y_bal
+    return X_bal, y_bal, grupos_bal
 
 
 # ============================================================
@@ -513,7 +540,7 @@ def cargar_procesar_dataset(
     ruta_dataset: str,
     ventana_ms: int = VENTANA_MS,
     stride_ms: int = STRIDE_MS,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Orquesta la carga y preprocesamiento de todo NinaPro DB5.
 
@@ -524,14 +551,15 @@ def cargar_procesar_dataset(
     Cualquier fila con restimulus fuera de estos rangos se descarta.
 
     Flujo por cada archivo .mat:
-      1. Cargar EMG (16ch), ACC (6ch), restimulus
+      1. Cargar EMG (16ch), ACC (6ch), restimulus, repetition
       2. Seleccionar canales: EMG[:5], ACC[:3]
       3. Seleccionar mapeo segun el nombre del archivo (E1/E2/E3)
       4. Mapear y filtrar filas (descarta las no mapeadas)
       5. Remuestrear ACC (200 -> 50 -> 200 Hz)
       6. Ventana deslizante con early fusion (8 canales)
-      7. Acumular ventanas de todos los archivos
-      8. Sub-muestreo aleatorio de clase 0 (Rest) para balancear
+      7. Asignar a cada ventana su grupo = repeticion (voto mayoritario)
+      8. Acumular ventanas de todos los archivos
+      9. Sub-muestreo aleatorio de clase 0 (Rest) para balancear
 
     Args:
         ruta_dataset: Directorio con los archivos .mat
@@ -541,6 +569,7 @@ def cargar_procesar_dataset(
     Returns:
         X: (total_ventanas, 40, 8)
         y: (total_ventanas, 5)  one-hot
+        grupos: (total_ventanas,) grupo de repeticion para GroupKFold
     """
     cargador = CargadorNinaProDB5(ruta_dataset)
     sujetos = cargador.cargar_todos()
@@ -552,8 +581,9 @@ def cargar_procesar_dataset(
 
     todas_X = []
     todas_y = []
+    todas_grupos = []
 
-    for idx, (emg_raw, acc_raw, labels) in enumerate(sujetos):
+    for idx, (emg_raw, acc_raw, labels, repetition) in enumerate(sujetos):
         nombre_archivo = cargador.archivos[idx].name
         print(f"\n{'='*50}")
         print(f"PROCESANDO {nombre_archivo} "
@@ -583,6 +613,7 @@ def cargar_procesar_dataset(
         emg = emg[mask]
         acc = acc[mask]
         labels_filtradas = labels_mapeadas[mask]
+        rep_filtrada = repetition[mask]
         print(f"  Muestras utiles: {len(labels_filtradas)}")
 
         # Paso 3: Remuestrear acelerometro (200 -> 50 -> 200 Hz)
@@ -594,8 +625,8 @@ def cargar_procesar_dataset(
             tasa_destino=TASA_FINAL,
         )
 
-        assert emg.shape[0] == acc_reconstruido.shape[0] == labels_filtradas.shape[0], \
-            f"Desalineacion: EMG {emg.shape}, ACC {acc_reconstruido.shape}, Labels {labels_filtradas.shape}"
+        assert emg.shape[0] == acc_reconstruido.shape[0] == labels_filtradas.shape[0] == rep_filtrada.shape[0], \
+            f"Desalineacion: EMG {emg.shape}, ACC {acc_reconstruido.shape}, Labels {labels_filtradas.shape}, Rep {rep_filtrada.shape}"
 
         # Paso 4: Ventana deslizante con early fusion
         preproc = SlidingWindowPreprocessor(
@@ -603,12 +634,13 @@ def cargar_procesar_dataset(
             stride_samples=int(stride_ms * TASA_FINAL / 1000),
         )
 
-        X_sujeto, y_sujeto = preproc.generar_ventanas(
-            emg, acc_reconstruido, labels_filtradas
+        X_sujeto, y_sujeto, grupos_sujeto = preproc.generar_ventanas(
+            emg, acc_reconstruido, labels_filtradas, rep_filtrada
         )
 
         todas_X.append(X_sujeto)
         todas_y.append(y_sujeto)
+        todas_grupos.append(grupos_sujeto)
 
     if not todas_X:
         raise RuntimeError(
@@ -618,12 +650,15 @@ def cargar_procesar_dataset(
 
     X_total = np.concatenate(todas_X, axis=0)
     y_total = np.concatenate(todas_y, axis=0)
+    grupos_total = np.concatenate(todas_grupos, axis=0)
 
     # Aplicar sub-muestreo para balancear la clase 0 (Rest)
     print(f"\n{'='*50}")
     print("SUB-MUESTREO: Balanceando clase 0 (Rest)")
     print("=" * 50)
-    X_total, y_total = submuestrear_clase_0(X_total, y_total)
+    X_total, y_total, grupos_total = submuestrear_clase_0(
+        X_total, y_total, grupos_total
+    )
 
     print(f"\n{'='*50}")
     print("DATASET FINAL")
@@ -632,8 +667,9 @@ def cargar_procesar_dataset(
     for i, nombre in enumerate(NOMBRES_GESTOS):
         count = (y_total[:, i] == 1).sum()
         print(f"    {nombre}: {count} ({100*count/y_total.shape[0]:.1f}%)")
+    print(f"  Grupos unicos: {sorted(np.unique(grupos_total))}")
 
-    return X_total, y_total
+    return X_total, y_total, grupos_total
 
 
 if __name__ == "__main__":
@@ -642,6 +678,7 @@ if __name__ == "__main__":
     print("=" * 60)
     print("PREPROCESAMIENTO NINAPRO DB5")
     print("=" * 60)
-    X, y = cargar_procesar_dataset(ruta)
+    X, y, grupos = cargar_procesar_dataset(ruta)
     print(f"\n[OK] Dataset listo: {X.shape[0]} ventanas, "
-          f"{X.shape[1]} pasos, {X.shape[2]} canales.")
+          f"{X.shape[1]} pasos, {X.shape[2]} canales, "
+          f"{len(np.unique(grupos))} grupos de repeticion.")

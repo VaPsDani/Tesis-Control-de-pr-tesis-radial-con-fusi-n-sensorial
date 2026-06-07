@@ -27,7 +27,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import GroupKFold
 from sklearn.metrics import (
     classification_report,
     confusion_matrix,
@@ -441,26 +441,27 @@ def main():
     print("PASO 1: Cargando y preprocesando NinaPro DB5")
     print("=" * 60)
 
-    X, y = cargar_procesar_dataset(args.mat)
+    X, y, groups = cargar_procesar_dataset(args.mat)
 
     n_total = X.shape[0]
     print(f"\nDataset total: {n_total} ventanas de "
           f"{X.shape[1]} pasos x {X.shape[2]} canales")
+    print(f"Grupos de repeticion disponibles: {sorted(np.unique(groups))}")
 
     # ============================================================
-    # PASO 2: VALIDACION CRUZADA ESTRATIFICADA (K-FOLD)
+    # PASO 2: VALIDACION CRUZADA POR GRUPOS (GroupKFold)
     # ============================================================
+    # Usamos GroupKFold en lugar de StratifiedKFold para evitar
+    # data leakage: todas las ventanas de una misma repeticion
+    # fisica (en el dominio EMG/ACC original) van juntas a
+    # entrenamiento o validacion, nunca mezcladas entre folds.
     print("\n" + "=" * 60)
-    print(f"PASO 2: Validacion cruzada estratificada (k={args.folds})")
+    print(f"PASO 2: Validacion cruzada por grupos (GroupKFold, k={args.folds})")
     print("=" * 60)
 
-    kfold = StratifiedKFold(
-        n_splits=args.folds,
-        shuffle=True,
-        random_state=42,
-    )
+    kfold = GroupKFold(n_splits=args.folds)
 
-    # Obtener etiquetas enteras para estratificacion
+    # Obtener etiquetas enteras
     y_int = y.argmax(axis=1)
 
     historiales = []
@@ -470,7 +471,7 @@ def main():
     todas_y_pred = []
 
     for fold_idx, (idx_train, idx_val) in enumerate(
-        kfold.split(X, y_int)
+        kfold.split(X, y_int, groups=groups)
     ):
         X_train, X_val = X[idx_train], X[idx_val]
         y_train, y_val = y[idx_train], y[idx_val]
