@@ -48,6 +48,16 @@ warnings.filterwarnings("ignore")
 RESULTADOS_DIR = "resultados_preliminares"
 
 
+def augmentar_muestra(X, y):
+    noise = tf.random.normal(tf.shape(X), mean=0.0, stddev=0.02)
+    X = X + noise
+    factor = tf.random.uniform([], minval=0.95, maxval=1.05)
+    X = X * factor
+    shift = tf.random.uniform([], minval=-1, maxval=2, dtype=tf.int32)
+    X = tf.roll(X, shift=shift, axis=0)
+    return X, y
+
+
 # ============================================================
 # GRAFICAS DE ENTRENAMIENTO
 # ============================================================
@@ -365,11 +375,16 @@ def entrenar_fold(
         ),
     ]
 
+    train_ds = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+    train_ds = train_ds.map(augmentar_muestra, num_parallel_calls=tf.data.AUTOTUNE)
+    train_ds = train_ds.shuffle(1024).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+    val_ds = tf.data.Dataset.from_tensor_slices((X_val, y_val))
+    val_ds = val_ds.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+
     history = modelo.fit(
-        X_train, y_train,
-        validation_data=(X_val, y_val),
+        train_ds,
+        validation_data=val_ds,
         epochs=epochs,
-        batch_size=batch_size,
         callbacks=callbacks,
         verbose=0,
     )

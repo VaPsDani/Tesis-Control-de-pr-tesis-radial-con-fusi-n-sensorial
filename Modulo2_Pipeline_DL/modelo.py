@@ -168,13 +168,13 @@ def construir_modelo(
     return modelo
 
 
-def compilar_modelo(modelo: Model, lr: float = 1e-3) -> Model:
+def compilar_modelo(modelo: Model, lr: float = 1e-3, label_smoothing: float = 0.1) -> Model:
     """
     Compila el modelo con optimizador Adam y categorical crossentropy.
     """
     modelo.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=lr),
-        loss="categorical_crossentropy",
+        loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=label_smoothing),
         metrics=["accuracy", tf.keras.metrics.AUC(name="auc")],
     )
     return modelo
