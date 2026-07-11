@@ -36,6 +36,7 @@ resultados_preliminares/
 # ========== WSL / Misc ==========
 C:UsersALEJANDRO/
 launch_train.sh
+codigo_simple/
 
 # ========== PlatformIO ==========
 .pio/

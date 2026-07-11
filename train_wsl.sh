@@ -1,5 +1,0 @@
-#!/bin/bash
-export LD_LIBRARY_PATH=/home/alejandro/miniconda/envs/tf/lib/python3.12/site-packages/nvidia/cublas/lib:/home/alejandro/miniconda/envs/tf/lib/python3.12/site-packages/nvidia/cudnn/lib:/home/alejandro/miniconda/envs/tf/lib/python3.12/site-packages/nvidia/cufft/lib:/home/alejandro/miniconda/envs/tf/lib/python3.12/site-packages/nvidia/curand/lib:/home/alejandro/miniconda/envs/tf/lib/python3.12/site-packages/nvidia/cusolver/lib:/home/alejandro/miniconda/envs/tf/lib/python3.12/site-packages/nvidia/cusparse/lib:/home/alejandro/miniconda/envs/tf/lib/python3.12/site-packages/nvidia/nccl/lib:/home/alejandro/miniconda/envs/tf/lib/python3.12/site-packages/nvidia/nvjitlink/lib:/home/alejandro/miniconda/envs/tf/lib/python3.12/site-packages/nvidia/cuda_nvrtc/lib:/home/alejandro/miniconda/envs/tf/lib/python3.12/site-packages/nvidia/cuda_runtime/lib
-export TF_CPP_MIN_LOG_LEVEL=2
-cd /mnt/c/Users/ALEJANDRO/Documents/Github/Tesis-Control-de-pr-tesis-radial-con-fusi-n-sensorial/Modulo2_Pipeline_DL
-/home/alejandro/miniconda/envs/tf/bin/python entrenamiento.py --mat ./NinaPro_DB5 --epochs 100 --batch_size 32
