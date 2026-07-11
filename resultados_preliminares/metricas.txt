@@ -1,0 +1,28 @@
+Accuracy promedio: 82.98%
+Accuracy std: 2.85%
+Accuracy por fold: ['79.36%', '82.75%', '84.38%', '87.56%', '80.87%']
+
+Fold 1: Acc=79.36%, Loss=0.9132, AUC=0.9457, Epochs=30
+Fold 2: Acc=82.75%, Loss=0.7995, AUC=0.9660, Epochs=41
+Fold 3: Acc=84.38%, Loss=0.7884, AUC=0.9703, Epochs=25
+Fold 4: Acc=87.56%, Loss=0.7062, AUC=0.9774, Epochs=71
+Fold 5: Acc=80.87%, Loss=0.8575, AUC=0.9595, Epochs=23
+
+Clase           Precision  Recall     F1         Muestras  
+Rest            0.8367     0.9450     0.8875     10869     
+Pinch           0.8423     0.8283     0.8352     13303     
+Tripod          0.8843     0.8283     0.8554     10836     
+Power           0.8383     0.7547     0.7943     9765      
+Finger_Ext      0.7591     0.7967     0.7775     9573      
+
+              precision    recall  f1-score   support
+
+        Rest     0.8367    0.9450    0.8875     10869
+       Pinch     0.8423    0.8283    0.8352     13303
+      Tripod     0.8843    0.8283    0.8554     10836
+       Power     0.8383    0.7547    0.7943      9765
+  Finger_Ext     0.7591    0.7967    0.7775      9573
+
+    accuracy                         0.8328     54346
+   macro avg     0.8321    0.8306    0.8300     54346
+weighted avg     0.8342    0.8328    0.8322     54346
