@@ -48,8 +48,7 @@ El entrenamiento corre validación cruzada con 5 folds y guarda los resultados e
 
 ### Versión simplificada vs completa
 
-La carpeta `codigo_simple/` contiene el mismo pipeline pero sin comentarios y con código más directo.
-Es ideal para entender el flujo general sin distracciones.
+La carpeta `codigo_simple/` contiene el mismo pipeline pero sin comentarios y con código más directo. Lo generamos para resumir.
 
 ## Archivos del proyecto
 
@@ -64,13 +63,4 @@ codigo_simple/
   entrenamiento_simple.py (versión simplificada)
   modelo_simple.py        (versión simplificada)
   preprocesamiento_simple.py (versión simplificada)
-```
-
-## Push al repo
-
-Este repositorio usa HTTPS. GitHub ya no acepta contraseñas; usa un Personal Access Token:
-
-```bash
-git remote set-url origin https://<TOKEN>@github.com/VaPsDani/Tesis-Control-de-pr-tesis-radial-con-fusi-n-sensorial.git
-git push origin sEMG-+-IMU
 ```
