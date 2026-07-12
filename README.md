@@ -24,7 +24,7 @@ export LD_LIBRARY_PATH=/home/tu_usuario/miniconda3/envs/tf/lib/python3.12/site-p
 ```
 
 ## Dataset
-
+## Link del dataset: https://ninapro.hevs.ch/instructions/DB5.html
 El dataset NinaPro DB5 debe estar en `Modulo2_Pipeline_DL/NinaPro_DB5/`.
 Contiene 30 archivos .mat (10 sujetos × 3 ejercicios).
 
