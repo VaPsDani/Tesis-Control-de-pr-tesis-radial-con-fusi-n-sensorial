@@ -12,8 +12,7 @@
 # Desde WSL (Ubuntu)
 conda create -n tf python=3.12 -y
 conda activate tf
-pip install tensorflow[and-cuda]==2.16.1
-pip install numpy==1.26.4 pandas scikit-learn matplotlib seaborn scipy
+pip install -r Modulo2_Pipeline_DL/requirements.txt
 ```
 
 ## Variables de entorno
