@@ -1,0 +1,53 @@
+{
+  "_nota": "Auditoria de la linea base. NO corrige nada ni reejecuta entrenamientos; los resultados de resultados_cv/ se conservan. El numero se declara como limitacion.",
+  "n_ventanas_antes_submuestreo": 1035459,
+  "n_ventanas_final": 54346,
+  "cruzan_hueco": 318,
+  "cruzan_repeticion": 876,
+  "cruzan_etiqueta": 2288,
+  "cruzan_cualquiera": 3405,
+  "pct_cruzan_cualquiera": 6.2654,
+  "cruzan_ejercicio": 0,
+  "por_clase": {
+    "Rest": {
+      "total": 10869,
+      "afectadas": 1007
+    },
+    "Pinch": {
+      "total": 13303,
+      "afectadas": 701
+    },
+    "Tripod": {
+      "total": 10836,
+      "afectadas": 571
+    },
+    "Power": {
+      "total": 9765,
+      "afectadas": 554
+    },
+    "Finger_Ext": {
+      "total": 9573,
+      "afectadas": 572
+    }
+  },
+  "por_ejercicio_antes_submuestreo": {
+    "E1": {
+      "ventanas": 226253,
+      "hueco": 7026,
+      "repeticion": 13865,
+      "etiqueta": 0
+    },
+    "E2": {
+      "ventanas": 338666,
+      "hueco": 8760,
+      "repeticion": 19744,
+      "etiqueta": 2326
+    },
+    "E3": {
+      "ventanas": 470540,
+      "hueco": 12241,
+      "repeticion": 26816,
+      "etiqueta": 2339
+    }
+  }
+}
