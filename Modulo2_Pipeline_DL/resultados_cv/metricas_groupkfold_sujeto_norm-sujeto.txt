@@ -1,0 +1,152 @@
+==============================================================================
+REPORTE DE METRICAS - VALIDACION CRUZADA
+Dataset: NinaPro DB5 (10 sujetos, 30 archivos .mat)
+Modelo:  CNN-BiLSTM-Attention, entrada (40, 8)
+Esquema: GroupKFold k=5 agrupado por SUJETO
+Clases:  Rest, Pinch, Tripod, Power, Finger_Ext
+Generado: 2026-09-07T01:30:49
+==============================================================================
+
+------------------------------------------------------------------------------
+COMPOSICION DE LOS PLIEGUES
+------------------------------------------------------------------------------
+  --- Pliegue 1 (agrupamiento: sujeto) ---
+    Sujetos TRAIN (8): [1, 2, 4, 5, 7, 8, 9, 10]
+    Sujetos TEST  (2): [3, 6]
+    Sujetos en AMBOS lados: ninguno
+    Ventanas: train=43614 test=10732
+    Clase              train      test    % test
+    Rest                8804      2065     19.2%
+    Pinch              10871      2432     22.7%
+    Tripod              8664      2172     20.2%
+    Power               7801      1964     18.3%
+    Finger_Ext          7474      2099     19.6%
+
+  --- Pliegue 2 (agrupamiento: sujeto) ---
+    Sujetos TRAIN (8): [1, 2, 3, 4, 5, 6, 8, 10]
+    Sujetos TEST  (2): [7, 9]
+    Sujetos en AMBOS lados: ninguno
+    Ventanas: train=43386 test=10960
+    Clase              train      test    % test
+    Rest                8614      2255     20.6%
+    Pinch              10568      2735     24.9%
+    Tripod              8744      2092     19.1%
+    Power               7749      2016     18.4%
+    Finger_Ext          7711      1862     17.0%
+
+  --- Pliegue 3 (agrupamiento: sujeto) ---
+    Sujetos TRAIN (8): [1, 3, 5, 6, 7, 8, 9, 10]
+    Sujetos TEST  (2): [2, 4]
+    Sujetos en AMBOS lados: ninguno
+    Ventanas: train=43439 test=10907
+    Clase              train      test    % test
+    Rest                8667      2202     20.2%
+    Pinch              10508      2795     25.6%
+    Tripod              8686      2150     19.7%
+    Power               7911      1854     17.0%
+    Finger_Ext          7667      1906     17.5%
+
+  --- Pliegue 4 (agrupamiento: sujeto) ---
+    Sujetos TRAIN (8): [1, 2, 3, 4, 6, 7, 8, 9]
+    Sujetos TEST  (2): [5, 10]
+    Sujetos en AMBOS lados: ninguno
+    Ventanas: train=43467 test=10879
+    Clase              train      test    % test
+    Rest                8634      2235     20.5%
+    Pinch              10641      2662     24.5%
+    Tripod              8577      2259     20.8%
+    Power               7871      1894     17.4%
+    Finger_Ext          7744      1829     16.8%
+
+  --- Pliegue 5 (agrupamiento: sujeto) ---
+    Sujetos TRAIN (8): [2, 3, 4, 5, 6, 7, 9, 10]
+    Sujetos TEST  (2): [1, 8]
+    Sujetos en AMBOS lados: ninguno
+    Ventanas: train=43478 test=10868
+    Clase              train      test    % test
+    Rest                8757      2112     19.4%
+    Pinch              10624      2679     24.6%
+    Tripod              8673      2163     19.9%
+    Power               7728      2037     18.7%
+    Finger_Ext          7696      1877     17.3%
+
+------------------------------------------------------------------------------
+RESULTADOS POR PLIEGUE
+------------------------------------------------------------------------------
+  Pliegue     Accuracy   F1 macro       AUC      Loss   Epocas  Restaur.   Argmin
+  -----------------------------------------------------------------------------
+  1             0.5641     0.5442    0.8020    1.6013       37        22        3
+  2             0.7503     0.7532    0.9237    1.0539       34        19        2
+  3             0.7540     0.7547    0.9228    1.0158       45        30        3
+  4             0.6590     0.6152    0.8706    1.3096       36        21        1
+  5             0.7727     0.7709    0.9333    0.9805       27        12        1
+  ------------------------------------------------------------------
+  Media         0.7000     0.6876    0.8905    1.1922
+  Std           0.0786     0.0912    0.0494    0.2350
+
+  Accuracy: 70.00% +/- 7.86%
+
+  Normalizacion: sujeto   |   early_stopping_start: 10
+  'Restaur.' = epoca cuyos pesos devolvio restore_best_weights.
+  'Argmin'   = minimo global de val_loss, incluidas las epocas
+               anteriores al umbral (no es lo que se evaluo).
+  Ningun pliegue quedo pegado al umbral: todos siguieron
+  mejorando el val_loss despues del calentamiento.
+
+------------------------------------------------------------------------------
+METRICAS POR CLASE (predicciones combinadas de los 5 pliegues)
+------------------------------------------------------------------------------
+  Clase            Precision      Recall          F1    Muestras
+  --------------------------------------------------------------
+  Rest                0.6655      0.9249      0.7741       10869
+  Pinch               0.6718      0.5025      0.5750       13303
+  Tripod              0.8530      0.8216      0.8370       10836
+  Power               0.6667      0.7427      0.7026        9765
+  Finger_Ext          0.6489      0.5406      0.5898        9573
+
+------------------------------------------------------------------------------
+MATRIZ DE CONFUSION NORMALIZADA (agregada, filas = clase real)
+------------------------------------------------------------------------------
+                       Rest      Pinch     Tripod      Power Finger_Ext
+  Rest               0.9249     0.0463     0.0078     0.0113     0.0097
+  Pinch              0.2362     0.5025     0.0355     0.1222     0.1037
+  Tripod             0.0603     0.0390     0.8216     0.0298     0.0493
+  Power              0.0688     0.0905     0.0179     0.7427     0.0801
+  Finger_Ext         0.0612     0.1521     0.0838     0.1623     0.5406
+
+==============================================================================
+COMPARATIVA CONTRA LA LINEA BASE (agrupamiento por repeticion)
+Fuente linea base: tag si2-groupkfold-repeticion (commit af6a26a), resultados_preliminares/metricas.txt
+==============================================================================
+
+  Metrica                   por REPETICION        por SUJETO         Delta
+  ------------------------------------------------------------------------
+  Accuracy media                    0.8298            0.7000       -0.1298
+  Accuracy std                      0.0285            0.0786       +0.0501
+  AUC media                         0.9638            0.8905       -0.0733
+  F1 macro                          0.8300            0.6876       -0.1424
+
+  F1 por clase              por REPETICION        por SUJETO         Delta
+  ------------------------------------------------------------------------
+  Rest                              0.8875            0.7741       -0.1134
+  Pinch                             0.8352            0.5750       -0.2602
+  Tripod                            0.8554            0.8370       -0.0184
+  Power                             0.7943            0.7026       -0.0917
+  Finger_Ext                        0.7775            0.5898       -0.1877
+
+  Accuracy por pliegue  
+    por REPETICION: ['79.36%', '82.75%', '84.38%', '87.56%', '80.87%']
+    por SUJETO:     ['56.41%', '75.03%', '75.40%', '65.90%', '77.27%']
+
+  Epocas hasta early stopping   
+    por REPETICION: [30, 41, 25, 71, 23]
+    por SUJETO:     [37, 34, 45, 36, 27]
+    epoca restaurada por SUJETO: [22, 19, 30, 21, 12]
+
+  NOTA: los dos esquemas comparten arquitectura, hiperparametros,
+  preprocesamiento, ventana, stride, submuestreo de Rest y k=5.
+  El unico grado de libertad es el criterio de agrupamiento.
+  La particion por repeticion deja los 10 sujetos en train Y en
+  test de cada pliegue (metrica intra-sujeto); la particion por
+  sujeto reserva 2 sujetos completos por pliegue (inter-sujeto).
+==============================================================================
