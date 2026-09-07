@@ -260,12 +260,41 @@ def graficar_matriz_confusion(cm_total: np.ndarray, etiqueta: str,
 # ============================================================
 # ENTRENAMIENTO DE UN SOLO PLIEGUE
 # ============================================================
+def fijar_semilla(seed: int, fold_idx: int, determinismo: bool = False) -> None:
+    """
+    Fija la semilla al inicio de cada pliegue.
+
+    Se usa seed + fold_idx y no la semilla desnuda a proposito: si se
+    fijara una sola vez al arrancar, el estado del RNG al empezar el
+    pliegue k dependeria de cuanto azar consumieron los pliegues
+    anteriores, que varia con el numero de epocas de cada uno. Dos
+    corridas que difieren en cualquier cosa (el stride, por ejemplo)
+    divergirian desde el primer pliegue que cambiara de longitud.
+    Reanclando por pliegue, el pliegue k arranca del mismo estado en
+    todas las corridas y las diferencias son atribuibles a lo que se
+    quiso cambiar.
+
+    'determinismo' activa enable_op_determinism(), que fuerza kernels
+    deterministas en GPU. Da reproducibilidad bit a bit pero puede
+    rechazar el kernel cuDNN del LSTM y degradar mucho la velocidad, asi
+    que queda opcional: sin el, fijar la semilla ya elimina la varianza
+    de inicializacion, de barajado y de augmentation, que es la que
+    domina.
+    """
+    tf.keras.utils.set_random_seed(seed + fold_idx)
+    if determinismo:
+        tf.config.experimental.enable_op_determinism()
+
+
 def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
-                     epochs, batch_size, lr, early_stopping_start=0):
+                     epochs, batch_size, lr, early_stopping_start=0,
+                     seed=None, determinismo=False):
     """
     Construye, entrena y evalua el modelo en un pliegue.
     Retorna (history, y_pred, metricas_dict).
     """
+    if seed is not None:
+        fijar_semilla(seed, fold_idx, determinismo)
     print(f"\n{'='*60}")
     print(f"  PLIEGUE {fold_idx + 1}")
     print(f"  Train: {X_train.shape[0]} | Val: {X_val.shape[0]}")
@@ -429,6 +458,8 @@ def construir_reporte(args, etiqueta, descripciones, metricas_por_fold,
             "batch_size": args.batch_size,
             "epochs_max": args.epochs,
             "normalizacion": args.normalizacion,
+            "seed": args.seed,
+            "determinismo_gpu": bool(args.determinismo),
             "early_stopping_start": args.early_stopping_start,
             "early_stopping_patience": 15,
             "reduce_lr_factor": 0.5,
@@ -674,6 +705,17 @@ def main():
                         help="Tasa de aprendizaje inicial (default: 1e-3)")
     parser.add_argument("--folds", type=int, default=5,
                         help="Numero de pliegues (default: 5)")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Semilla para inicializacion, barajado y "
+                             "augmentation. Sin ella (default) cada corrida "
+                             "difiere en ~0.6 puntos de accuracy, ruido que "
+                             "impide distinguir efectos pequenos. Se reancla "
+                             "por pliegue como seed+fold_idx.")
+    parser.add_argument("--determinismo", action="store_true",
+                        help="Fuerza kernels deterministas en GPU "
+                             "(enable_op_determinism). Reproducibilidad bit a "
+                             "bit, pero puede rechazar el kernel cuDNN del "
+                             "LSTM y ralentizar mucho. Requiere --seed.")
     parser.add_argument("--cache", type=str, default=None,
                         help="Ruta .npz para cachear el dataset preprocesado")
     parser.add_argument("--etiqueta", type=str, default=None,
@@ -684,6 +726,20 @@ def main():
     parser.add_argument("--output_dir", type=str, default=RESULTADOS_DIR,
                         help=f"Directorio de salida (default: {RESULTADOS_DIR}/)")
     args = parser.parse_args()
+
+    if args.determinismo and args.seed is None:
+        parser.error("--determinismo no sirve sin --seed: forzar kernels "
+                     "deterministas no elimina la varianza de inicializacion "
+                     "ni de barajado, que es la que domina.")
+
+    if args.seed is None:
+        print("[SEMILLA] Sin fijar. Dos corridas identicas difieren ~0.6 "
+              "puntos de accuracy; no compare efectos menores que eso.")
+    else:
+        print(f"[SEMILLA] {args.seed} (reanclada por pliegue como "
+              f"seed+fold_idx)"
+              + ("  + determinismo de kernels en GPU"
+                 if args.determinismo else ""))
 
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -784,6 +840,7 @@ def main():
             X_train, y_train, X_val, y_val, fold_idx,
             args.epochs, args.batch_size, args.lr,
             early_stopping_start=args.early_stopping_start,
+            seed=args.seed, determinismo=args.determinismo,
         )
 
         historiales.append(history)
