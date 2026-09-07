@@ -62,6 +62,7 @@ from particion import (
     formatear_pliegue,
     generar_particiones,
 )
+from normalizacion import MODOS as MODOS_NORM, normalizar, verificar_normalizacion
 
 warnings.filterwarnings("ignore")
 
@@ -260,7 +261,7 @@ def graficar_matriz_confusion(cm_total: np.ndarray, etiqueta: str,
 # ENTRENAMIENTO DE UN SOLO PLIEGUE
 # ============================================================
 def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
-                     epochs, batch_size, lr):
+                     epochs, batch_size, lr, early_stopping_start=0):
     """
     Construye, entrena y evalua el modelo en un pliegue.
     Retorna (history, y_pred, metricas_dict).
@@ -280,13 +281,20 @@ def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
     )
     modelo = compilar_modelo(modelo, lr=lr, label_smoothing=LABEL_SMOOTHING)
 
+    # start_from_epoch descarta las primeras epocas del seguimiento de
+    # 'best', no solo del contador de paciencia: con el umbral en 10,
+    # restore_best_weights no puede devolver los pesos de la epoca 1.
+    # Sin el, un pliegue cuyo val_loss sube desde la epoca 2 restaura un
+    # modelo practicamente sin entrenar y su accuracy no mide nada.
+    early_stopping = tf.keras.callbacks.EarlyStopping(
+        monitor="val_loss",
+        patience=15,
+        restore_best_weights=True,
+        start_from_epoch=early_stopping_start,
+        verbose=0,
+    )
     callbacks = [
-        tf.keras.callbacks.EarlyStopping(
-            monitor="val_loss",
-            patience=15,
-            restore_best_weights=True,
-            verbose=0,
-        ),
+        early_stopping,
         tf.keras.callbacks.ReduceLROnPlateau(
             monitor="val_loss",
             factor=0.5,
@@ -324,18 +332,28 @@ def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
     )
 
     n_epocas = len(history.history["loss"])
-    # EarlyStopping con restore_best_weights: la mejor epoca es la que
-    # quedo en los pesos; se recupera del minimo de val_loss.
-    mejor_epoca = int(np.argmin(history.history["val_loss"])) + 1
     paro_temprano = n_epocas < epochs
+
+    # Dos numeros distintos que conviene no confundir:
+    #  - epoca_argmin_global: donde esta el minimo de val_loss en toda la
+    #    curva, incluidas las epocas anteriores al umbral.
+    #  - epoca_restaurada: la que EarlyStopping realmente devolvio en los
+    #    pesos, que con start_from_epoch>0 nunca es anterior al umbral.
+    # Reportar solo el primero mentiria sobre que modelo se evaluo.
+    epoca_argmin_global = int(np.argmin(history.history["val_loss"])) + 1
+    epoca_restaurada = int(getattr(early_stopping, "best_epoch", 0)) + 1
+    en_el_umbral = epoca_restaurada <= early_stopping_start + 1
 
     print(f"  Resultados Pliegue {fold_idx + 1}:")
     print(f"    Loss:       {loss:.4f}")
     print(f"    Accuracy:   {accuracy:.4f} ({accuracy*100:.2f}%)")
     print(f"    AUC:        {auc:.4f}")
     print(f"    F1 macro:   {f1_macro:.4f}")
-    print(f"    Epocas:     {n_epocas} (mejor: {mejor_epoca}, "
-          f"early stopping: {'si' if paro_temprano else 'no, tope de epocas'})")
+    print(f"    Epocas:     {n_epocas} "
+          f"(early stopping: {'si' if paro_temprano else 'no, tope de epocas'})")
+    print(f"    Epoca restaurada:  {epoca_restaurada}"
+          f"{'  <-- pegada al umbral' if en_el_umbral else ''}")
+    print(f"    Argmin val_loss:   {epoca_argmin_global}")
     print(f"    Duracion:   {duracion/60:.1f} min")
 
     metricas = {
@@ -347,7 +365,9 @@ def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
             NOMBRES_GESTOS[i]: float(f1_clases[i]) for i in range(NUM_CLASES)
         },
         "epochs": int(n_epocas),
-        "mejor_epoca": mejor_epoca,
+        "epoca_restaurada": epoca_restaurada,
+        "epoca_argmin_global": epoca_argmin_global,
+        "restaurada_en_el_umbral": bool(en_el_umbral),
         "detuvo_por_early_stopping": bool(paro_temprano),
         "duracion_seg": round(duracion, 1),
     }
@@ -408,6 +428,8 @@ def construir_reporte(args, etiqueta, descripciones, metricas_por_fold,
             "learning_rate": args.lr,
             "batch_size": args.batch_size,
             "epochs_max": args.epochs,
+            "normalizacion": args.normalizacion,
+            "early_stopping_start": args.early_stopping_start,
             "early_stopping_patience": 15,
             "reduce_lr_factor": 0.5,
             "reduce_lr_patience": 7,
@@ -440,7 +462,18 @@ def construir_reporte(args, etiqueta, descripciones, metricas_por_fold,
             "loss_std": float(np.std(losses)),
             "loss_por_fold": [float(v) for v in losses],
             "epochs_por_fold": [m["epochs"] for m in metricas_por_fold],
-            "mejor_epoca_por_fold": [m["mejor_epoca"] for m in metricas_por_fold],
+            "epoca_restaurada_por_fold": [
+                m["epoca_restaurada"] for m in metricas_por_fold
+            ],
+            "epoca_argmin_global_por_fold": [
+                m["epoca_argmin_global"] for m in metricas_por_fold
+            ],
+            "pliegues_restaurados_en_el_umbral": [
+                m["fold"] for m in [
+                    {**metricas_por_fold[i], "fold": i + 1}
+                    for i in range(len(metricas_por_fold))
+                ] if m["restaurada_en_el_umbral"]
+            ],
         },
         "por_clase_global": {
             NOMBRES_GESTOS[i]: {
@@ -492,12 +525,14 @@ def texto_reporte(reporte: dict) -> str:
     L.append("RESULTADOS POR PLIEGUE")
     L.append("-" * 78)
     L.append(f"  {'Pliegue':<9}{'Accuracy':>11}{'F1 macro':>11}{'AUC':>10}"
-             f"{'Loss':>10}{'Epocas':>9}{'Mejor':>8}")
-    L.append(f"  {'-'*66}")
+             f"{'Loss':>10}{'Epocas':>9}{'Restaur.':>10}{'Argmin':>9}")
+    L.append(f"  {'-'*77}")
     for p in reporte["pliegues"]:
+        marca = "*" if p["restaurada_en_el_umbral"] else ""
         L.append(f"  {p['fold']:<9}{p['accuracy']:>11.4f}{p['f1_macro']:>11.4f}"
                  f"{p['auc']:>10.4f}{p['loss']:>10.4f}{p['epochs']:>9}"
-                 f"{p['mejor_epoca']:>8}")
+                 f"{str(p['epoca_restaurada']) + marca:>10}"
+                 f"{p['epoca_argmin_global']:>9}")
     L.append(f"  {'-'*66}")
     L.append(f"  {'Media':<9}{ag['accuracy_media']:>11.4f}"
              f"{ag['f1_macro_media']:>11.4f}{ag['auc_media']:>10.4f}"
@@ -508,6 +543,20 @@ def texto_reporte(reporte: dict) -> str:
     L.append("")
     L.append(f"  Accuracy: {ag['accuracy_media']*100:.2f}% +/- "
              f"{ag['accuracy_std']*100:.2f}%")
+    L.append("")
+    L.append(f"  Normalizacion: {reporte['config']['normalizacion']}   |   "
+             f"early_stopping_start: {reporte['config']['early_stopping_start']}")
+    L.append("  'Restaur.' = epoca cuyos pesos devolvio restore_best_weights.")
+    L.append("  'Argmin'   = minimo global de val_loss, incluidas las epocas")
+    L.append("               anteriores al umbral (no es lo que se evaluo).")
+    pegados = ag["pliegues_restaurados_en_el_umbral"]
+    if pegados:
+        L.append(f"  (*) Pliegues restaurados pegados al umbral: {pegados}.")
+        L.append("      Su val_loss no mejoro despues del calentamiento: el")
+        L.append("      colapso sigue ahi, solo enmascarado por el umbral.")
+    else:
+        L.append("  Ningun pliegue quedo pegado al umbral: todos siguieron")
+        L.append("  mejorando el val_loss despues del calentamiento.")
     L.append("")
 
     # --- Por clase ---
@@ -574,6 +623,8 @@ def texto_reporte(reporte: dict) -> str:
     L.append(f"  {'Epocas hasta early stopping':<30}")
     L.append(f"    por REPETICION: {base['epochs_por_fold']}")
     L.append(f"    por SUJETO:     {ag['epochs_por_fold']}")
+    L.append(f"    epoca restaurada por SUJETO: "
+             f"{ag['epoca_restaurada_por_fold']}")
     L.append("")
     L.append("  NOTA: los dos esquemas comparten arquitectura, hiperparametros,")
     L.append("  preprocesamiento, ventana, stride, submuestreo de Rest y k=5.")
@@ -602,6 +653,19 @@ def main():
                              "(default: sujeto)")
     parser.add_argument("--estratificado", action="store_true",
                         help="Usar StratifiedGroupKFold en lugar de GroupKFold")
+    parser.add_argument("--normalizacion", type=str, default="ninguna",
+                        choices=list(MODOS_NORM),
+                        help="Estandarizacion z-score por canal: 'ninguna', "
+                             "'global' (stats solo de train), 'sujeto' (stats "
+                             "propias de cada sujeto) o 'sujeto_rest' (stats "
+                             "de las ventanas Rest de cada sujeto). "
+                             "Default: ninguna")
+    parser.add_argument("--early_stopping_start", type=int, default=10,
+                        help="Epoca minima antes de que EarlyStopping pueda "
+                             "disparar o fijar 'best'. Con 0 se reproduce el "
+                             "comportamiento anterior, en el que un pliegue "
+                             "podia restaurar los pesos de la epoca 1. "
+                             "Default: 10")
     parser.add_argument("--epochs", type=int, default=100,
                         help="Maximo de epocas por pliegue (default: 100)")
     parser.add_argument("--batch_size", type=int, default=32,
@@ -619,7 +683,7 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
 
     validador = "stratifiedgroupkfold" if args.estratificado else "groupkfold"
-    etiqueta = f"{validador}_{args.agrupamiento}"
+    etiqueta = f"{validador}_{args.agrupamiento}_norm-{args.normalizacion}"
 
     # ========== 1. DATASET ==========
     print("\n" + "=" * 60)
@@ -688,13 +752,31 @@ def main():
     todas_y_true = []
     todas_y_pred = []
 
+    infos_normalizacion = []
+
     for fold_idx, (idx_train, idx_val) in enumerate(particiones):
         X_train, X_val = X[idx_train], X[idx_val]
         y_train, y_val = y[idx_train], y[idx_val]
+        suj_train, suj_val = sujetos[idx_train], sujetos[idx_val]
+
+        # La normalizacion se aplica DENTRO del pliegue para que quede a
+        # la vista que el modo 'global' solo ve X_train al estimar sus
+        # parametros.
+        X_train, X_val, info_norm = normalizar(
+            X_train, X_val, suj_train, suj_val, y_train, y_val,
+            modo=args.normalizacion,
+        )
+        infos_normalizacion.append(info_norm)
+        if args.normalizacion != "ninguna":
+            print(f"  {verificar_normalizacion(X_train, suj_train, args.normalizacion)}"
+                  f"  [train pliegue {fold_idx + 1}]")
+            print(f"  {verificar_normalizacion(X_val, suj_val, args.normalizacion)}"
+                  f"  [test pliegue {fold_idx + 1}]")
 
         history, y_pred, metricas = entrenar_pliegue(
             X_train, y_train, X_val, y_val, fold_idx,
             args.epochs, args.batch_size, args.lr,
+            early_stopping_start=args.early_stopping_start,
         )
 
         historiales.append(history)
@@ -722,6 +804,7 @@ def main():
         args, etiqueta, descripciones, metricas_por_fold,
         y_true_total, y_pred_total, cm_total, dataset_info,
     )
+    reporte["normalizacion_por_pliegue"] = infos_normalizacion
 
     ruta_json = ruta_sin_sobrescribir(args.output_dir, f"metricas_{etiqueta}", ".json")
     with open(ruta_json, "w", encoding="utf-8") as f:
