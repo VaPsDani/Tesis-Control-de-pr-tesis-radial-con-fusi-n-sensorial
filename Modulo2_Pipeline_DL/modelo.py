@@ -4,11 +4,15 @@ modelo.py - Arquitectura CNN-BiLSTM-Attention para clasificacion de gestos
 Protesis transradial - Fusion sensorial y Deep Learning
 
 ARQUITECTURA:
-  Entrada: (window_size=20, num_features=9) → 20 pasos temporales × 9 canales
+  Entrada: (window_size=20, num_features=8) → 20 pasos temporales × 8 canales
+           - 5 canales LMG (fotodiodos OPT101) + 3 del acelerometro
+           - Misma forma que la rama EMG (5 sEMG + 3 ACC), lo que hace
+             directa la comparacion entre ambas
 
   Capa 1 (Conv1D):  Filtros=64, kernel=3, activacion=ReLU
-    → Extrae patrones espaciales entre canales de sensores LMG+IMU
-    → Ej: correlacion entre fotodiodo 1 y cuaternion w durante un gesto
+    → Extrae patrones espaciales entre canales de sensores LMG+ACC
+    → Ej: correlacion entre el fotodiodo 1 y la componente az del
+      acelerometro durante un gesto
 
   Capa 2 (Conv1D):  Filtros=128, kernel=3, activacion=ReLU
     → Jerarquia de caracteristicas mas abstractas
@@ -29,7 +33,7 @@ ARQUITECTURA:
     → Distribucion de probabilidad sobre: Rest, Pinch, Tripod, Power, Ext.
 
 ARQUITECTURA (resumen):
-  Input(20,9) → Conv1D(64) → Conv1D(128) → BiLSTM(64) → Attention → Dense(64) → Softmax(5)
+  Input(20,8) → Conv1D(64) → Conv1D(128) → BiLSTM(64) → Attention → Dense(64) → Softmax(5)
 """
 
 import tensorflow as tf
@@ -97,7 +101,7 @@ class MecanismoAtencion(layers.Layer):
 # ============================================================
 def construir_modelo(
     window_size: int = 20,
-    num_features: int = 9,
+    num_features: int = 8,
     num_clases: int = 5,
     l2_reg: float = 1e-4,
     dropout_rate: float = 0.5,
@@ -107,7 +111,7 @@ def construir_modelo(
 
     Args:
         window_size: Pasos temporales de la ventana deslizante (20)
-        num_features: Canales de sensores (9: 5 LMG + 4 pseudo-cuaterniones)
+        num_features: Canales de sensores (8: 5 LMG + 3 acelerometro)
         num_clases: Gestos a clasificar (5: Rest, Pinch, Tripod, Power, Ext.)
         l2_reg: Factor de regularizacion L2
         dropout_rate: Tasa de dropout en la capa densa

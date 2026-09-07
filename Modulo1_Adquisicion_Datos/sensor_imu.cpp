@@ -2,68 +2,67 @@
  * sensor_imu.cpp - Implementacion MPU6050
  *
  * Estrategia de lectura:
- *   El MPU6050 se configura en modo passthrough (sin DMP).
- *   Se leen directamente acelerometro (ax,ay,az) y giroscopio (gx,gy,gz)
- *   en crudo. Los cuaterniones se aproximan mediante combinacion de
- *   actitudes (madgwick o complementary filter) para mantener
- *   consistencia. En una segunda version se puede cargar el firmware DMP.
+ *   El MPU6050 se configura en modo passthrough (sin DMP). Se leen
+ *   directamente acelerometro y giroscopio en crudo y se escalan a
+ *   unidades fisicas. No se calculan cuaterniones: el pipeline de deep
+ *   learning aprende las relaciones temporales a partir de los ejes
+ *   crudos, y una fusion de actitud en el ESP32 solo anadiria latencia
+ *   y una fuente de error propia.
  *
- *   Alternativa simplificada: se normalizan los 6 ejes y se tratan
- *   como entradas al modelo junto con los LMG. El deep learning
- *   aprendera las relaciones temporales inherentes.
- *
- *   Para esta version: retornamos [ax, ay, az, gx, gy, gz] como
- *   pseudo-cuaterniones (6 valores). El pipeline de DL los
- *   interpretara como features de contexto.
+ *   Una sola transaccion I2C de 14 bytes desde 0x3B cubre los 6 ejes,
+ *   asi que leerIMUCompleta y leerAcelerometro cuestan lo mismo en el
+ *   bus (~0.4 ms a 400 kHz).
  */
 
 #include "sensor_imu.h"
 
-SensorIMU::SensorIMU() : _dmpInicializado(false) {}
+SensorIMU::SensorIMU() : _inicializado(false) {}
 
 bool SensorIMU::begin() {
     Wire.beginTransmission(MPU_ADDR);
     if (Wire.endTransmission() != 0) {
         return false;   // MPU6050 no detectado
     }
-    
+
     // Salir del modo sleep
     _escribirRegistro(MPU_RA_PWR_MGMT_1, 0x00);
     delay(100);
-    
-    _dmpInicializado = true;
+
+    _inicializado = true;
     return true;
 }
 
-bool SensorIMU::leerCuaterniones(float &qw, float &qx, float &qy, float &qz) {
-    if (!_dmpInicializado) return false;
-    
-    // Leer acelerometro (6 bytes) y giroscopio (6 bytes)
+bool SensorIMU::leerIMUCompleta(float &ax, float &ay, float &az,
+                                float &gx, float &gy, float &gz) {
+    if (!_inicializado) return false;
+
+    // Un unico bloque de 14 bytes: accel (6) + temp (2) + gyro (6).
+    // Los bytes 6 y 7 son la temperatura y se ignoran.
     uint8_t buf[14];
-    _leerBloque(0x3B, buf, 14);
-    
-    // Convertir de big-endian a int16
-    int16_t ax = (buf[0]  << 8) | buf[1];
-    int16_t ay = (buf[2]  << 8) | buf[3];
-    int16_t az = (buf[4]  << 8) | buf[5];
-    int16_t gx = (buf[8]  << 8) | buf[9];
-    int16_t gy = (buf[10] << 8) | buf[11];
-    int16_t gz = (buf[12] << 8) | buf[13];
-    
-    // Normalizar a gravedad y °/s
-    // Escala acelerometro: ±2g → 16384 LSB/g
-    // Escala giroscopio: ±250°/s → 131 LSB/(°/s)
-    float acc_norm = sqrt(ax*ax + ay*ay + az*az) / 16384.0f;
-    
-    // Empaquetar como pseudo-cuaterniones:
-    // qw = magnitud normalizada de aceleracion (contexto de movimiento)
-    // qx, qy, qz = acelerometro normalizado por gravedad
-    qw = constrain(acc_norm / 2.0f, 0.0f, 1.0f);
-    qx = (float)ax / 16384.0f;
-    qy = (float)ay / 16384.0f;
-    qz = (float)az / 16384.0f;
-    
+    _leerBloque(MPU_RA_ACCEL_XOUT, buf, 14);
+
+    // Big-endian a int16 con signo
+    int16_t rax = (int16_t)((buf[0]  << 8) | buf[1]);
+    int16_t ray = (int16_t)((buf[2]  << 8) | buf[3]);
+    int16_t raz = (int16_t)((buf[4]  << 8) | buf[5]);
+    int16_t rgx = (int16_t)((buf[8]  << 8) | buf[9]);
+    int16_t rgy = (int16_t)((buf[10] << 8) | buf[11]);
+    int16_t rgz = (int16_t)((buf[12] << 8) | buf[13]);
+
+    // Escalar a unidades fisicas
+    ax = (float)rax / MPU_LSB_POR_G;
+    ay = (float)ray / MPU_LSB_POR_G;
+    az = (float)raz / MPU_LSB_POR_G;
+    gx = (float)rgx / MPU_LSB_POR_DPS;
+    gy = (float)rgy / MPU_LSB_POR_DPS;
+    gz = (float)rgz / MPU_LSB_POR_DPS;
+
     return true;
+}
+
+bool SensorIMU::leerAcelerometro(float &ax, float &ay, float &az) {
+    float gx, gy, gz;
+    return leerIMUCompleta(ax, ay, az, gx, gy, gz);
 }
 
 // ========== PRIVADAS: Comunicacion I2C directa ==========

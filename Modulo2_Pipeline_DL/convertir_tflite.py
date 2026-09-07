@@ -41,7 +41,7 @@ def representative_dataset_gen(dataset: np.ndarray, num_samples: int = 1000):
     """
     n = min(num_samples, dataset.shape[0])
     for i in range(n):
-        # TFLite espera un batch, por eso se anade dimension: (1, 20, 9)
+        # TFLite espera un batch, por eso se anade dimension: (1, 20, 8)
         yield [dataset[i : i + 1].astype(np.float32)]
 
 

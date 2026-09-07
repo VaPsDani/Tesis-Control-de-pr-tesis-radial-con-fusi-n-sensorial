@@ -4,8 +4,8 @@
  * Protesis transradial - Fusion sensorial y Deep Learning
  *
  * OBJETIVO:
- *   Adquirir senales de 5 fotodiodos LMG (OPT101 via MUX+ADS1115) y
- *   cuaterniones del MPU6050 para construir el dataset de entrenamiento.
+ *   Adquirir senales de 5 fotodiodos LMG (OPT101 via MUX+ADS1115) y los
+ *   6 ejes crudos del MPU6050 para construir el dataset de entrenamiento.
  *
  * VENTANA DESLIZANTE (lado PC):
  *   Los datos se envian en crudo por Serial a 100 Hz.
@@ -13,20 +13,56 @@
  *     - Ventana de 200 ms → 20 muestras a 100 Hz
  *     - Stride de 20 ms → 2 muestras de avance
  *
- * PROTOCOLO SERIAL:
- *   Formato: CSV (9 columnas)
- *   v1,v2,v3,v4,v5,qw,qx,qy,qz
+ * PROTOCOLO SERIAL — 12 campos por linea:
+ *   timestamp_ms,v1,v2,v3,v4,v5,ax,ay,az,gx,gy,gz
+ *
+ *   El timestamp es el millis() del ESP32, no la hora de la PC. Es el
+ *   reloj bueno para el espaciado entre muestras: el cristal deriva
+ *   10-40 ppm (18-36 ms en 15 min) mientras que el sellado en la PC
+ *   sufre el latency timer del conversor USB-serie (16 ms por defecto en
+ *   CP210x/CH340) mas el jitter del scheduler, sin cota superior.
+ *
+ * ESQUEMA COMPLETO DEL CSV (17 columnas) — lo escribe el script de
+ * captura del Modulo 2, no este firmware:
+ *
+ *   subject_id, repetition_id, timestamp_ms, v1..v5,
+ *   ax, ay, az, gx, gy, gz, label, bloque_tipo, en_margen, es_calibracion
+ *
+ *   De esas, el firmware aporta las 12 de arriba. Las otras cinco
+ *   (subject_id, repetition_id, label, bloque_tipo, en_margen,
+ *   es_calibracion) las anade la PC, que es quien conoce el protocolo
+ *   de la sesion. El esquema queda fijado aqui para que no haya un
+ *   segundo cambio de formato mas adelante.
+ *
+ * QUE SE GUARDA Y QUE CONSUME EL MODELO:
+ *   El modelo usa 8 canales: v1..v5 + ax, ay, az. El giroscopio se
+ *   guarda igualmente porque sus bytes ya viajan en la misma lectura
+ *   I2C de 14 bytes, asi que almacenarlo no cuesta tiempo de bus, y
+ *   recuperarlo despues obligaria a repetir toda la campana con los 10
+ *   voluntarios. El descarte de gx, gy, gz ocurre en
+ *   preprocesamiento.py, nunca en el firmware.
  *
  *   Comandos:
  *     'L' → empezar a etiquetar (modo label)
  *     'S' → detener etiquetado
  *     'R' → reset (descarta buffer)
+ *     'M' → marcador de sincronizacion: emite una linea [MARK] con el
+ *           millis() actual, para que la PC ancle el cambio de bloque
+ *           al reloj del ESP32
  *
- * SINCRONIZACION:
- *   - Sin delays bloqueantes: uso de millis() para mantener 100 Hz
- *   - La lectura del MUX + ADS1115 toma ~7 ms (5 canales × 1.4 ms)
- *   - La lectura del MPU6050 toma ~2 ms
- *   - Total por ciclo: ~9 ms → margen a 10 ms
+ * PRESUPUESTO TEMPORAL POR CICLO (medido tras fijar 860 SPS):
+ *   - 5 canales LMG: 5 × (1.163 ms conversion + ~0.5 ms overhead I2C
+ *     + 50 us asentamiento del MUX) ≈ 8.3 ms
+ *   - MPU6050, 14 bytes a 400 kHz                        ≈ 0.4 ms
+ *   - Total por ciclo                                    ≈ 8.7 ms
+ *   Entra en los 10 ms con ~13% de margen. Sin el setDataRate del
+ *   Bloque B el ADC corria a 128 SPS y el ciclo tomaba ~39 ms (~25 Hz).
+ *
+ * ANCHO DE BANDA:
+ *   12 campos ≈ 122 bytes por linea a 100 Hz = 12200 B/s. A 115200
+ *   baudios 8N1 el enlace da 11520 B/s, un 6% POR DEBAJO de lo
+ *   necesario: se desbordaria. De ahi los 921600 baudios (92160 B/s,
+ *   13% de uso).
  */
 
 #include <Wire.h>
@@ -45,10 +81,11 @@ unsigned long contadorMuestras = 0;
 
 // ======================== BUFFER DE LECTURA ========================
 float valoresLMG[NUM_LMG];
-float qw, qx, qy, qz;
+float ax, ay, az;   // acelerometro: entra al modelo
+float gx, gy, gz;   // giroscopio: solo al CSV, no al modelo
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(BAUDIOS);
     Wire.begin(PIN_SDA, PIN_SCL);
     Wire.setClock(I2C_FREQ);
 
@@ -66,9 +103,13 @@ void setup() {
     }
     Serial.println("[OK] MPU6050 listo");
 
-    // Cabecera CSV
-    Serial.println("[INFO] v1_LMG,v2_LMG,v3_LMG,v4_LMG,v5_LMG,qw_IMU,qx_IMU,qy_IMU,qz_IMU");
-    Serial.println("[READY] Envie 'L' para iniciar adquisicion, 'S' para detener.");
+    // Cabecera de los campos que aporta el firmware. Las 5 columnas
+    // restantes del esquema (subject_id, repetition_id, label,
+    // bloque_tipo, en_margen, es_calibracion) las anade el script de
+    // captura del Modulo 2.
+    Serial.println("[INFO] timestamp_ms,v1,v2,v3,v4,v5,ax,ay,az,gx,gy,gz");
+    Serial.println("[READY] Envie 'L' para iniciar, 'S' para detener, "
+                   "'M' para marcar sincronizacion.");
 }
 
 void loop() {
@@ -87,6 +128,14 @@ void loop() {
             adquiriendo = false;
             contadorMuestras = 0;
             Serial.println("[RESET] Buffer descartado");
+        } else if (c == 'M') {
+            // Marcador de sincronizacion. La PC lo envia en cada cambio
+            // de bloque y aqui se devuelve con el millis() del ESP32,
+            // de modo que ambos relojes quedan anclados cada ~15 s. Asi
+            // la deriva acumulada nunca excede un bloque (0.6 ms a
+            // 40 ppm) en vez de los 18-36 ms de una sesion completa.
+            Serial.print("[MARK] ");
+            Serial.println(millis());
         }
     }
 
@@ -103,20 +152,25 @@ void loop() {
         valoresLMG[3] = muxAds.leerCanal(CH_LMG_4);
         valoresLMG[4] = muxAds.leerCanal(CH_LMG_5);
 
-        // --- Leer MPU6050 (pseudo-cuaterniones) ---
-        imu.leerCuaterniones(qw, qx, qy, qz);
+        // --- Leer MPU6050: los 6 ejes crudos ---
+        // Se piden los 6 aunque el modelo use 3: los bytes del
+        // giroscopio ya vienen en la misma transaccion I2C.
+        imu.leerIMUCompleta(ax, ay, az, gx, gy, gz);
 
         // ========== 3. TRANSMITIR POR SERIAL ==========
         if (adquiriendo) {
-            Serial.print(valoresLMG[0], 4); Serial.print(",");
-            Serial.print(valoresLMG[1], 4); Serial.print(",");
-            Serial.print(valoresLMG[2], 4); Serial.print(",");
-            Serial.print(valoresLMG[3], 4); Serial.print(",");
-            Serial.print(valoresLMG[4], 4); Serial.print(",");
-            Serial.print(qw, 4); Serial.print(",");
-            Serial.print(qx, 4); Serial.print(",");
-            Serial.print(qy, 4); Serial.print(",");
-            Serial.println(qz, 4);
+            // timestamp del ESP32 primero: es el reloj con el que la PC
+            // asignara las etiquetas.
+            Serial.print(ahora); Serial.print(",");
+            for (uint8_t i = 0; i < NUM_LMG; i++) {
+                Serial.print(valoresLMG[i], 4); Serial.print(",");
+            }
+            Serial.print(ax, 4); Serial.print(",");
+            Serial.print(ay, 4); Serial.print(",");
+            Serial.print(az, 4); Serial.print(",");
+            Serial.print(gx, 4); Serial.print(",");
+            Serial.print(gy, 4); Serial.print(",");
+            Serial.println(gz, 4);
 
             contadorMuestras++;
         }

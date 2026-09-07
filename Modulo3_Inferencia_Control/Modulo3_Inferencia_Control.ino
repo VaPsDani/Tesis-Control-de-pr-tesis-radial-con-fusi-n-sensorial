@@ -65,7 +65,7 @@ uint8_t contadorMuestras = 0;
 float muestra[NUM_FEATURES];                    // 1 muestra actual
 float ventanaCompleta[TAMANO_VENTANA][NUM_FEATURES];  // ventana para inferencia
 float valoresLMG[NUM_LMG];
-float qw, qx, qy, qz;
+float ax, ay, az;               // acelerometro: los 3 canales de IMU del modelo
 float valoresFSR[6];
 
 // ======================== SETUP ========================
@@ -167,19 +167,20 @@ void loop() {
         valoresLMG[3] = muxAds.leerCanal(CH_LMG_4);
         valoresLMG[4] = muxAds.leerCanal(CH_LMG_5);
 
-        // --- Leer MPU6050 ---
-        imu.leerCuaterniones(qw, qx, qy, qz);
+        // --- Leer MPU6050 (solo acelerometro: el modelo no usa giro) ---
+        imu.leerAcelerometro(ax, ay, az);
 
-        // --- Empaquetar muestra: x(t) = [v1..v5, qw, qx, qy, qz] ---
-        muestra[0] = valoresLMG[0];
-        muestra[1] = valoresLMG[1];
-        muestra[2] = valoresLMG[2];
-        muestra[3] = valoresLMG[3];
-        muestra[4] = valoresLMG[4];
-        muestra[5] = qw;
-        muestra[6] = qx;
-        muestra[7] = qy;
-        muestra[8] = qz;
+        // --- Empaquetar muestra: x(t) = [v1..v5, ax, ay, az] ---
+        // 8 canales, el mismo orden y la misma forma con la que se
+        // entrena en el Modulo 2. Si este orden cambiara sin cambiar el
+        // preprocesamiento, no habria error de compilacion: el modelo
+        // recibiria canales permutados y devolveria basura.
+        for (uint8_t i = 0; i < NUM_LMG; i++) {
+            muestra[i] = valoresLMG[i];
+        }
+        muestra[NUM_LMG + 0] = ax;
+        muestra[NUM_LMG + 1] = ay;
+        muestra[NUM_LMG + 2] = az;
 
         // --- Insertar en buffer circular ---
         ventana.addSample(muestra);

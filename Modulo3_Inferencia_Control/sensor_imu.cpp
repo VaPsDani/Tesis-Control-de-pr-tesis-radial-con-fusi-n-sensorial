@@ -13,25 +13,28 @@ bool SensorIMU::begin() {
     return true;
 }
 
-bool SensorIMU::leerCuaterniones(float &qw, float &qx, float &qy, float &qz) {
+// Devuelve los 3 canales de acelerometro que consume el modelo,
+// normalizados a g. La inferencia no necesita el giroscopio: el vector
+// de entrada es 5 LMG + 3 ACC = 8 canales, la misma forma con la que se
+// valido la arquitectura sobre NinaPro DB5.
+//
+// El cuarto canal de la version anterior (qw = |a|/2 saturado) era una
+// funcion determinista de ax, ay, az. No aportaba informacion que la
+// red no pudiera recomputar, y ocupaba un canal de entrada.
+bool SensorIMU::leerAcelerometro(float &ax, float &ay, float &az) {
     if (!_inicializado) return false;
 
     uint8_t buf[14];
     _leerBloque(0x3B, buf, 14);
 
-    int16_t ax = (buf[0]  << 8) | buf[1];
-    int16_t ay = (buf[2]  << 8) | buf[3];
-    int16_t az = (buf[4]  << 8) | buf[5];
-    // int16_t gx = (buf[8]  << 8) | buf[9];
-    // int16_t gy = (buf[10] << 8) | buf[11];
-    // int16_t gz = (buf[12] << 8) | buf[13];
+    int16_t rax = (int16_t)((buf[0] << 8) | buf[1]);
+    int16_t ray = (int16_t)((buf[2] << 8) | buf[3]);
+    int16_t raz = (int16_t)((buf[4] << 8) | buf[5]);
 
-    float acc_norm = sqrt(ax*ax + ay*ay + az*az) / 16384.0f;
-
-    qw = constrain(acc_norm / 2.0f, 0.0f, 1.0f);
-    qx = (float)ax / 16384.0f;
-    qy = (float)ay / 16384.0f;
-    qz = (float)az / 16384.0f;
+    // +/-2 g -> 16384 LSB/g
+    ax = (float)rax / 16384.0f;
+    ay = (float)ray / 16384.0f;
+    az = (float)raz / 16384.0f;
 
     return true;
 }

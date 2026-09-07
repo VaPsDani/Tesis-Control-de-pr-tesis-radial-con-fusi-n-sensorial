@@ -6,7 +6,7 @@ Protesis transradial - Validacion con dataset publico multimodal
 ALCANCE:
   Ruta de VALIDACION del pipeline (senales sEMG de NinaPro DB5, entrada
   (40, 8)). La ruta de PRODUCCION sobre el hardware fisico (senales LMG,
-  entrada (20, 9)) vive en 'entrenamiento.py' y no se ve afectada por
+  entrada (20, 8)) vive en 'entrenamiento.py' y no se ve afectada por
   este archivo. Ambas comparten la arquitectura de 'modelo.py'.
 
 FLUJO:

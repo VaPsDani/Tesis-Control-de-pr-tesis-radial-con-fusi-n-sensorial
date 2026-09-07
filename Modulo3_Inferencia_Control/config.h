@@ -82,8 +82,22 @@
 #define TAMANO_VENTANA          20   // muestras por ventana
 #define STRIDE                   2   // muestras entre inferencias
 #define NUM_LMG                  5   // fotodiodos OPT101
-#define NUM_FEATURES             9   // 5 LMG + 4 pseudo-cuaterniones
+#define NUM_IMU                  3   // ax, ay, az (sin giroscopio)
+#define NUM_FEATURES             (NUM_LMG + NUM_IMU)   // 8
 #define NUM_CLASES               5   // Rest, Pinch, Tripod, Power, Ext.
+
+// Cerrojo en tiempo de compilacion. Un desajuste entre el numero de
+// canales del firmware y el del modelo NO produce error: el interprete
+// leeria el tensor con la forma equivocada y devolveria basura en
+// ejecucion. Estas aserciones convierten ese fallo silencioso en un
+// error de compilacion.
+static_assert(NUM_FEATURES == 8,
+              "NUM_FEATURES debe ser 8 (5 LMG + 3 ACC). Si cambia, hay que "
+              "reentrenar el modelo y regenerar modelo_gestos_tflite.h; "
+              "inferencia.cpp valida la forma del tensor contra esta constante.");
+static_assert(TAMANO_VENTANA == 20,
+              "TAMANO_VENTANA debe ser 20 (200 ms a 100 Hz), igual que en "
+              "preprocesamiento.py.");
 
 // ======================== UMBRALES FSR ========================
 // Umbral de presion para detener servo (lazo cerrado)

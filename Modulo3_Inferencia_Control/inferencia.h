@@ -5,7 +5,7 @@
  *   1. Carga el modelo .tflite desde un array en memoria (generado por
  *      convertir_tflite.py del Modulo 2).
  *   2. Asigna un tensor arena de 40 KB para las operaciones intermedias.
- *   3. Cada 20 ms recibe una ventana de 20x9, ejecuta la inferencia y
+ *   3. Cada 20 ms recibe una ventana de 20x8, ejecuta la inferencia y
  *      retorna la clase predicha (0-4).
  *
  * TENSOR ARENA:

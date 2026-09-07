@@ -7,11 +7,11 @@ ALCANCE DE ESTE ARCHIVO:
   Este modulo es la ruta de VALIDACION del pipeline, sobre el dataset
   publico NinaPro DB5 (senales sEMG). Es independiente de
   'preprocesamiento.py', que es la ruta de PRODUCCION sobre el CSV del
-  hardware fisico (senales LMG opticas + IMU, ventana (20, 9)).
+  hardware fisico (senales LMG opticas + acelerometro, ventana (20, 8)).
 
   Ambas rutas comparten la MISMA arquitectura de 'modelo.py'; solo
   cambian la forma de entrada y el origen de los datos:
-    - Ruta LMG (produccion):  (20, 9)  a 100 Hz  <- preprocesamiento.py
+    - Ruta LMG (produccion):  (20, 8)  a 100 Hz  <- preprocesamiento.py
     - Ruta EMG (validacion):  (40, 8)  a 200 Hz  <- este archivo
 
 FLUJO COMPLETO:
