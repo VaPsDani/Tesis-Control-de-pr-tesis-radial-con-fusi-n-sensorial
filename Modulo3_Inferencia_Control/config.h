@@ -99,6 +99,49 @@ static_assert(TAMANO_VENTANA == 20,
               "TAMANO_VENTANA debe ser 20 (200 ms a 100 Hz), igual que en "
               "preprocesamiento.py.");
 
+// ======================== CALIBRACION / NORMALIZACION ========================
+// El modelo se entrena con datos normalizados por sujeto (z-score por
+// canal), asi que el firmware debe normalizar igual o le entregaria
+// senales en otra escala. Ver calibracion.h para el fundamento.
+
+// --- Tipo de calibracion ---
+#define CALIB_SOLO_REPOSO        0
+#define CALIB_SECUENCIA_GESTOS   1
+
+// Decidido a partir del experimento de normalizacion sobre NinaPro DB5
+// (resultados_cv/comparativa_final.txt):
+//
+//   sujeto      (todas las ventanas del sujeto) : 70.00% +/- 7.86%
+//   sujeto_rest (solo ventanas de reposo)       : 69.11% +/- 3.92%
+//
+// La media es equivalente, la diferencia de 0.89 puntos queda por debajo
+// del ruido entre corridas (~0.6 puntos), pero la desviacion entre
+// sujetos se reduce a la mitad y el rango entre pliegues pasa de 20.9 a
+// 12.1 puntos. Para una protesis, un sistema mas predecible entre
+// usuarios vale mas que un pico ligeramente mas alto. Ademas la
+// calibracion por reposo solo exige que el usuario se quede quieto, no
+// que ejecute los cuatro gestos cada vez que se pone el dispositivo.
+//
+// Cambiar a CALIB_SECUENCIA_GESTOS exige reentrenar con la
+// normalizacion equivalente; no basta con tocar esta constante.
+#define CALIB_TIPO               CALIB_SOLO_REPOSO
+
+// --- Parametros del bloque de calibracion ---
+// Misma duracion y margenes que el bloque de calibracion del protocolo
+// de captura, para que el firmware calcule sus estadisticas sobre la
+// misma cantidad y el mismo tipo de senal con que se valido. Acortarlo
+// es posible, pero habria que revalidarlo.
+#define CALIB_DURACION_MS        15000   // 15 s de bloque
+#define CALIB_MARGEN_INICIAL_MS   1000   // el usuario se acomoda
+#define CALIB_MARGEN_FINAL_MS      500   // anticipa el fin del bloque
+// 13.5 s utiles = 1350 muestras = 67 ventanas completas de 20.
+#define CALIB_MIN_VENTANAS          30   // menos de 6 s utiles: se rechaza
+
+// Piso del denominador del z-score. Evita dividir por cero en un canal
+// constante sin distorsionar los reales: la desviacion mas pequena
+// observada en el dataset es 0.0118, seis ordenes por encima.
+#define CALIB_EPSILON            1e-8f
+
 // ======================== UMBRALES FSR ========================
 // Umbral de presion para detener servo (lazo cerrado)
 // Valores en mV, calibrar experimentalmente

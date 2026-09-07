@@ -39,6 +39,7 @@
 #include "inferencia.h"
 #include "control_servos.h"
 #include "feedback_fsr.h"
+#include "calibracion.h"
 
 // ======================== INSTANCIAS GLOBALES ========================
 MUX_ADS1115     muxAds;
@@ -47,6 +48,16 @@ SlidingWindow   ventana;
 MotorInferencia tflite;
 ControlServos   servos;
 FeedbackFSR     feedback;
+Calibrador      calibrador;
+
+// ======================== INSTRUMENTACION DE LATENCIA ========================
+// Presupuesto por ciclo de inferencia (cada 20 ms). Se mide en vivo en
+// vez de estimarse, porque el coste real depende del modelo cuantizado.
+unsigned long tMuestreoUs   = 0;   // 5 LMG + IMU
+unsigned long tInferenciaUs = 0;   // Invoke() de TFLite
+uint32_t      ciclosMedidos = 0;
+unsigned long acumMuestreoUs = 0;
+unsigned long acumInferenciaUs = 0;
 
 // ======================== VARIABLES DE ESTADO ========================
 uint8_t gestoActual     = GESTO_REST;
@@ -67,6 +78,53 @@ float ventanaCompleta[TAMANO_VENTANA][NUM_FEATURES];  // ventana para inferencia
 float valoresLMG[NUM_LMG];
 float ax, ay, az;               // acelerometro: los 3 canales de IMU del modelo
 float valoresFSR[6];
+
+// ======================== INSTRUMENTACION ========================
+// Desglose del presupuesto por ciclo de inferencia. El coste de la
+// normalizacion se mide igual que el resto, para que quede en la
+// instrumentacion de latencia y no como una estimacion aparte.
+void reportarLatencias() {
+    Serial.println("[LATENCIA] Desglose por ciclo de inferencia (20 ms):");
+
+    if (ciclosMedidos == 0) {
+        Serial.println("[LATENCIA] Aun no hay ciclos medidos.");
+        return;
+    }
+
+    const float medMuestreo   = acumMuestreoUs   / (float)ciclosMedidos;
+    const float medInferencia = acumInferenciaUs / (float)ciclosMedidos;
+
+    const uint32_t nNorm = calibrador.normalizacionesRealizadas();
+    const float medNorm  = nNorm
+        ? calibrador.normalizacionAcumuladaUs() / (float)nNorm
+        : 0.0f;
+
+    const float total = medMuestreo + medNorm + medInferencia;
+
+    Serial.printf("[LATENCIA]   Muestreo (5 LMG + IMU) : %8.1f us  %5.1f%%\n",
+                  medMuestreo, 100.0f * medMuestreo / total);
+    Serial.printf("[LATENCIA]   Normalizacion          : %8.1f us  %5.1f%%\n",
+                  medNorm, 100.0f * medNorm / total);
+    Serial.printf("[LATENCIA]   Inferencia TFLite      : %8.1f us  %5.1f%%\n",
+                  medInferencia, 100.0f * medInferencia / total);
+    Serial.printf("[LATENCIA]   TOTAL                  : %8.1f us "
+                  "(%.1f%% de los 20000 us disponibles)\n",
+                  total, 100.0f * total / 20000.0f);
+    Serial.printf("[LATENCIA]   Ciclos medidos: %lu   Normalizaciones: %lu\n",
+                  (unsigned long)ciclosMedidos, (unsigned long)nNorm);
+
+    // La normalizacion son TAMANO_VENTANA * NUM_FEATURES = 160 restas y
+    // multiplicaciones, con la division ya resuelta al calibrar. A
+    // 240 MHz con FPU deberia quedar en el orden de 1-2 us, o sea
+    // despreciable frente a la inferencia. Si la medida se aleja mucho
+    // de eso, conviene revisar si el compilador esta emitiendo
+    // operaciones en software.
+    if (nNorm > 0 && medNorm > 50.0f) {
+        Serial.printf("[LATENCIA] AVISO: la normalizacion tarda %.1f us, muy "
+                      "por encima de los ~2 us esperados para 160 "
+                      "multiplicaciones con FPU.\n", medNorm);
+    }
+}
 
 // ======================== SETUP ========================
 void setup() {
@@ -114,6 +172,18 @@ void setup() {
     Serial.println("OK");
     tflite.info();
 
+    // ========== 5b. Calibracion ==========
+    Serial.print("[CALIB] Buscando calibracion guardada... ");
+    if (calibrador.begin()) {
+        Serial.println("encontrada");
+    } else {
+        Serial.println("no hay");
+        Serial.println("[CALIB] AVISO: sin calibracion, la inferencia corre "
+                       "sobre senal cruda. El modelo se entreno con datos "
+                       "normalizados por sujeto, asi que la exactitud caera "
+                       "de forma notable. Envie 'C' para calibrar.");
+    }
+
     // ========== 6. Reportar configuracion ==========
     Serial.printf("[CONFIG] Ventana: %d ms (%d muestras)\n",
                   TAMANO_VENTANA * INTERVALO_MUESTRA_MS, TAMANO_VENTANA);
@@ -124,7 +194,10 @@ void setup() {
     Serial.println("[READY] Sistema listo. Envie:\n"
                    "  'G' → Activar control por gestos\n"
                    "  'S' → Detener (servos a reposo)\n"
-                   "  'M' → Modo manual: 1=Rest 2=Pinch 3=Tripod 4=Power 5=Ext\n");
+                   "  'M' → Modo manual: 1=Rest 2=Pinch 3=Tripod 4=Power 5=Ext\n"
+                   "  'C' → Calibrar (15 s quieto, sin mover el brazo)\n"
+                   "  'X' → Borrar la calibracion guardada\n"
+                   "  'I' → Info de calibracion y desglose de latencias\n");
 
     sistemaActivo = true;
 }
@@ -151,6 +224,9 @@ void loop() {
             case '3': gestoActual = GESTO_TRIPOD; servos.ejecutarGesto(GESTO_TRIPOD); break;
             case '4': gestoActual = GESTO_POWER; servos.ejecutarGesto(GESTO_POWER); break;
             case '5': gestoActual = GESTO_EXTENSION; servos.ejecutarGesto(GESTO_EXTENSION); break;
+            case 'C': calibrador.iniciar(millis()); break;
+            case 'X': calibrador.borrar(); break;
+            case 'I': calibrador.info(); reportarLatencias(); break;
         }
     }
 
@@ -159,6 +235,7 @@ void loop() {
     // ========== BUCLE DE MUESTREO (100 Hz - cada 10 ms) ==========
     if (ahora - tUltimoMuestreo >= INTERVALO_MUESTRA_MS) {
         tUltimoMuestreo = ahora;
+        const unsigned long tMuestreo0 = micros();
 
         // --- Leer 5 LMG via MUX + ADS1115 ---
         valoresLMG[0] = muxAds.leerCanal(CH_LMG_1);
@@ -182,6 +259,17 @@ void loop() {
         muestra[NUM_LMG + 1] = ay;
         muestra[NUM_LMG + 2] = az;
 
+        tMuestreoUs = micros() - tMuestreo0;
+
+        // ========== MODO CALIBRACION ==========
+        // Mientras se calibra, las muestras van al calibrador y NO se
+        // infiere: los servos no deben moverse mientras el usuario
+        // intenta quedarse quieto.
+        if (calibrador.capturando()) {
+            calibrador.acumular(muestra, ahora);
+            return;
+        }
+
         // --- Insertar en buffer circular ---
         ventana.addSample(muestra);
         contadorMuestras++;
@@ -193,8 +281,21 @@ void loop() {
             // Extraer ventana completa (20 muestras en orden cronologico)
             ventana.getWindow(ventanaCompleta);
 
+            // --- Normalizar con la calibracion del usuario ---
+            // In situ, sobre la copia extraida del buffer; el buffer
+            // circular conserva la senal cruda para la siguiente
+            // ventana. Si no hay calibracion, no hace nada.
+            calibrador.normalizar(ventanaCompleta);
+
             // --- Ejecutar inferencia ---
+            const unsigned long tInf0 = micros();
             uint8_t gestoPredicho = tflite.predecir(ventanaCompleta);
+            tInferenciaUs = micros() - tInf0;
+
+            acumMuestreoUs   += tMuestreoUs;
+            acumInferenciaUs += tInferenciaUs;
+            ciclosMedidos++;
+
             gestoActual = gestoPredicho;
 
             // --- Actuar sobre el gesto ---
