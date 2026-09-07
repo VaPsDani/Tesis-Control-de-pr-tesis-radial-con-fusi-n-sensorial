@@ -156,12 +156,25 @@ def construir_tabla(resumenes: list) -> str:
                  f"{fmt(s['accuracy_std'], 10)}{fmt(s['f1_macro'], 11)}"
                  f"{fmt(s['auc_media'], 10)}{fmt(s['loss_media'], 10)}")
     L.append("")
+    L.append("  CUIDADO con la columna 'F1 macro': en las corridas propias es la")
+    L.append("  MEDIA DE LOS F1 MACRO POR PLIEGUE, mientras que en la linea base")
+    L.append("  SI2 transcrita es el F1 macro de las predicciones AGRUPADAS de")
+    L.append("  los 5 pliegues. Son estadisticos distintos y no se comparan")
+    L.append("  entre si. Para comparar contra la linea base use la tabla de F1")
+    L.append("  por clase, que en todas las corridas se calcula sobre las")
+    L.append("  predicciones agrupadas.")
+    L.append("")
 
     # --- Accuracy por pliegue ---
     L.append("-" * 100)
     L.append("ACCURACY POR PLIEGUE")
     L.append("-" * 100)
-    ref = next((s for s in resumenes if s["sujetos_test_por_fold"]
+    # La cabecera de sujetos solo tiene sentido con agrupamiento por
+    # sujeto: en el esquema por repeticion los 10 sujetos estan en todos
+    # los pliegues y la fila no informaria nada.
+    ref = next((s for s in resumenes
+                if s["agrupamiento"] == "sujeto"
+                and s["sujetos_test_por_fold"]
                 and all(s["sujetos_test_por_fold"])), None)
     if ref:
         cab = "  " + " " * W
