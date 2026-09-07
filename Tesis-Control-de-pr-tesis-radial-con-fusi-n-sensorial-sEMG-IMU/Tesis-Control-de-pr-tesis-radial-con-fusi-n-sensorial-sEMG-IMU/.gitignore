@@ -1,0 +1,61 @@
+# ========== Compilados ==========
+*.o
+*.obj
+*.elf
+*.hex
+*.bin
+*.map
+*.out
+*.exe
+*.d
+
+# ========== Python ==========
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+venv_tesis/
+# ========== TensorFlow / TFLite ==========
+*.tflite
+*.keras
+output/
+modelo_gestos_tflite.h
+
+# ========== Entrenamiento ==========
+dataset_*.csv
+checkpoints/
+logs/
+
+# ========== WSL / Misc ==========
+C:UsersALEJANDRO/
+launch_train.sh
+codigo_simple/
+
+# ========== PlatformIO ==========
+.pio/
+.pioenvs/
+.piolibdeps/
+.pioide/
+
+# ========== Arduino IDE ==========
+build/
+*.build*
+
+# ========== IDE ==========
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ========== Datasets crudos ==========
+*.csv
+!dataset_ejemplo.csv
