@@ -1,0 +1,108 @@
+====================================================================================================
+COMPARATIVA DE CONFIGURACIONES - NinaPro DB5, CNN-BiLSTM-Attention
+====================================================================================================
+
+----------------------------------------------------------------------------------------------------
+CONFIGURACIONES
+----------------------------------------------------------------------------------------------------
+  Etiqueta                  Agrupamiento   Normalizacion  es_start   Archivo
+  repeticion (SI2)            repeticion         ninguna         0   metricas_groupkfold_repeticion_SI2.json
+  repeticion es=10            repeticion         ninguna        10   metricas_groupkfold_repeticion_es10.json
+  sujeto es=0                     sujeto         ninguna         0   metricas_groupkfold_sujeto.json
+  sujeto + ninguna                sujeto         ninguna        10   metricas_groupkfold_sujeto_norm-ninguna.json
+  sujeto + global                 sujeto          global        10   metricas_groupkfold_sujeto_norm-global.json
+  sujeto + sujeto                 sujeto          sujeto        10   metricas_groupkfold_sujeto_norm-sujeto.json
+  sujeto + sujeto_rest            sujeto     sujeto_rest        10   metricas_groupkfold_sujeto_norm-sujeto_rest.json
+
+----------------------------------------------------------------------------------------------------
+METRICAS GLOBALES
+----------------------------------------------------------------------------------------------------
+  Etiqueta                 Accuracy       std   F1 macro       AUC      Loss
+  --------------------------------------------------------------------------
+  repeticion (SI2)           0.8298    0.0285     0.8300    0.9638    0.8130
+  repeticion es=10           0.8362    0.0291     0.8178    0.9625    0.8083
+  sujeto es=0                0.5848    0.1033     0.5623    0.8199    1.4700
+  sujeto + ninguna           0.5699    0.0866     0.5443    0.7904    1.5568
+  sujeto + global            0.5857    0.1207     0.5606    0.8070    1.5112
+  sujeto + sujeto            0.7000    0.0786     0.6876    0.8905    1.1922
+  sujeto + sujeto_rest       0.6911    0.0392     0.6854    0.8812    1.2210
+
+  CUIDADO con la columna 'F1 macro': en las corridas propias es la
+  MEDIA DE LOS F1 MACRO POR PLIEGUE, mientras que en la linea base
+  SI2 transcrita es el F1 macro de las predicciones AGRUPADAS de
+  los 5 pliegues. Son estadisticos distintos y no se comparan
+  entre si. Para comparar contra la linea base use la tabla de F1
+  por clase, que en todas las corridas se calcula sobre las
+  predicciones agrupadas.
+
+----------------------------------------------------------------------------------------------------
+ACCURACY POR PLIEGUE
+----------------------------------------------------------------------------------------------------
+                               s3+6       s7+9       s2+4      s5+10       s1+8   (sujetos de test)
+  Etiqueta                       P1         P2         P3         P4         P5
+  -----------------------------------------------------------------------------
+  repeticion (SI2)           0.7936     0.8275     0.8438     0.8756     0.8087
+  repeticion es=10           0.7995     0.8405     0.8511     0.8803     0.8098
+  sujeto es=0                0.4667     0.6074     0.7003     0.4623     0.6874
+  sujeto + ninguna           0.5012     0.5925     0.6720     0.4411     0.6427
+  sujeto + global            0.5621     0.5969     0.7396     0.3763     0.6538
+  sujeto + sujeto            0.5641     0.7503     0.7540     0.6590     0.7727
+  sujeto + sujeto_rest       0.6212     0.6991     0.6899     0.7032     0.7419
+
+----------------------------------------------------------------------------------------------------
+EPOCA RESTAURADA POR PLIEGUE  (la que devolvio restore_best_weights)
+----------------------------------------------------------------------------------------------------
+  Etiqueta                       P1         P2         P3         P4         P5   Pegados al umbral
+  -------------------------------------------------------------------------------------------------
+  repeticion (SI2)                                              (no registrada)   --
+  repeticion es=10               25         18         23         75         11   [5]
+  sujeto es=0                                                   (no registrada)   --
+  sujeto + ninguna               23         17         11         12         11   [3, 5]
+  sujeto + global                23         13         12         14         29   ninguno
+  sujeto + sujeto                22         19         30         21         12   ninguno
+  sujeto + sujeto_rest           14         15         13         17         18   ninguno
+
+  Nota: 'pegados al umbral' = pliegues cuya epoca restaurada no
+  supera early_stopping_start + 1, es decir cuyo val_loss no
+  mejoro tras el calentamiento. Con es_start=0 no aplica.
+
+----------------------------------------------------------------------------------------------------
+F1 POR CLASE
+----------------------------------------------------------------------------------------------------
+  Etiqueta                      Rest       Pinch      Tripod       Power  Finger_Ext
+  ----------------------------------------------------------------------------------
+  repeticion (SI2)            0.8875      0.8352      0.8554      0.7943      0.7775
+  repeticion es=10            0.8868      0.8416      0.8727      0.7903      0.7837
+  sujeto es=0                 0.7716      0.4101      0.6652      0.5470      0.4705
+  sujeto + ninguna            0.7891      0.3780      0.6091      0.5402      0.4701
+  sujeto + global             0.7085      0.3817      0.6416      0.6274      0.5279
+  sujeto + sujeto             0.7741      0.5750      0.8370      0.7026      0.5898
+  sujeto + sujeto_rest        0.7598      0.5795      0.7805      0.7084      0.5975
+
+====================================================================================================
+VEREDICTO: LA NORMALIZACION CORRIGE EL COLAPSO?
+====================================================================================================
+
+  sujeto + ninguna
+    Accuracy      : 56.99% +/- 8.66%
+    Epocas restauradas: [23, 17, 11, 12, 11]
+    Pliegues pegados al umbral: [3, 5]  <-- el colapso
+      persiste en esos pliegues, enmascarado por el umbral.
+
+  sujeto + global
+    Accuracy      : 58.57% +/- 12.07%   (delta vs ninguna: +1.58 pts)
+    Epocas restauradas: [23, 13, 12, 14, 29]
+    Ningun pliegue pegado al umbral: todos mejoraron el
+      val_loss despues del calentamiento.
+
+  sujeto + sujeto
+    Accuracy      : 70.00% +/- 7.86%   (delta vs ninguna: +13.01 pts)
+    Epocas restauradas: [22, 19, 30, 21, 12]
+    Ningun pliegue pegado al umbral: todos mejoraron el
+      val_loss despues del calentamiento.
+
+  sujeto + sujeto_rest
+    Accuracy      : 69.11% +/- 3.92%   (delta vs ninguna: +12.12 pts)
+    Epocas restauradas: [14, 15, 13, 17, 18]
+    Ningun pliegue pegado al umbral: todos mejoraron el
+      val_loss despues del calentamiento.
