@@ -1,0 +1,61 @@
+{
+  "_nota": "Resultados de la linea base SI2, TRANSCRITOS (no regenerados) desde resultados_preliminares/metricas.txt del commit af6a26a, preservado bajo el tag git 'si2-groupkfold-repeticion'. Se guardan aqui para que la comparativa contra el esquema por sujeto sea autocontenida. Para reproducirlos: git checkout si2-groupkfold-repeticion.",
+  "esquema": {
+    "etiqueta": "groupkfold_repeticion",
+    "agrupamiento": "repeticion",
+    "validador": "GroupKFold",
+    "k": 5
+  },
+  "origen": {
+    "tag": "si2-groupkfold-repeticion",
+    "commit": "af6a26a",
+    "rama": "sEMG-+-IMU",
+    "archivo": "resultados_preliminares/metricas.txt"
+  },
+  "config": {
+    "optimizador": "Adam",
+    "learning_rate": 0.001,
+    "batch_size": 32,
+    "epochs_max": 100,
+    "early_stopping_patience": 15,
+    "reduce_lr_factor": 0.5,
+    "reduce_lr_patience": 7,
+    "dropout": 0.5,
+    "l2": 0.0001,
+    "label_smoothing": 0.1,
+    "forma_entrada": [40, 8],
+    "ventana_ms": 200,
+    "stride_ms": 20,
+    "tasa_hz": 200,
+    "data_augmentation": "ruido N(0,0.02) + escala U(0.95,1.05) + roll temporal +/-1"
+  },
+  "dataset": {
+    "n_ventanas": 54346,
+    "forma_ventana": [40, 8],
+    "n_sujetos": 10,
+    "n_archivos_mat": 30
+  },
+  "agregado": {
+    "accuracy_media": 0.8298,
+    "accuracy_std": 0.0285,
+    "accuracy_por_fold": [0.7936, 0.8275, 0.8438, 0.8756, 0.8087],
+    "auc_media": 0.9638,
+    "auc_por_fold": [0.9457, 0.966, 0.9703, 0.9774, 0.9595],
+    "loss_por_fold": [0.9132, 0.7995, 0.7884, 0.7062, 0.8575],
+    "epochs_por_fold": [30, 41, 25, 71, 23],
+    "f1_macro": 0.83
+  },
+  "por_clase_global": {
+    "Rest": {"precision": 0.8367, "recall": 0.945, "f1": 0.8875, "support": 10869},
+    "Pinch": {"precision": 0.8423, "recall": 0.8283, "f1": 0.8352, "support": 13303},
+    "Tripod": {"precision": 0.8843, "recall": 0.8283, "f1": 0.8554, "support": 10836},
+    "Power": {"precision": 0.8383, "recall": 0.7547, "f1": 0.7943, "support": 9765},
+    "Finger_Ext": {"precision": 0.7591, "recall": 0.7967, "f1": 0.7775, "support": 9573}
+  },
+  "clases": ["Rest", "Pinch", "Tripod", "Power", "Finger_Ext"],
+  "_limitaciones_conocidas": [
+    "El agrupamiento por repeticion colapsa el campo 'repetition' entre sujetos y ejercicios: los 10 sujetos aparecen simultaneamente en train y en test de los 5 pliegues, por lo que la metrica es INTRA-SUJETO.",
+    "Los pliegues quedan muy desiguales: el pliegue 4 tiene 50.7% de Rest en test (7690 de 15173 ventanas) frente a ~8% en los pliegues 1-3, y los pliegues 4-5 tienen ~15k ventanas de test contra ~8k de los otros.",
+    "El campo 'repetition' toma 7 valores (0..6); el 0 corresponde a los periodos de reposo entre repeticiones."
+  ]
+}
