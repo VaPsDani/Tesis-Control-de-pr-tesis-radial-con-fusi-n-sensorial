@@ -79,6 +79,25 @@ float valoresLMG[NUM_LMG];
 float ax, ay, az;               // acelerometro: los 3 canales de IMU del modelo
 float valoresFSR[6];
 
+// ======================== SENAL HAPTICA ========================
+// Pulso breve con los servos, contable por el usuario. Es el canal que
+// funciona con la protesis puesta y sin consola, que es la situacion en
+// la que ocurre un fallo de calibracion. Se pasa al calibrador como
+// callback para no acoplarlo con el control de servos.
+//
+// Se ejecuta solo fuera del bucle de inferencia, asi que los ~600 ms del
+// patron mas largo no comprometen el presupuesto de 20 ms por ciclo.
+void senalHaptica(uint8_t repeticiones) {
+    const uint8_t gestoPrevio = gestoActual;
+    for (uint8_t i = 0; i < repeticiones; i++) {
+        servos.ejecutarGesto(GESTO_POWER);      // flexion parcial
+        delay(120);
+        servos.ejecutarGesto(GESTO_REST);       // vuelta a reposo
+        delay(120);
+    }
+    servos.ejecutarGesto(gestoPrevio);
+}
+
 // ======================== INSTRUMENTACION ========================
 // Desglose del presupuesto por ciclo de inferencia. El coste de la
 // normalizacion se mide igual que el resto, para que quede en la
@@ -173,6 +192,7 @@ void setup() {
     tflite.info();
 
     // ========== 5b. Calibracion ==========
+    calibrador.registrarSenalHaptica(senalHaptica);
     Serial.print("[CALIB] Buscando calibracion guardada... ");
     if (calibrador.begin()) {
         Serial.println("encontrada");
@@ -229,6 +249,11 @@ void loop() {
             case 'I': calibrador.info(); reportarLatencias(); break;
         }
     }
+
+    // Aviso persistente si la calibracion no esta confirmada. Va antes
+    // del return de sistemaActivo a proposito: el usuario tiene que
+    // enterarse aunque el control por gestos este detenido.
+    calibrador.atenderAvisos(ahora);
 
     if (!sistemaActivo) return;
 

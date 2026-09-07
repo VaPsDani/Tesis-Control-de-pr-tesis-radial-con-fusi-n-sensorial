@@ -84,6 +84,22 @@ public:
     void borrar();
     void info() const;
 
+    // --- Estado y senalizacion ---
+    // El estado NO vuelve a OK por si solo: un intento fallido deja
+    // CALIB_ESTADO_NO_CONFIRM hasta que una calibracion termine bien.
+    // Asi el usuario no puede creer que recalibro cuando no lo hizo.
+    uint8_t estado() const { return _estado; }
+    bool    requiereAviso() const { return _estado != CALIB_ESTADO_OK; }
+
+    // Llamar en cada iteracion del loop. Repite el aviso mientras el
+    // estado no sea OK, sin bloquear.
+    void atenderAvisos(unsigned long ahora);
+
+    // Callback para el patron haptico. Se inyecta desde el .ino para no
+    // acoplar el calibrador con el control de servos.
+    typedef void (*FnSenalHaptica)(uint8_t repeticiones);
+    void registrarSenalHaptica(FnSenalHaptica fn) { _senalHaptica = fn; }
+
     // --- Instrumentacion de latencia (ver C3) ---
     unsigned long ultimaNormalizacionUs() const { return _ultimaUs; }
     unsigned long normalizacionAcumuladaUs() const { return _acumUs; }
@@ -118,6 +134,12 @@ private:
     unsigned long _acumUs;
     uint32_t      _nNorm;
 
+    // Senalizacion
+    uint8_t        _estado;
+    unsigned long  _tUltimoAviso;
+    FnSenalHaptica _senalHaptica;
+
+    void _senalizar(uint8_t nDestellos);
     void _reiniciarAcumuladores();
     void _plegarStaging();
     bool _guardarNVS();

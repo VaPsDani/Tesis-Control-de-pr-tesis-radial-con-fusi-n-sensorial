@@ -7,11 +7,20 @@ static const char *NVS_CLAVE_MEDIA = "media";
 static const char *NVS_CLAVE_SD    = "sd";
 static const char *NVS_CLAVE_N     = "nfeat";
 
+// Patrones de destellos y pulsos hapticos. Se distinguen por CUANTAS
+// veces se repiten, no por su duracion, para que sean contables por una
+// persona sin entrenamiento.
+static const uint8_t PATRON_OK           = 1;   // calibracion correcta
+static const uint8_t PATRON_FALLIDA      = 3;   // intento fallido
+static const uint8_t PATRON_AUSENTE      = 2;   // nunca se calibro
+
 Calibrador::Calibrador()
     : _nMuestras(0), _enStaging(0), _ventanasCompletas(0),
       _calibrado(false), _capturando(false),
       _tInicio(0), _tUltimaMuestra(0),
-      _ultimaUs(0), _acumUs(0), _nNorm(0) {
+      _ultimaUs(0), _acumUs(0), _nNorm(0),
+      _estado(CALIB_ESTADO_AUSENTE), _tUltimoAviso(0),
+      _senalHaptica(nullptr) {
     _reiniciarAcumuladores();
     for (int i = 0; i < NUM_FEATURES; i++) {
         _media[i] = 0.0f;
@@ -31,7 +40,58 @@ void Calibrador::_reiniciarAcumuladores() {
 }
 
 bool Calibrador::begin() {
-    return _cargarNVS();
+#if PIN_LED >= 0
+    pinMode(PIN_LED, OUTPUT);
+    digitalWrite(PIN_LED, LOW);
+#endif
+    const bool hay = _cargarNVS();
+    _estado = hay ? CALIB_ESTADO_OK : CALIB_ESTADO_AUSENTE;
+    return hay;
+}
+
+// ============================================================
+// SENALIZACION
+// ============================================================
+// El usuario final no tiene consola. Un fallo de calibracion que solo
+// aparezca en Serial es, en la practica, un fallo silencioso: la
+// persona cree que recalibro y opera con las estadisticas de otra
+// sesion, quiza con el brazalete en otra posicion.
+void Calibrador::_senalizar(uint8_t nDestellos) {
+#if PIN_LED >= 0
+    for (uint8_t i = 0; i < nDestellos; i++) {
+        digitalWrite(PIN_LED, HIGH);
+        delay(120);
+        digitalWrite(PIN_LED, LOW);
+        delay(120);
+    }
+#endif
+#if SENAL_HAPTICA_HABILITADA
+    // Canal primario: se percibe con la protesis puesta, que es
+    // justamente la situacion en la que ocurre el fallo.
+    if (_senalHaptica) _senalHaptica(nDestellos);
+#endif
+}
+
+void Calibrador::atenderAvisos(unsigned long ahora) {
+    if (_estado == CALIB_ESTADO_OK) return;
+    if (_capturando) return;   // no interrumpir una captura en curso
+
+    if (ahora - _tUltimoAviso < (unsigned long)CALIB_AVISO_PERIODO_MS) return;
+    _tUltimoAviso = ahora;
+
+    if (_estado == CALIB_ESTADO_NO_CONFIRM) {
+        Serial.println("[CALIB] AVISO PERSISTENTE: el ultimo intento de "
+                       "calibracion FALLO. Se sigue operando con la "
+                       "calibracion anterior, que puede no corresponder a "
+                       "la colocacion actual del brazalete. Envie 'C' para "
+                       "reintentar.");
+        _senalizar(PATRON_FALLIDA);
+    } else {
+        Serial.println("[CALIB] AVISO PERSISTENTE: no hay calibracion. La "
+                       "inferencia corre sobre senal cruda, en una escala "
+                       "distinta a la del entrenamiento. Envie 'C'.");
+        _senalizar(PATRON_AUSENTE);
+    }
 }
 
 // ============================================================
@@ -137,7 +197,12 @@ bool Calibrador::finalizar() {
     if (_ventanasCompletas < CALIB_MIN_VENTANAS) {
         Serial.printf("[CALIB] FALLIDA: solo %u ventanas completas, "
                       "minimo %d. No se guarda nada.\n",
-                      _ventanasCompletas, CALIB_MIN_VENTANAS);
+                      (unsigned)_ventanasCompletas, CALIB_MIN_VENTANAS);
+        // El estado NO vuelve a OK aunque hubiera una calibracion previa
+        // valida: el usuario acaba de pedir recalibrar y no lo consiguio.
+        _estado = CALIB_ESTADO_NO_CONFIRM;
+        _tUltimoAviso = 0;    // avisar de inmediato, sin esperar el periodo
+        _senalizar(PATRON_FALLIDA);
         return false;
     }
 
@@ -155,6 +220,8 @@ bool Calibrador::finalizar() {
     }
 
     _calibrado = true;
+    _estado = CALIB_ESTADO_OK;    // unico punto donde vuelve a OK
+    _senalizar(PATRON_OK);
 
     Serial.printf("[CALIB] OK: %u ventanas completas (%lu muestras, %.1f s)\n",
                   (unsigned)_ventanasCompletas, (unsigned long)_nMuestras,
@@ -172,8 +239,20 @@ bool Calibrador::finalizar() {
 void Calibrador::abortar() {
     _capturando = false;
     _reiniciarAcumuladores();
-    Serial.println("[CALIB] Captura abortada. Se conserva la calibracion "
-                   "anterior, si la habia.");
+
+    // Se conserva la calibracion anterior para no dejar el dispositivo
+    // inservible, pero el estado queda NO CONFIRMADA y el aviso se
+    // repite cada CALIB_AVISO_PERIODO_MS hasta que una calibracion
+    // termine bien. Ni se pierde la funcionalidad ni se falla en
+    // silencio.
+    _estado = CALIB_ESTADO_NO_CONFIRM;
+    _tUltimoAviso = 0;
+
+    Serial.println("[CALIB] Captura ABORTADA. Se conserva la calibracion "
+                   "anterior, si la habia, pero queda marcada como NO "
+                   "CONFIRMADA: puede no corresponder a la colocacion "
+                   "actual del brazalete. Reintente con 'C'.");
+    _senalizar(PATRON_FALLIDA);
 }
 
 // ============================================================

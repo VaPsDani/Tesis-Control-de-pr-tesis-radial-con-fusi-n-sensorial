@@ -142,6 +142,35 @@ static_assert(TAMANO_VENTANA == 20,
 // observada en el dataset es 0.0118, seis ordenes por encima.
 #define CALIB_EPSILON            1e-8f
 
+// --- Senalizacion al usuario ---
+// Una calibracion que falla en silencio y conserva la anterior es el
+// peor modo de fallo: el usuario cree que recalibro y esta operando con
+// las estadisticas de otra sesion, posiblemente con el brazalete en
+// otra posicion. El fallo TIENE que ser perceptible sin consola.
+//
+// Canales disponibles con el hardware existente:
+//   Serial   siempre, pero el usuario final no tiene terminal
+//   LED      GPIO 2, integrado en la mayoria de placas ESP32 devkit.
+//            CONFIRMAR contra la placa real; si no lo tiene, poner
+//            PIN_LED en -1 y queda el canal haptico.
+//   Haptico  patron breve con los servos. No requiere hardware nuevo y
+//            se percibe con la protesis puesta, que es la situacion en
+//            la que ocurre el fallo. Es el canal primario.
+// No hay zumbador en el BOM, asi que el tono queda descartado.
+#define PIN_LED                  2      // -1 para deshabilitar
+#define SENAL_HAPTICA_HABILITADA 1
+
+// Estado de la calibracion, para que la senal sea PERSISTENTE y no un
+// aviso puntual que el usuario puede perderse.
+#define CALIB_ESTADO_OK          0   // vigente y confirmada
+#define CALIB_ESTADO_AUSENTE     1   // nunca se calibro
+#define CALIB_ESTADO_NO_CONFIRM  2   // hubo un intento fallido: se sigue
+                                     // operando con la anterior, pero el
+                                     // aviso se repite hasta recalibrar
+
+// Periodo del aviso persistente mientras el estado no sea OK.
+#define CALIB_AVISO_PERIODO_MS   5000
+
 // ======================== UMBRALES FSR ========================
 // Umbral de presion para detener servo (lazo cerrado)
 // Valores en mV, calibrar experimentalmente
