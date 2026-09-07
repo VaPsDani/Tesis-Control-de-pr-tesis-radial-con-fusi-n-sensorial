@@ -676,6 +676,11 @@ def main():
                         help="Numero de pliegues (default: 5)")
     parser.add_argument("--cache", type=str, default=None,
                         help="Ruta .npz para cachear el dataset preprocesado")
+    parser.add_argument("--etiqueta", type=str, default=None,
+                        help="Nombre con el que se guardan los resultados. Por "
+                             "defecto se deriva de validador, agrupamiento y "
+                             "normalizacion. Util para nombrar corridas de "
+                             "control cuyo proposito no se lee del esquema.")
     parser.add_argument("--output_dir", type=str, default=RESULTADOS_DIR,
                         help=f"Directorio de salida (default: {RESULTADOS_DIR}/)")
     args = parser.parse_args()
@@ -683,7 +688,9 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
 
     validador = "stratifiedgroupkfold" if args.estratificado else "groupkfold"
-    etiqueta = f"{validador}_{args.agrupamiento}_norm-{args.normalizacion}"
+    etiqueta = args.etiqueta or (
+        f"{validador}_{args.agrupamiento}_norm-{args.normalizacion}"
+    )
 
     # ========== 1. DATASET ==========
     print("\n" + "=" * 60)
