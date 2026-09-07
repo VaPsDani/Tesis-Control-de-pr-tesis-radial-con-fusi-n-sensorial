@@ -54,3 +54,6 @@ Thumbs.db
 # ========== Datasets crudos ==========
 *.csv
 !dataset_ejemplo.csv
+
+# ========== Sesiones de captura ==========
+Modulo2_Pipeline_DL/sesiones/
