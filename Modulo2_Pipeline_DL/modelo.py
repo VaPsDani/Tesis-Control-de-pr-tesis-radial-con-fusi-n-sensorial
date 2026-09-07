@@ -163,13 +163,27 @@ def construir_modelo(
     return modelo
 
 
-def compilar_modelo(modelo: Model, lr: float = 1e-3) -> Model:
+def compilar_modelo(
+    modelo: Model, lr: float = 1e-3, label_smoothing: float = 0.0
+) -> Model:
     """
     Compila el modelo con optimizador Adam y categorical crossentropy.
+
+    Args:
+        modelo: Modelo de Keras sin compilar
+        lr: Tasa de aprendizaje inicial de Adam
+        label_smoothing: Suavizado de etiquetas de la crossentropy.
+            0.0 (default) reproduce exactamente la ruta LMG del hardware
+            fisico. La ruta de validacion sobre NinaPro DB5
+            (entrenamiento_cv.py) pasa 0.1, que es el valor con el que se
+            obtuvo la linea base de 82.98%; cambiarlo romperia la
+            comparabilidad entre esquemas de particion.
     """
     modelo.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=lr),
-        loss="categorical_crossentropy",
+        loss=tf.keras.losses.CategoricalCrossentropy(
+            label_smoothing=label_smoothing
+        ),
         metrics=["accuracy", tf.keras.metrics.AUC(name="auc")],
     )
     return modelo
