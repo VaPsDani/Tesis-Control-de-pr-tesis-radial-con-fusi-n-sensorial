@@ -81,6 +81,7 @@
 #define INTERVALO_INFERENCIA_MS 20   // 50 Hz (cada 2 muestras)
 #define TAMANO_VENTANA          20   // muestras por ventana
 #define STRIDE                   2   // muestras entre inferencias
+#define NUM_LMG                  5   // fotodiodos OPT101
 #define NUM_FEATURES             9   // 5 LMG + 4 pseudo-cuaterniones
 #define NUM_CLASES               5   // Rest, Pinch, Tripod, Power, Ext.
 

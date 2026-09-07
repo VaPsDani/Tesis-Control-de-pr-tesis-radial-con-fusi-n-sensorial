@@ -31,7 +31,16 @@
 
 // ======================== ADS1115 ========================
 #define ADS_ADDR        0x48
-#define ADS_GAIN        0.1875e-3   // 0.1875 mV por LSB (GAIN=1, ±4.096V)
+
+// mV por LSB. Debe corresponder al GAIN configurado en mux_ads1115.cpp:
+//   GAIN_ONE       -> +/-4.096 V -> 0.125  mV/LSB   <-- el que usamos
+//   GAIN_TWOTHIRDS -> +/-6.144 V -> 0.1875 mV/LSB
+//
+// La constante anterior (ADS_GAIN 0.1875e-3) era incorrecta por
+// partida triple: estaba en voltios y no en mV, el valor correspondia
+// a GAIN_TWOTHIRDS y no al GAIN_ONE que se configura, y el .cpp la
+// ignoraba usando 0.125f literal. Se unifica con Modulo3.
+#define ADS_GAIN_MV     0.125f
 
 // ======================== MPU6050 ========================
 #define MPU_ADDR        0x68
