@@ -77,7 +77,15 @@ float muestra[NUM_FEATURES];                    // 1 muestra actual
 float ventanaCompleta[TAMANO_VENTANA][NUM_FEATURES];  // ventana para inferencia
 float valoresLMG[NUM_LMG];
 float ax, ay, az;               // acelerometro: los 3 canales de IMU del modelo
-float valoresFSR[6];
+
+// ======================== ESCANEO ROTATIVO DE FSR ========================
+// Un solo FSR por ciclo, rotando entre los dedos que cierran en el gesto
+// actual. El ciclo pasa de 11 canales de ADC a 6, que es lo que hace que
+// quepa en los 10 ms.
+uint8_t       fsrRotacion   = 0;    // indice del proximo dedo a leer
+unsigned long tFSRUs        = 0;    // coste de la lectura del FSR del ciclo
+unsigned long acumFSRUs     = 0;
+uint32_t      lecturasFSR   = 0;
 
 // ======================== SENAL HAPTICA ========================
 // Pulso breve con los servos, contable por el usuario. Es el canal que
@@ -118,6 +126,8 @@ void reportarLatencias() {
         ? calibrador.normalizacionAcumuladaUs() / (float)nNorm
         : 0.0f;
 
+    const float medFSR = lecturasFSR
+        ? acumFSRUs / (float)lecturasFSR : 0.0f;
     const float total = medMuestreo + medNorm + medInferencia;
 
     Serial.printf("[LATENCIA]   Muestreo (5 LMG + IMU) : %8.1f us  %5.1f%%\n",
@@ -131,6 +141,32 @@ void reportarLatencias() {
                   total, 100.0f * total / 20000.0f);
     Serial.printf("[LATENCIA]   Ciclos medidos: %lu   Normalizaciones: %lu\n",
                   (unsigned long)ciclosMedidos, (unsigned long)nNorm);
+
+    // ===== Presupuesto del ciclo de 10 ms =====
+    // Este es EL numero que decide si el escaneo desacoplado funciona.
+    // El ciclo de muestreo debe caber en INTERVALO_MUESTRA_MS; si no,
+    // el sistema no corre a 100 Hz y la ventana del modelo deja de ser
+    // de 200 ms, por mucho que el ciclo de inferencia vaya holgado.
+    Serial.println("[LATENCIA] Presupuesto del ciclo de muestreo (10 ms):");
+    Serial.printf("[LATENCIA]   5 LMG + IMU            : %8.1f us\n",
+                  medMuestreo);
+    Serial.printf("[LATENCIA]   1 FSR (rotativo)       : %8.1f us "
+                  "(%lu lecturas)\n", medFSR, (unsigned long)lecturasFSR);
+    const float ciclo = medMuestreo + medFSR;
+    Serial.printf("[LATENCIA]   TOTAL CICLO 10 ms      : %8.1f us "
+                  "(%.1f%% de 10000 us)\n", ciclo, 100.0f * ciclo / 10000.0f);
+    if (ciclo > 10000.0f) {
+        Serial.println("[LATENCIA] ERROR: el ciclo NO cabe en 10 ms. El "
+                       "muestreo no corre a 100 Hz y la ventana del modelo "
+                       "no mide 200 ms.");
+    } else if (ciclo > 9000.0f) {
+        Serial.printf("[LATENCIA] AVISO: solo %.0f us de margen. Considere "
+                      "leer un FSR cada dos ciclos.\n", 10000.0f - ciclo);
+    }
+
+    // Tasa efectiva real de cada FSR, medida y no supuesta.
+    Serial.println("[LATENCIA] Tasa efectiva por FSR:");
+    feedback.info();
 
     // La normalizacion son TAMANO_VENTANA * NUM_FEATURES = 160 restas y
     // multiplicaciones, con la division ya resuelta al calibrar. A
@@ -286,6 +322,31 @@ void loop() {
 
         tMuestreoUs = micros() - tMuestreo0;
 
+        // ===== UN SOLO FSR POR CICLO, ROTANDO =====
+        // Va aqui, en el bucle de 10 ms, y no en el de inferencia:
+        // asi la tasa efectiva por sensor es 100 Hz / n_dedos_activos y
+        // no depende de cuando toque inferir.
+        const uint8_t activos = FeedbackFSR::dedosActivos(gestoActual);
+        if (activos) {
+            // Avanzar hasta el proximo dedo que este cerrando.
+            uint8_t intentos = 0;
+            while (intentos < NUM_FSR &&
+                   !(activos & (1 << fsrRotacion))) {
+                fsrRotacion = (fsrRotacion + 1) % NUM_FSR;
+                intentos++;
+            }
+            if (activos & (1 << fsrRotacion)) {
+                const unsigned long tf0 = micros();
+                const float mv = muxAds.leerCanal(
+                    FeedbackFSR::canalDe(fsrRotacion));
+                tFSRUs = micros() - tf0;
+                acumFSRUs += tFSRUs;
+                lecturasFSR++;
+                feedback.actualizar(fsrRotacion, mv, micros());
+                fsrRotacion = (fsrRotacion + 1) % NUM_FSR;
+            }
+        }
+
         // ========== MODO CALIBRACION ==========
         // Mientras se calibra, las muestras van al calibrador y NO se
         // infiere: los servos no deben moverse mientras el usuario
@@ -326,6 +387,11 @@ void loop() {
             // --- Actuar sobre el gesto ---
             if (gestoActual != gestoAnterior || primeraInferencia) {
                 primeraInferencia = false;
+                // Al cambiar de gesto cambian los dedos que cierran: las
+                // lecturas anteriores quedan rancias y no deben frenar
+                // un dedo que acaba de empezar a moverse.
+                feedback.reiniciar();
+                fsrRotacion = 0;
 
                 Serial.printf("[INFERENCIA] Gesto: %s (clase %d)\n",
                               ControlServos::gestos[gestoActual].nombre,
@@ -335,41 +401,32 @@ void loop() {
                 gestoAnterior = gestoActual;
             }
 
-            // ========== LAZO CERRADO: LEER FSR ==========
-            // Solo cuando estamos en un gesto de agarre (no Rest, no Extension)
-            if (gestoActual == GESTO_PINCH ||
-                gestoActual == GESTO_TRIPOD ||
-                gestoActual == GESTO_POWER) {
+            // ========== LAZO CERRADO ==========
+            // Ya no se lee aqui: la lectura ocurre en el bucle de 10 ms,
+            // un FSR por ciclo. Aqui solo se evalua el cache y se frena.
+            const uint8_t activosInf = FeedbackFSR::dedosActivos(gestoActual);
+            if (activosInf) {
+                const uint8_t frenar = feedback.verificarUmbrales(activosInf);
 
-                // Leer los 6 FSR a traves del MUX
-                valoresFSR[0] = muxAds.leerCanal(CH_FSR_PULGAR);
-                valoresFSR[1] = muxAds.leerCanal(CH_FSR_INDICE);
-                valoresFSR[2] = muxAds.leerCanal(CH_FSR_MEDIO);
-                valoresFSR[3] = muxAds.leerCanal(CH_FSR_ANULAR);
-                valoresFSR[4] = muxAds.leerCanal(CH_FSR_MENIQUE);
-                valoresFSR[5] = muxAds.leerCanal(CH_FSR_PALMA);
-
-                feedback.leerFSR(valoresFSR);
-
-                // Verificar umbrales
-                uint8_t frenar = feedback.verificarUmbrales(valoresFSR);
-
-                // Frenar servos segun bitmap (bits 0-4 corresponden a servos 0-4)
                 if (frenar & 0x01) servos.frenarServo(SERVO_PULGAR);
                 if (frenar & 0x02) servos.frenarServo(SERVO_INDICE);
                 if (frenar & 0x04) servos.frenarServo(SERVO_MEDIO);
                 if (frenar & 0x08) servos.frenarServo(SERVO_ANULAR);
                 if (frenar & 0x10) servos.frenarServo(SERVO_MENIQUE);
 
-                // Debug FSR (cada 10 ciclos para no saturar Serial)
                 static uint8_t debugCounter = 0;
-                if (++debugCounter >= 10) {
+                if (++debugCounter >= 25) {     // ~2 Hz
                     debugCounter = 0;
-                    Serial.printf("[FSR] P:%.0f I:%.0f M:%.0f A:%.0f Mn:%.0f Pl:%.0f (mV)\n",
-                                  valoresFSR[0], valoresFSR[1], valoresFSR[2],
-                                  valoresFSR[3], valoresFSR[4], valoresFSR[5]);
+                    Serial.printf("[FSR] P:%.0f I:%.0f M:%.0f A:%.0f Mn:%.0f "
+                                  "(mV, activos=0x%02X)\n",
+                                  feedback.getUltimoValor(0),
+                                  feedback.getUltimoValor(1),
+                                  feedback.getUltimoValor(2),
+                                  feedback.getUltimoValor(3),
+                                  feedback.getUltimoValor(4),
+                                  activosInf);
                     if (frenar) {
-                        Serial.printf("[FSR] Frenando servos: 0x%02X\n", frenar);
+                        Serial.printf("[FSR] Frenando: 0x%02X\n", frenar);
                     }
                 }
             }

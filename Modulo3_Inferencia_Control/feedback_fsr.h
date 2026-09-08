@@ -1,29 +1,35 @@
 /*
- * feedback_fsr.h - Lazo cerrado con sensores FSR
+ * feedback_fsr.h - Lazo de realimentacion de fuerza con FSR
  *
- * LOGICA DE RETROALIMENTACION:
- *   Mientras la protesis esta ejecutando un gesto de agarre (Pinch,
- *   Tripod, Power), se leen continuamente los 6 sensores FSR a traves
- *   del MUX + ADS1115.
+ * QUE HACE:
+ *   Mantiene el ultimo valor de cada FSR de yema y decide que servos
+ *   deben frenarse. La LECTURA fisica ocurre en el bucle principal,
+ *   porque el ADS1115 se comparte con los canales LMG.
  *
- *   Cada FSR corresponde a un dedo:
- *     FSR[0] → Pulgar  (FSR402)
- *     FSR[1] → Indice  (FSR402)
- *     FSR[2] → Medio   (DF9-40)
- *     FSR[3] → Anular  (DF9-40)
- *     FSR[4] → Menique (DF9-40)
- *     FSR[5] → Palma   (DF9-40)
+ * ESCANEO ROTATIVO:
+ *   Cada ciclo de 10 ms se lee UN solo FSR, no los cinco. El escaneo
+ *   rota entre los dedos que estan cerrando en el gesto actual, asi que
+ *   la tasa efectiva por sensor es 100 Hz / n_dedos_activos: 50 Hz en
+ *   Pinch, 33 Hz en Tripod y 20 Hz en Power.
  *
- *   Si la lectura del FSR supera el UMBRAL_FSR_*, se frena el servo
- *   correspondiente. Esto evita que la protesis aplaste el objeto
- *   mientras mantiene una presion constante.
+ *   Eso baja el ciclo de 11 canales de ADC a 6 y hace que quepa en los
+ *   10 ms, que es lo que antes no ocurria.
  *
- *   Los valores de umbral se calibran experimentalmente y dependen
- *   de la sensibilidad de cada FSR y su ubicacion.
+ * POR QUE BASTA CON ESAS TASAS:
+ *   La fuerza de agarre es mecanicamente lenta; un dedo tarda cientos de
+ *   ms en cerrarse sobre un objeto. Lo que determina el sobrecierre no
+ *   es la tasa de lectura sola, sino su producto por la velocidad a la
+ *   que avanza el dedo. Con los servos moviendose a tope (~600 grados/s
+ *   en un MG90S) ninguna tasa razonable bastaria; con una rampa
+ *   controlada de 180 grados/s, 20 Hz dejan el sobrecierre en 9 grados.
  *
- * TIMING:
- *   - La lectura de 6 FSR + 5 LMG toma ~16 ms
- *   - El lazo de feedback corre en cada ciclo de 20 ms
+ *   Ver la nota sobre frenarServo() en control_servos.h: mientras el
+ *   freno no actue sobre una rampa, el sobrecierre no depende de esta
+ *   tasa en absoluto.
+ *
+ * DIAGNOSTICO:
+ *   Se guarda el instante de la ultima lectura de cada sensor para poder
+ *   reportar la tasa efectiva real, en vez de suponerla.
  */
 
 #ifndef FEEDBACK_FSR_H
@@ -31,38 +37,43 @@
 
 #include <Arduino.h>
 #include "config.h"
-#include "mux_ads1115.h"
 
 class FeedbackFSR {
 public:
     FeedbackFSR();
 
-    // Lee todos los FSR, retorna true si alguno supera el umbral
-    bool leerFSR(float valores[6]);
+    // Canal del MUX correspondiente al FSR de cada dedo.
+    static uint8_t canalDe(uint8_t dedo);
 
-    // Verifica umbrales y retorna un bitmap de servos a frenar
-    // bit 0 = pulgar, bit 1 = indice, ..., bit 5 = palma
-    // Retorna un bitmap de 6 bits (solo 5 servos, la palma no tiene servo directo)
-    uint8_t verificarUmbrales(const float valores[6]);
+    // Bitmap de dedos que cierran en un gesto dado.
+    static uint8_t dedosActivos(uint8_t gesto_id);
 
-    // Obtiene el ultimo valor de un FSR especifico
-    float getUltimoValor(uint8_t idx) const;
+    // Registra la lectura de UN sensor (escaneo rotativo).
+    void actualizar(uint8_t dedo, float valor_mv, unsigned long ahora);
 
-    // Array de umbrales para cada FSR (configurable en runtime)
-    float umbrales[6];
+    // Bitmap de servos cuyo umbral se ha superado. Solo considera los
+    // sensores efectivamente leidos desde el ultimo gesto: un valor
+    // rancio no debe frenar un dedo que acaba de empezar a cerrarse.
+    uint8_t verificarUmbrales(uint8_t dedos_activos) const;
+
+    // Invalida las lecturas al cambiar de gesto.
+    void reiniciar();
+
+    float getUltimoValor(uint8_t dedo) const;
+    bool  esValido(uint8_t dedo) const;
+
+    // Tasa efectiva medida de cada sensor, en Hz. 0 si no hay dos
+    // lecturas todavia.
+    float tasaEfectiva(uint8_t dedo) const;
+    void  info() const;
+
+    float umbrales[NUM_FSR];
 
 private:
-    float _ultimos_valores[6];
-
-    // Canales del MUX para cada FSR
-    const uint8_t _canales_fsr[6] = {
-        CH_FSR_PULGAR,
-        CH_FSR_INDICE,
-        CH_FSR_MEDIO,
-        CH_FSR_ANULAR,
-        CH_FSR_MENIQUE,
-        CH_FSR_PALMA,
-    };
+    float         _valores[NUM_FSR];
+    bool          _valido[NUM_FSR];
+    unsigned long _t_ultima[NUM_FSR];
+    unsigned long _periodo_us[NUM_FSR];   // media movil del periodo
 };
 
 #endif

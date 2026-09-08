@@ -52,6 +52,21 @@
 #define CH_FSR_MENIQUE  9   // DF9-40
 #define CH_FSR_PALMA    10  // DF9-40 - presion en la palma
 
+// FSR que participan en el LAZO DE CONTROL: uno por yema, cinco.
+//
+// El de palma queda FUERA del escaneo, no porque el sensor sobre en el
+// hardware sino porque la ley de control actual no puede usarlo: el
+// lazo frena servos individuales cuando la yema correspondiente supera
+// su umbral, y no existe un "servo de palma" que frenar. De hecho ya era
+// codigo muerto: verificarUmbrales calculaba su bit 5 y el .ino solo
+// actuaba sobre los bits 0..4.
+//
+// Podria servir para detectar el tipo de agarre o el deslizamiento,
+// pero eso es otra ley de control. Incluirlo cuesta un 17% de tasa de
+// refresco a los otros cinco (20 Hz -> 16.7 Hz).
+#define NUM_FSR         5
+#define NUM_FSR_HW      6   // los que existen fisicamente
+
 // ======================== ADS1115 ========================
 #define ADS_ADDR        0x48
 #define ADS_GAIN_MV     0.125f  // mV por LSB (GAIN_ONE, ±4.096V)
@@ -170,6 +185,49 @@ static_assert(TAMANO_VENTANA == 20,
 
 // Periodo del aviso persistente mientras el estado no sea OK.
 #define CALIB_AVISO_PERIODO_MS   5000
+
+// ======================== ESCANEO DESACOPLADO DEL ADC ========================
+// El problema: LMG y FSR comparten un unico ADS1115 multiplexado. Leer
+// 5 LMG + 6 FSR son 11 conversiones, ~15-18 ms, sobre un presupuesto de
+// 10 ms. El ciclo no cerraba.
+//
+// La solucion no es acelerar el ADC, que ya esta a 860 SPS, sino
+// reconocer que los dos grupos NO necesitan la misma tasa:
+//
+//   LMG   100 Hz obligatorio. Alimentan la ventana de 20 muestras del
+//         modelo; a menos tasa la ventana deja de ser de 200 ms.
+//   FSR   la fuerza de agarre es mecanicamente lenta. Un dedo tarda
+//         cientos de ms en cerrarse sobre un objeto.
+//
+// Por eso cada ciclo de 10 ms lee los 5 LMG y UN SOLO FSR, rotando. El
+// ciclo pasa de 11 canales a 6.
+#define FSR_POR_CICLO   1
+
+// ESCANEO ADAPTATIVO: solo se rotan los FSR de los dedos que estan
+// cerrando en el gesto actual. De los angulos de control_servos.cpp:
+//
+//              Pulgar Indice Medio Anular Menique   dedos que cierran
+//   Rest          0      0      0     0      0             0
+//   Pinch       180    120      0     0      0             2
+//   Tripod      180    150    120     0      0             3
+//   Power       180    170    170   150    140             5
+//   Extension     0      0      0     0      0             0
+//
+// La tasa efectiva por FSR es 100 Hz / n_dedos_activos:
+//   Pinch   2 dedos -> 50.0 Hz por FSR
+//   Tripod  3 dedos -> 33.3 Hz por FSR
+//   Power   5 dedos -> 20.0 Hz por FSR
+//
+// La tasa mas alta cae en Pinch, que es el agarre delicado, y la mas
+// baja en Power, que es donde la fuerza se quiere alta. El reparto
+// favorece justo donde importa.
+//
+// Bitmap de dedos que cierran, indexado por gesto. Bit i = servo i.
+#define FSR_ACTIVOS_REST        0x00
+#define FSR_ACTIVOS_PINCH       0x03   // pulgar + indice
+#define FSR_ACTIVOS_TRIPOD      0x07   // pulgar + indice + medio
+#define FSR_ACTIVOS_POWER       0x1F   // los cinco
+#define FSR_ACTIVOS_EXTENSION   0x00
 
 // ======================== UMBRALES FSR ========================
 // Umbral de presion para detener servo (lazo cerrado)
