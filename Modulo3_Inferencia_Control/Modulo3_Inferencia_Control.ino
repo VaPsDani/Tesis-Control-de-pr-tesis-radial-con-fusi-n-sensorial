@@ -322,12 +322,24 @@ void loop() {
 
         tMuestreoUs = micros() - tMuestreo0;
 
-        // ===== UN SOLO FSR POR CICLO, ROTANDO =====
-        // Va aqui, en el bucle de 10 ms, y no en el de inferencia:
-        // asi la tasa efectiva por sensor es 100 Hz / n_dedos_activos y
-        // no depende de cuando toque inferir.
+        // ===== RAMPA DE SERVOS =====
+        // Va en el bucle de 10 ms para que su periodo real sea
+        // RAMPA_PERIODO_MS y no dependa de cuando toque inferir. Solo
+        // escribe al PCA9685 los servos cuyo angulo cambio, asi que
+        // mantener una postura no cuesta nada.
+        servos.actualizarRampa(ahora);
+
+        // ===== UN FSR POR CICLO, ROTANDO =====
+        // Va aqui, en el bucle de 10 ms, y no en el de inferencia: asi
+        // la tasa efectiva por sensor es 100 Hz / n_dedos_activos y no
+        // depende de cuando toque inferir. FSR_CADA_N_CICLOS a 2 activa
+        // el plan B si el presupuesto real no da.
+        static uint8_t divisorFSR = 0;
+        const bool tocaFSR = (++divisorFSR >= FSR_CADA_N_CICLOS);
+        if (tocaFSR) divisorFSR = 0;
+
         const uint8_t activos = FeedbackFSR::dedosActivos(gestoActual);
-        if (activos) {
+        if (activos && tocaFSR) {
             // Avanzar hasta el proximo dedo que este cerrando.
             uint8_t intentos = 0;
             while (intentos < NUM_FSR &&
@@ -344,6 +356,19 @@ void loop() {
                 lecturasFSR++;
                 feedback.actualizar(fsrRotacion, mv, micros());
                 fsrRotacion = (fsrRotacion + 1) % NUM_FSR;
+
+                // FRENAR AQUI MISMO, no en el bucle de inferencia.
+                // El lazo de fuerza no tiene por que esperar a una
+                // inferencia: hacerlo anadia hasta 20 ms de latencia
+                // gratis, que a 180 grados/s son 3.6 grados mas de
+                // sobrecierre. Asi la latencia total es solo el periodo
+                // de escaneo del FSR.
+                const uint8_t frenar = feedback.verificarUmbrales(activos);
+                if (frenar & 0x01) servos.frenarServo(SERVO_PULGAR);
+                if (frenar & 0x02) servos.frenarServo(SERVO_INDICE);
+                if (frenar & 0x04) servos.frenarServo(SERVO_MEDIO);
+                if (frenar & 0x08) servos.frenarServo(SERVO_ANULAR);
+                if (frenar & 0x10) servos.frenarServo(SERVO_MENIQUE);
             }
         }
 
@@ -401,19 +426,14 @@ void loop() {
                 gestoAnterior = gestoActual;
             }
 
-            // ========== LAZO CERRADO ==========
-            // Ya no se lee aqui: la lectura ocurre en el bucle de 10 ms,
-            // un FSR por ciclo. Aqui solo se evalua el cache y se frena.
+            // ========== LAZO CERRADO: solo traza ==========
+            // Ni la lectura ni la frenada ocurren aqui. Ambas viven en
+            // el bucle de 10 ms, junto al escaneo del FSR: hacer que el
+            // lazo de fuerza esperase a una inferencia anadia hasta
+            // 20 ms de latencia, que a 180 grados/s son 3.6 grados mas
+            // de sobrecierre por nada.
             const uint8_t activosInf = FeedbackFSR::dedosActivos(gestoActual);
             if (activosInf) {
-                const uint8_t frenar = feedback.verificarUmbrales(activosInf);
-
-                if (frenar & 0x01) servos.frenarServo(SERVO_PULGAR);
-                if (frenar & 0x02) servos.frenarServo(SERVO_INDICE);
-                if (frenar & 0x04) servos.frenarServo(SERVO_MEDIO);
-                if (frenar & 0x08) servos.frenarServo(SERVO_ANULAR);
-                if (frenar & 0x10) servos.frenarServo(SERVO_MENIQUE);
-
                 static uint8_t debugCounter = 0;
                 if (++debugCounter >= 25) {     // ~2 Hz
                     debugCounter = 0;
@@ -425,8 +445,11 @@ void loop() {
                                   feedback.getUltimoValor(3),
                                   feedback.getUltimoValor(4),
                                   activosInf);
-                    if (frenar) {
-                        Serial.printf("[FSR] Frenando: 0x%02X\n", frenar);
+                    for (uint8_t d = 0; d < NUM_FSR; d++) {
+                        if ((activosInf & (1 << d)) && !servos.enMovimiento(d)) {
+                            Serial.printf("[FSR] Dedo %d detenido en %d grados\n",
+                                          d, servos.getAnguloActual(d));
+                        }
                     }
                 }
             }

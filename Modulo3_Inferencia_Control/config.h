@@ -88,6 +88,90 @@
 #define SERVO_ANULAR    3
 #define SERVO_MENIQUE   4
 
+// NOTA DE DISENO: los 5 dedos conservan servo y GDL independientes.
+// En el repertorio actual de 5 gestos, anular y menique solo se mueven
+// en Power y podrian acoplarse mecanicamente a un unico actuador. No se
+// hace: esa dependencia es propiedad del REPERTORIO, no de la mano.
+// Acoplarlos cerraria la puerta a ampliar el conjunto de gestos, y el
+// proyecto se libera como hardware abierto.
+
+// ======================== POSTURAS DE REST Y EXTENSION ========================
+// Antes, Rest y Extension eran motrizmente IDENTICOS: {0,0,0,0,0} los
+// dos. El modelo distinguia 5 clases pero la mano hacia 4 cosas, y
+// confundir Rest con Extension no tenia ninguna consecuencia motora.
+// Eso impedia demostrar en la validacion funcional que el sistema
+// distingue las cinco clases.
+//
+// LIMITE DEL MECANISMO, que conviene tener presente:
+//   _anguloAPulso mapea 0..180 grados a 500..2500 us, asi que 0 es el
+//   suelo del rango comandable: NO hay margen por debajo. La
+//   hiperextension anatomica pura (ir mas alla del neutro) no se puede
+//   comandar sin remapear el rango o rediseniar el mecanismo.
+//
+//   Lo que si es correcto, y ademas anatomicamente mas fiel, es que
+//   REPOSO NO SEA EXTENSION COMPLETA. Una mano relajada tiene flexion
+//   pasiva de los dedos por tension tendinosa residual; no queda
+//   plana. Asi que Rest pasa a una postura relajada con ligera flexion
+//   y Extension se queda en el 0 del rango.
+//
+//   Si al montar los tendones el cero mecanico del dedo se fija en la
+//   postura relajada, entonces comandar 0 SI es hiperextension real.
+//   Eso se decide en el ensamblaje y es un punto de ajuste del
+//   bring-up, no una constante de software.
+//
+// Ambos valores son parametrizables para afinarlos con la mano impresa.
+// La diferencia de 25 grados en los cinco dedos es visible a simple
+// vista, que es el requisito de la validacion funcional.
+#define ANGULO_REST        25   // relajado, ligera flexion pasiva
+#define ANGULO_EXTENSION    0   // extension completa (suelo del rango)
+
+// ======================== RAMPA DE CIERRE ========================
+// Los servos NO saltan al angulo objetivo: avanzan por rampa. Sin esto
+// el lazo de fuerza no puede existir, porque frenar un servo que ya
+// llego al tope no sirve de nada; con rampa, frenar significa congelar
+// el avance.
+//
+// EL COMPROMISO, para ajustarlo en el bring-up con la mano impresa:
+//   Mas rapido  cierre mas natural, pero mas sobrecierre entre la
+//               deteccion del umbral FSR y la frenada.
+//   Mas lento   menos sobrecierre, pero el agarre se siente perezoso.
+//
+// 180 grados/s cierra el recorrido completo en 1 s. El sobrecierre es
+// el producto de esta velocidad por la latencia de deteccion, que es
+// SOLO el periodo de escaneo del FSR: la frenada ocurre en el mismo
+// bucle de 10 ms en que se lee el sensor, no en el de inferencia.
+// Hacerla esperar a una inferencia anadia hasta 20 ms, o sea 3.6
+// grados mas de sobrecierre por nada.
+//
+// Peor caso barriendo todas las fases posibles del escaneo rotativo
+// (simulado sobre la logica exacta de actualizarRampa, no medido en
+// hardware):
+//
+//   Pinch  (2 dedos, 50 Hz)   20 ms ->  3.6 grados   (2.0% del rango)
+//   Tripod (3 dedos, 33 Hz)   30 ms ->  7.2 grados   (4.0%)
+//   Power  (5 dedos, 20 Hz)   50 ms -> 10.8 grados   (6.0%)
+//   Plan B (Power a 10 Hz)   100 ms -> 18.0 grados  (10.0%)
+//
+// Referencia de lo que habia antes: sin rampa, el MG90S viajaba libre
+// a ~600 grados/s hasta el tope comandado, o sea 90 grados de
+// sobrecierre (50%) a cualquier tasa de lectura.
+//
+// El peor caso cae en Power, que es agarre de fuerza y donde el
+// sobrecierre molesta menos.
+//
+// EL VALOR OPTIMO DEPENDE DE LA INERCIA DE LOS DEDOS IMPRESOS, que
+// todavia no se conoce. Con dedos pesados puede hacer falta bajarlo
+// para que el servo no pierda pasos ni oscile al frenar; con dedos
+// ligeros se puede subir. Ajustar aqui y remedir el sobrecierre.
+#define RAMPA_GRADOS_POR_S   180
+
+// Periodo de actualizacion de la rampa. A 50 Hz cada paso son 3.6
+// grados, imperceptible en un dedo, y cuesta la mitad de escrituras I2C
+// al PCA9685 que hacerlo a 100 Hz. Subirlo a cada ciclo (10 ms) suaviza
+// el movimiento pero anade ~375 us al presupuesto de muestreo, que ya
+// va justo.
+#define RAMPA_PERIODO_MS     20
+
 // ======================== VENTANA DESLIZANTE ========================
 // Frecuencia de muestreo: 100 Hz (cada 10 ms)
 // Ventana: 200 ms → 20 muestras
@@ -202,6 +286,24 @@ static_assert(TAMANO_VENTANA == 20,
 // Por eso cada ciclo de 10 ms lee los 5 LMG y UN SOLO FSR, rotando. El
 // ciclo pasa de 11 canales a 6.
 #define FSR_POR_CICLO   1
+
+// PLAN B DEL PRESUPUESTO, escrito antes de necesitarlo.
+//
+// El presupuesto analitico del ciclo es ~8.8 ms sobre 10, un 12% de
+// margen, y el overhead de I2C que lo sustenta esta estimado y no
+// medido. Si en el bring-up el comando 'I' reporta que el ciclo no
+// cabe, poner esta constante a 2 libera ~1.4 ms leyendo un FSR cada dos
+// ciclos en vez de cada uno.
+//
+// Coste de la degradacion: la tasa por sensor se reduce a la mitad
+// (Power pasa de 20 a 10 Hz) y el sobrecierre con la rampa de 180
+// grados/s sube de 10.8 a 18.0 grados, un 10% del recorrido. Sigue
+// siendo aceptable para un agarre de fuerza, y muy lejos de los 90
+// grados que producia la version sin rampa.
+//
+// Que quede aqui y no haya que rediseniar nada en pleno bring-up es el
+// motivo de escribirlo ahora.
+#define FSR_CADA_N_CICLOS   1   // 2 = plan B degradado
 
 // ESCANEO ADAPTATIVO: solo se rotan los FSR de los dedos que estan
 // cerrando en el gesto actual. De los angulos de control_servos.cpp:

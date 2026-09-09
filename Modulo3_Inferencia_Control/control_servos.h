@@ -12,10 +12,22 @@
  *   Los angulos se convierten a pulsos PWM (500-2500 us) usando
  *   la formula: pulso = map(angulo, 0, 180, SERVO_PULSE_MIN, SERVO_PULSE_MAX)
  *
+ * MOVIMIENTO POR RAMPA:
+ *   ejecutarGesto() fija un OBJETIVO por servo; no salta a el. La rampa
+ *   avanza el angulo comandado a RAMPA_GRADOS_POR_S en cada llamada a
+ *   actualizarRampa(), que hay que invocar periodicamente desde el
+ *   bucle principal.
+ *
+ *   Esto no es un adorno: sin rampa el lazo de fuerza NO PUEDE existir.
+ *   La version anterior comandaba el angulo final de una sola vez, el
+ *   MG90S viajaba libre a ~600 grados/s hasta el tope y frenarServo()
+ *   se limitaba a imprimir un mensaje, porque ya no habia nada que
+ *   frenar. El umbral FSR se detectaba y se descartaba.
+ *
  * LAZO CERRADO CON FSR:
  *   Cuando un servo se esta cerrando y su FSR supera el umbral,
- *   se frena ese servo especifico estableciendo su angulo actual
- *   como limite, evitando que continue apretando.
+ *   frenarServo() congela el objetivo en el angulo comandado en ese
+ *   instante. El dedo deja de apretar y mantiene la posicion.
  */
 
 #ifndef CONTROL_SERVOS_H
@@ -39,16 +51,26 @@ public:
     ControlServos();
     bool begin();
 
-    // Ejecuta un gesto: mueve todos los servos a las posiciones del gesto
+    // Fija el objetivo de cada servo. NO salta: la rampa se encarga.
     void ejecutarGesto(uint8_t gesto_id);
 
-    // Frena un servo especifico (lo deja en su posicion actual)
+    // Avanza la rampa hacia los objetivos. Llamar periodicamente desde
+    // el bucle principal; respeta RAMPA_PERIODO_MS internamente y solo
+    // escribe en el PCA9685 los servos cuyo angulo cambio, de modo que
+    // mantener una postura no cuesta trafico I2C.
+    void actualizarRampa(unsigned long ahora_ms);
+
+    // Congela el objetivo en el angulo comandado ahora mismo.
     void frenarServo(uint8_t servo_id);
 
-    // Retorna el angulo actual de un servo
+    // True si el servo sigue avanzando hacia su objetivo.
+    bool enMovimiento(uint8_t servo_id) const;
+
+    // Angulo comandado en este instante (no el objetivo).
     uint8_t getAnguloActual(uint8_t servo_id) const;
 
-    // Establece manualmente el angulo de un servo (usado por feedback FSR)
+    // Salto inmediato, sin rampa. Solo para pruebas y posicionamiento
+    // inicial: el lazo de fuerza no puede proteger un movimiento asi.
     void setAnguloServo(uint8_t servo_id, uint8_t angulo);
 
     // Configuracion de gestos predefinidos
@@ -56,7 +78,14 @@ public:
 
 private:
     Adafruit_PWMServoDriver _pca;
-    uint8_t _angulos_actuales[NUM_SERVOS];
+
+    // El angulo comandado se guarda en float porque el paso de rampa
+    // (3.6 grados a 50 Hz) no es entero; redondear en cada paso
+    // acumularia error y falsearia la velocidad efectiva.
+    float   _comandado[NUM_SERVOS];
+    uint8_t _objetivo[NUM_SERVOS];
+    uint8_t _ultimo_escrito[NUM_SERVOS];
+    unsigned long _t_ultima_rampa;
     bool _inicializado;
 
     // Convierte angulo (0-180) a pulso PWM para PCA9685
