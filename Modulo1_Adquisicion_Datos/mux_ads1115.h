@@ -4,7 +4,7 @@
  * Logica:
  *   El MUX expande 1 canal del ADS1115 a 16 canales analogicos.
  *   Para leer el canal N: (1) setear S0..S3 con la direccion binaria de N,
- *   (2) esperar t_setup ~5 us, (3) leer el ADS1115.
+ *   (2) esperar t_setup ~50 us, (3) leer el ADS1115.
  *
  *   Los 5 LMG estan conectados a los canales 0..4 del MUX.
  */
@@ -14,7 +14,7 @@
 
 #include <Arduino.h>
 #include <Wire.h>
-#include <Adafruit_ADS1115.h>
+#include <Adafruit_ADS1X15.h>
 #include "config.h"
 
 class MUX_ADS1115 {

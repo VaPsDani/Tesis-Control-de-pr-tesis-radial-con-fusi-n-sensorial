@@ -13,7 +13,7 @@
 
 #include <Arduino.h>
 #include <Wire.h>
-#include <Adafruit_ADS1115.h>
+#include <Adafruit_ADS1X15.h>
 #include "config.h"
 
 class MUX_ADS1115 {

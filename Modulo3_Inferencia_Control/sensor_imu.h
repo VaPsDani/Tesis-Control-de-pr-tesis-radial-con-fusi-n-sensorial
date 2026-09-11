@@ -1,7 +1,7 @@
 /*
  * sensor_imu.h - Driver MPU6050 para contexto espacial
  *
- * Proporciona pseudo-cuaterniones a partir de acelerometro + giroscopio.
+ * Proporciona los 3 canales de acelerometro que consume el modelo.
  * Ver sensor_imu.cpp del Modulo 1 para documentacion detallada.
  */
 
@@ -16,7 +16,7 @@ class SensorIMU {
 public:
     SensorIMU();
     bool begin();
-    bool leerCuaterniones(float &qw, float &qx, float &qy, float &qz);
+    bool leerAcelerometro(float &ax, float &ay, float &az);
 
 private:
     bool _inicializado;

@@ -1,0 +1,654 @@
+{
+  "esquema": {
+    "etiqueta": "groupkfold_sujeto",
+    "agrupamiento": "sujeto",
+    "validador": "GroupKFold",
+    "k": 5
+  },
+  "generado": "2026-09-06T19:39:15",
+  "config": {
+    "optimizador": "Adam",
+    "learning_rate": 0.001,
+    "batch_size": 32,
+    "epochs_max": 100,
+    "early_stopping_patience": 15,
+    "reduce_lr_factor": 0.5,
+    "reduce_lr_patience": 7,
+    "dropout": 0.5,
+    "l2": 0.0001,
+    "label_smoothing": 0.1,
+    "forma_entrada": [
+      40,
+      8
+    ],
+    "ventana_ms": 200,
+    "stride_ms": 20,
+    "tasa_hz": 200,
+    "data_augmentation": "ruido N(0,0.02) + escala U(0.95,1.05) + roll temporal +/-1"
+  },
+  "dataset": {
+    "n_ventanas": 54346,
+    "forma_ventana": [
+      40,
+      8
+    ],
+    "n_sujetos": 10,
+    "sujetos": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "n_archivos_mat": 30,
+    "repeticiones": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "ventanas_por_sujeto": {
+      "1": 5366,
+      "2": 5584,
+      "3": 4773,
+      "4": 5323,
+      "5": 5362,
+      "6": 5959,
+      "7": 5716,
+      "8": 5502,
+      "9": 5244,
+      "10": 5517
+    },
+    "distribucion_clases": {
+      "Rest": 10869,
+      "Pinch": 13303,
+      "Tripod": 10836,
+      "Power": 9765,
+      "Finger_Ext": 9573
+    }
+  },
+  "pliegues": [
+    {
+      "fold": 1,
+      "sujetos_train": [
+        1,
+        2,
+        4,
+        5,
+        7,
+        8,
+        9,
+        10
+      ],
+      "sujetos_test": [
+        3,
+        6
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 43614,
+      "n_test": 10732,
+      "clases_train": {
+        "Rest": 8804,
+        "Pinch": 10871,
+        "Tripod": 8664,
+        "Power": 7801,
+        "Finger_Ext": 7474
+      },
+      "clases_test": {
+        "Rest": 2065,
+        "Pinch": 2432,
+        "Tripod": 2172,
+        "Power": 1964,
+        "Finger_Ext": 2099
+      },
+      "proporciones_test": {
+        "Rest": 0.1924,
+        "Pinch": 0.2266,
+        "Tripod": 0.2024,
+        "Power": 0.183,
+        "Finger_Ext": 0.1956
+      },
+      "loss": 1.604093074798584,
+      "accuracy": 0.46673500537872314,
+      "auc": 0.7414700984954834,
+      "f1_macro": 0.46360528844818444,
+      "f1_por_clase": {
+        "Rest": 0.8051948051948052,
+        "Pinch": 0.07034883720930232,
+        "Tripod": 0.5966873706004141,
+        "Power": 0.48092795003345973,
+        "Finger_Ext": 0.3648674792029406
+      },
+      "epochs": 16,
+      "mejor_epoca": 1,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 606.7
+    },
+    {
+      "fold": 2,
+      "sujetos_train": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        8,
+        10
+      ],
+      "sujetos_test": [
+        7,
+        9
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 43386,
+      "n_test": 10960,
+      "clases_train": {
+        "Rest": 8614,
+        "Pinch": 10568,
+        "Tripod": 8744,
+        "Power": 7749,
+        "Finger_Ext": 7711
+      },
+      "clases_test": {
+        "Rest": 2255,
+        "Pinch": 2735,
+        "Tripod": 2092,
+        "Power": 2016,
+        "Finger_Ext": 1862
+      },
+      "proporciones_test": {
+        "Rest": 0.2057,
+        "Pinch": 0.2495,
+        "Tripod": 0.1909,
+        "Power": 0.1839,
+        "Finger_Ext": 0.1699
+      },
+      "loss": 1.4351705312728882,
+      "accuracy": 0.6073905229568481,
+      "auc": 0.8352111577987671,
+      "f1_macro": 0.5991229025673885,
+      "f1_por_clase": {
+        "Rest": 0.7302620311697209,
+        "Pinch": 0.45369458128078816,
+        "Tripod": 0.6356198867212083,
+        "Power": 0.5737908226539893,
+        "Finger_Ext": 0.6022471910112359
+      },
+      "epochs": 23,
+      "mejor_epoca": 8,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 853.7
+    },
+    {
+      "fold": 3,
+      "sujetos_train": [
+        1,
+        3,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "sujetos_test": [
+        2,
+        4
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 43439,
+      "n_test": 10907,
+      "clases_train": {
+        "Rest": 8667,
+        "Pinch": 10508,
+        "Tripod": 8686,
+        "Power": 7911,
+        "Finger_Ext": 7667
+      },
+      "clases_test": {
+        "Rest": 2202,
+        "Pinch": 2795,
+        "Tripod": 2150,
+        "Power": 1854,
+        "Finger_Ext": 1906
+      },
+      "proporciones_test": {
+        "Rest": 0.2019,
+        "Pinch": 0.2563,
+        "Tripod": 0.1971,
+        "Power": 0.17,
+        "Finger_Ext": 0.1748
+      },
+      "loss": 1.144233226776123,
+      "accuracy": 0.7002842426300049,
+      "auc": 0.8948203325271606,
+      "f1_macro": 0.6956504466965404,
+      "f1_por_clase": {
+        "Rest": 0.7617776082395575,
+        "Pinch": 0.5779289815011694,
+        "Tripod": 0.8319753358291125,
+        "Power": 0.6400867914293463,
+        "Finger_Ext": 0.6664835164835164
+      },
+      "epochs": 27,
+      "mejor_epoca": 12,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 1043.7
+    },
+    {
+      "fold": 4,
+      "sujetos_train": [
+        1,
+        2,
+        3,
+        4,
+        6,
+        7,
+        8,
+        9
+      ],
+      "sujetos_test": [
+        5,
+        10
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 43467,
+      "n_test": 10879,
+      "clases_train": {
+        "Rest": 8634,
+        "Pinch": 10641,
+        "Tripod": 8577,
+        "Power": 7871,
+        "Finger_Ext": 7744
+      },
+      "clases_test": {
+        "Rest": 2235,
+        "Pinch": 2662,
+        "Tripod": 2259,
+        "Power": 1894,
+        "Finger_Ext": 1829
+      },
+      "proporciones_test": {
+        "Rest": 0.2054,
+        "Pinch": 0.2447,
+        "Tripod": 0.2076,
+        "Power": 0.1741,
+        "Finger_Ext": 0.1681
+      },
+      "loss": 2.017019510269165,
+      "accuracy": 0.462266743183136,
+      "auc": 0.734727144241333,
+      "f1_macro": 0.3804870190113124,
+      "f1_por_clase": {
+        "Rest": 0.7176859504132231,
+        "Pinch": 0.0,
+        "Tripod": 0.5431284621471907,
+        "Power": 0.5017341040462427,
+        "Finger_Ext": 0.13988657844990549
+      },
+      "epochs": 16,
+      "mejor_epoca": 1,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 614.4
+    },
+    {
+      "fold": 5,
+      "sujetos_train": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        9,
+        10
+      ],
+      "sujetos_test": [
+        1,
+        8
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 43478,
+      "n_test": 10868,
+      "clases_train": {
+        "Rest": 8757,
+        "Pinch": 10624,
+        "Tripod": 8673,
+        "Power": 7728,
+        "Finger_Ext": 7696
+      },
+      "clases_test": {
+        "Rest": 2112,
+        "Pinch": 2679,
+        "Tripod": 2163,
+        "Power": 2037,
+        "Finger_Ext": 1877
+      },
+      "proporciones_test": {
+        "Rest": 0.1943,
+        "Pinch": 0.2465,
+        "Tripod": 0.199,
+        "Power": 0.1874,
+        "Finger_Ext": 0.1727
+      },
+      "loss": 1.149335265159607,
+      "accuracy": 0.6874309778213501,
+      "auc": 0.8933959603309631,
+      "f1_macro": 0.6724626789914294,
+      "f1_por_clase": {
+        "Rest": 0.8832849810310198,
+        "Pinch": 0.6687106664515088,
+        "Tripod": 0.8073967339097022,
+        "Power": 0.5311924190576468,
+        "Finger_Ext": 0.4717285945072698
+      },
+      "epochs": 22,
+      "mejor_epoca": 7,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 834.0
+    }
+  ],
+  "agregado": {
+    "accuracy_media": 0.5848214983940124,
+    "accuracy_std": 0.10328000707012092,
+    "accuracy_por_fold": [
+      0.46673500537872314,
+      0.6073905229568481,
+      0.7002842426300049,
+      0.462266743183136,
+      0.6874309778213501
+    ],
+    "f1_macro_media": 0.5622656671429711,
+    "f1_macro_std": 0.12171333853015995,
+    "f1_macro_por_fold": [
+      0.46360528844818444,
+      0.5991229025673885,
+      0.6956504466965404,
+      0.3804870190113124,
+      0.6724626789914294
+    ],
+    "auc_media": 0.8199249386787415,
+    "auc_std": 0.07022080270474834,
+    "auc_por_fold": [
+      0.7414700984954834,
+      0.8352111577987671,
+      0.8948203325271606,
+      0.734727144241333,
+      0.8933959603309631
+    ],
+    "loss_media": 1.4699703216552735,
+    "loss_std": 0.32476891708376415,
+    "loss_por_fold": [
+      1.604093074798584,
+      1.4351705312728882,
+      1.144233226776123,
+      2.017019510269165,
+      1.149335265159607
+    ],
+    "epochs_por_fold": [
+      16,
+      23,
+      27,
+      16,
+      22
+    ],
+    "mejor_epoca_por_fold": [
+      1,
+      8,
+      12,
+      1,
+      7
+    ]
+  },
+  "por_clase_global": {
+    "Rest": {
+      "precision": 0.6793364132717346,
+      "recall": 0.892906431134419,
+      "f1": 0.7716159809183065,
+      "support": 10869
+    },
+    "Pinch": {
+      "precision": 0.5254934210526315,
+      "recall": 0.3362399458768699,
+      "f1": 0.4100848040339216,
+      "support": 13303
+    },
+    "Tripod": {
+      "precision": 0.6003417787354187,
+      "recall": 0.7456626061277224,
+      "f1": 0.6651574398024285,
+      "support": 10836
+    },
+    "Power": {
+      "precision": 0.5505862820379787,
+      "recall": 0.5433691756272402,
+      "f1": 0.546953922276054,
+      "support": 9765
+    },
+    "Finger_Ext": {
+      "precision": 0.5016564126833886,
+      "recall": 0.44291235767262094,
+      "f1": 0.47045769764216366,
+      "support": 9573
+    }
+  },
+  "matriz_confusion_conteos": [
+    [
+      9705,
+      537,
+      141,
+      113,
+      373
+    ],
+    [
+      3197,
+      4473,
+      2636,
+      1633,
+      1364
+    ],
+    [
+      428,
+      634,
+      8080,
+      649,
+      1045
+    ],
+    [
+      483,
+      1634,
+      912,
+      5306,
+      1430
+    ],
+    [
+      473,
+      1234,
+      1690,
+      1936,
+      4240
+    ]
+  ],
+  "matriz_confusion_normalizada": [
+    [
+      0.8929,
+      0.0494,
+      0.013,
+      0.0104,
+      0.0343
+    ],
+    [
+      0.2403,
+      0.3362,
+      0.1982,
+      0.1228,
+      0.1025
+    ],
+    [
+      0.0395,
+      0.0585,
+      0.7457,
+      0.0599,
+      0.0964
+    ],
+    [
+      0.0495,
+      0.1673,
+      0.0934,
+      0.5434,
+      0.1464
+    ],
+    [
+      0.0494,
+      0.1289,
+      0.1765,
+      0.2022,
+      0.4429
+    ]
+  ],
+  "clases": [
+    "Rest",
+    "Pinch",
+    "Tripod",
+    "Power",
+    "Finger_Ext"
+  ],
+  "linea_base_si2": {
+    "esquema": "GroupKFold k=5 agrupado por repeticion",
+    "origen": "tag si2-groupkfold-repeticion (commit af6a26a), resultados_preliminares/metricas.txt",
+    "accuracy_por_fold": [
+      0.7936,
+      0.8275,
+      0.8438,
+      0.8756,
+      0.8087
+    ],
+    "loss_por_fold": [
+      0.9132,
+      0.7995,
+      0.7884,
+      0.7062,
+      0.8575
+    ],
+    "auc_por_fold": [
+      0.9457,
+      0.966,
+      0.9703,
+      0.9774,
+      0.9595
+    ],
+    "epochs_por_fold": [
+      30,
+      41,
+      25,
+      71,
+      23
+    ],
+    "accuracy_media": 0.8298,
+    "accuracy_std": 0.0285,
+    "auc_media": 0.9638,
+    "f1_por_clase": {
+      "Rest": 0.8875,
+      "Pinch": 0.8352,
+      "Tripod": 0.8554,
+      "Power": 0.7943,
+      "Finger_Ext": 0.7775
+    },
+    "f1_macro": 0.83,
+    "n_ventanas_evaluadas": 54346
+  }
+}

@@ -11,6 +11,13 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+// ======================== SERIAL ========================
+// 921600 y no 115200. Con 12 campos por linea (~122 bytes) a 100 Hz
+// hacen falta 12200 B/s, y 115200 baudios 8N1 solo dan 11520 B/s: el
+// enlace se queda un 6% corto y el buffer se desborda. A 921600 el uso
+// baja al 13%.
+#define BAUDIOS         921600
+
 // ======================== I2C ========================
 #define PIN_SDA         21
 #define PIN_SCL         22
@@ -31,15 +38,50 @@
 
 // ======================== ADS1115 ========================
 #define ADS_ADDR        0x48
-#define ADS_GAIN        0.1875e-3   // 0.1875 mV por LSB (GAIN=1, ±4.096V)
+
+// mV por LSB. Debe corresponder al GAIN configurado en mux_ads1115.cpp:
+//   GAIN_ONE       -> +/-4.096 V -> 0.125  mV/LSB   <-- el que usamos
+//   GAIN_TWOTHIRDS -> +/-6.144 V -> 0.1875 mV/LSB
+//
+// La constante anterior (ADS_GAIN 0.1875e-3) era incorrecta por
+// partida triple: estaba en voltios y no en mV, el valor correspondia
+// a GAIN_TWOTHIRDS y no al GAIN_ONE que se configura, y el .cpp la
+// ignoraba usando 0.125f literal. Se unifica con Modulo3.
+#define ADS_GAIN_MV     0.125f
 
 // ======================== MPU6050 ========================
 #define MPU_ADDR        0x68
 
 // ======================== MUESTREO ========================
 #define INTERVALO_MS    10          // 10 ms entre muestras → 100 Hz
-#define NUM_LMG         5
-#define NUM_IMU         4           // qw, qx, qy, qz
-#define TOTAL_FEATURES  (NUM_LMG + NUM_IMU)   // 9
+#define NUM_LMG         5           // fotodiodos OPT101
+
+// Canales de IMU que entran AL MODELO: solo el acelerometro.
+// El cuarto canal anterior (qw = |a|/2 saturado) era una funcion
+// determinista de los otros tres y se elimino. Con 3, el vector queda
+// en 8 canales, la misma forma que la linea base sobre NinaPro DB5
+// (5 sEMG + 3 ACC).
+#define NUM_IMU         3           // ax, ay, az
+#define TOTAL_FEATURES  (NUM_LMG + NUM_IMU)   // 8
+
+// Canales que se GUARDAN EN EL CSV: los 6 ejes crudos de la IMU.
+// Los bytes del giroscopio ya viajan en la misma lectura I2C de 14
+// bytes, asi que almacenarlos no cuesta tiempo de bus. El filtrado a
+// los 8 canales del modelo ocurre en preprocesamiento.py.
+#define NUM_IMU_CSV     6           // ax, ay, az, gx, gy, gz
+#define TOTAL_CSV       (NUM_LMG + NUM_IMU_CSV)   // 11 + timestamp
+
+// Cerrojo en tiempo de compilacion. Que el firmware emita un numero de
+// canales distinto al que espera el modelo no produce ningun error: el
+// CSV sale con otra forma y el fallo aparece mucho despues, en el
+// entrenamiento o peor, en la inferencia. Estas aserciones lo
+// convierten en un error de compilacion.
+static_assert(TOTAL_FEATURES == 8,
+              "TOTAL_FEATURES debe ser 8 (5 LMG + 3 ACC), la misma forma que "
+              "la linea base sobre NinaPro DB5 y que NUM_FEATURES del Modulo 3.");
+static_assert(TOTAL_CSV == 11,
+              "El CSV guarda 11 senales (5 LMG + 6 ejes de IMU) mas el "
+              "timestamp. El giroscopio se guarda aunque el modelo no lo use; "
+              "el descarte ocurre en preprocesamiento.py.");
 
 #endif

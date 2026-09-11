@@ -1,0 +1,896 @@
+{
+  "repeticion_groupkfold": {
+    "validador": "GroupKFold",
+    "agrupamiento": "repeticion",
+    "n_splits": 5,
+    "sujetos_por_pliegue_test": [
+      10,
+      10,
+      10,
+      10,
+      10
+    ],
+    "pliegues": [
+      {
+        "fold": 1,
+        "sujetos_train": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "sujetos_test": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "repeticiones_train": [
+          0,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "repeticiones_test": [
+          1
+        ],
+        "n_train": 46168,
+        "n_test": 8178,
+        "clases_train": {
+          "Rest": 10252,
+          "Pinch": 11017,
+          "Tripod": 8940,
+          "Power": 8004,
+          "Finger_Ext": 7955
+        },
+        "clases_test": {
+          "Rest": 617,
+          "Pinch": 2286,
+          "Tripod": 1896,
+          "Power": 1761,
+          "Finger_Ext": 1618
+        },
+        "proporciones_test": {
+          "Rest": 0.0754,
+          "Pinch": 0.2795,
+          "Tripod": 0.2318,
+          "Power": 0.2153,
+          "Finger_Ext": 0.1978
+        }
+      },
+      {
+        "fold": 2,
+        "sujetos_train": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "sujetos_test": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "repeticiones_train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          6
+        ],
+        "repeticiones_test": [
+          5
+        ],
+        "n_train": 46392,
+        "n_test": 7954,
+        "clases_train": {
+          "Rest": 10223,
+          "Pinch": 11149,
+          "Tripod": 9015,
+          "Power": 8146,
+          "Finger_Ext": 7859
+        },
+        "clases_test": {
+          "Rest": 646,
+          "Pinch": 2154,
+          "Tripod": 1821,
+          "Power": 1619,
+          "Finger_Ext": 1714
+        },
+        "proporciones_test": {
+          "Rest": 0.0812,
+          "Pinch": 0.2708,
+          "Tripod": 0.2289,
+          "Power": 0.2035,
+          "Finger_Ext": 0.2155
+        }
+      },
+      {
+        "fold": 3,
+        "sujetos_train": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "sujetos_test": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "repeticiones_train": [
+          0,
+          1,
+          2,
+          3,
+          5,
+          6
+        ],
+        "repeticiones_test": [
+          4
+        ],
+        "n_train": 46608,
+        "n_test": 7738,
+        "clases_train": {
+          "Rest": 10230,
+          "Pinch": 11070,
+          "Tripod": 9125,
+          "Power": 8180,
+          "Finger_Ext": 8003
+        },
+        "clases_test": {
+          "Rest": 639,
+          "Pinch": 2233,
+          "Tripod": 1711,
+          "Power": 1585,
+          "Finger_Ext": 1570
+        },
+        "proporciones_test": {
+          "Rest": 0.0826,
+          "Pinch": 0.2886,
+          "Tripod": 0.2211,
+          "Power": 0.2048,
+          "Finger_Ext": 0.2029
+        }
+      },
+      {
+        "fold": 4,
+        "sujetos_train": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "sujetos_test": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "repeticiones_train": [
+          1,
+          3,
+          4,
+          5,
+          6
+        ],
+        "repeticiones_test": [
+          0,
+          2
+        ],
+        "n_train": 39173,
+        "n_test": 15173,
+        "clases_train": {
+          "Rest": 3179,
+          "Pinch": 10848,
+          "Tripod": 8958,
+          "Power": 8117,
+          "Finger_Ext": 8071
+        },
+        "clases_test": {
+          "Rest": 7690,
+          "Pinch": 2455,
+          "Tripod": 1878,
+          "Power": 1648,
+          "Finger_Ext": 1502
+        },
+        "proporciones_test": {
+          "Rest": 0.5068,
+          "Pinch": 0.1618,
+          "Tripod": 0.1238,
+          "Power": 0.1086,
+          "Finger_Ext": 0.099
+        }
+      },
+      {
+        "fold": 5,
+        "sujetos_train": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "sujetos_test": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "repeticiones_train": [
+          0,
+          1,
+          2,
+          4,
+          5
+        ],
+        "repeticiones_test": [
+          3,
+          6
+        ],
+        "n_train": 39043,
+        "n_test": 15303,
+        "clases_train": {
+          "Rest": 9592,
+          "Pinch": 9128,
+          "Tripod": 7306,
+          "Power": 6613,
+          "Finger_Ext": 6404
+        },
+        "clases_test": {
+          "Rest": 1277,
+          "Pinch": 4175,
+          "Tripod": 3530,
+          "Power": 3152,
+          "Finger_Ext": 3169
+        },
+        "proporciones_test": {
+          "Rest": 0.0834,
+          "Pinch": 0.2728,
+          "Tripod": 0.2307,
+          "Power": 0.206,
+          "Finger_Ext": 0.2071
+        }
+      }
+    ],
+    "desbalance_clases": {
+      "Rest": {
+        "min": 0.0754,
+        "max": 0.5068,
+        "rango": 0.4314,
+        "std": 0.1705,
+        "por_pliegue": [
+          0.0754,
+          0.0812,
+          0.0826,
+          0.5068,
+          0.0834
+        ]
+      },
+      "Pinch": {
+        "min": 0.1618,
+        "max": 0.2886,
+        "rango": 0.1268,
+        "std": 0.0469,
+        "por_pliegue": [
+          0.2795,
+          0.2708,
+          0.2886,
+          0.1618,
+          0.2728
+        ]
+      },
+      "Tripod": {
+        "min": 0.1238,
+        "max": 0.2318,
+        "rango": 0.108,
+        "std": 0.0419,
+        "por_pliegue": [
+          0.2318,
+          0.2289,
+          0.2211,
+          0.1238,
+          0.2307
+        ]
+      },
+      "Power": {
+        "min": 0.1086,
+        "max": 0.2153,
+        "rango": 0.1067,
+        "std": 0.0397,
+        "por_pliegue": [
+          0.2153,
+          0.2035,
+          0.2048,
+          0.1086,
+          0.206
+        ]
+      },
+      "Finger_Ext": {
+        "min": 0.099,
+        "max": 0.2155,
+        "rango": 0.1165,
+        "std": 0.0431,
+        "por_pliegue": [
+          0.1978,
+          0.2155,
+          0.2029,
+          0.099,
+          0.2071
+        ]
+      },
+      "_global": {
+        "std_promedio": 0.0684,
+        "rango_maximo": 0.4314
+      }
+    }
+  },
+  "sujeto_groupkfold": {
+    "validador": "GroupKFold",
+    "agrupamiento": "sujeto",
+    "n_splits": 5,
+    "sujetos_por_pliegue_test": [
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "pliegues": [
+      {
+        "fold": 1,
+        "sujetos_train": [
+          1,
+          2,
+          4,
+          5,
+          7,
+          8,
+          9,
+          10
+        ],
+        "sujetos_test": [
+          3,
+          6
+        ],
+        "repeticiones_train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "repeticiones_test": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "n_train": 43614,
+        "n_test": 10732,
+        "clases_train": {
+          "Rest": 8804,
+          "Pinch": 10871,
+          "Tripod": 8664,
+          "Power": 7801,
+          "Finger_Ext": 7474
+        },
+        "clases_test": {
+          "Rest": 2065,
+          "Pinch": 2432,
+          "Tripod": 2172,
+          "Power": 1964,
+          "Finger_Ext": 2099
+        },
+        "proporciones_test": {
+          "Rest": 0.1924,
+          "Pinch": 0.2266,
+          "Tripod": 0.2024,
+          "Power": 0.183,
+          "Finger_Ext": 0.1956
+        }
+      },
+      {
+        "fold": 2,
+        "sujetos_train": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          8,
+          10
+        ],
+        "sujetos_test": [
+          7,
+          9
+        ],
+        "repeticiones_train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "repeticiones_test": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "n_train": 43386,
+        "n_test": 10960,
+        "clases_train": {
+          "Rest": 8614,
+          "Pinch": 10568,
+          "Tripod": 8744,
+          "Power": 7749,
+          "Finger_Ext": 7711
+        },
+        "clases_test": {
+          "Rest": 2255,
+          "Pinch": 2735,
+          "Tripod": 2092,
+          "Power": 2016,
+          "Finger_Ext": 1862
+        },
+        "proporciones_test": {
+          "Rest": 0.2057,
+          "Pinch": 0.2495,
+          "Tripod": 0.1909,
+          "Power": 0.1839,
+          "Finger_Ext": 0.1699
+        }
+      },
+      {
+        "fold": 3,
+        "sujetos_train": [
+          1,
+          3,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "sujetos_test": [
+          2,
+          4
+        ],
+        "repeticiones_train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "repeticiones_test": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "n_train": 43439,
+        "n_test": 10907,
+        "clases_train": {
+          "Rest": 8667,
+          "Pinch": 10508,
+          "Tripod": 8686,
+          "Power": 7911,
+          "Finger_Ext": 7667
+        },
+        "clases_test": {
+          "Rest": 2202,
+          "Pinch": 2795,
+          "Tripod": 2150,
+          "Power": 1854,
+          "Finger_Ext": 1906
+        },
+        "proporciones_test": {
+          "Rest": 0.2019,
+          "Pinch": 0.2563,
+          "Tripod": 0.1971,
+          "Power": 0.17,
+          "Finger_Ext": 0.1748
+        }
+      },
+      {
+        "fold": 4,
+        "sujetos_train": [
+          1,
+          2,
+          3,
+          4,
+          6,
+          7,
+          8,
+          9
+        ],
+        "sujetos_test": [
+          5,
+          10
+        ],
+        "repeticiones_train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "repeticiones_test": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "n_train": 43467,
+        "n_test": 10879,
+        "clases_train": {
+          "Rest": 8634,
+          "Pinch": 10641,
+          "Tripod": 8577,
+          "Power": 7871,
+          "Finger_Ext": 7744
+        },
+        "clases_test": {
+          "Rest": 2235,
+          "Pinch": 2662,
+          "Tripod": 2259,
+          "Power": 1894,
+          "Finger_Ext": 1829
+        },
+        "proporciones_test": {
+          "Rest": 0.2054,
+          "Pinch": 0.2447,
+          "Tripod": 0.2076,
+          "Power": 0.1741,
+          "Finger_Ext": 0.1681
+        }
+      },
+      {
+        "fold": 5,
+        "sujetos_train": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          9,
+          10
+        ],
+        "sujetos_test": [
+          1,
+          8
+        ],
+        "repeticiones_train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "repeticiones_test": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "n_train": 43478,
+        "n_test": 10868,
+        "clases_train": {
+          "Rest": 8757,
+          "Pinch": 10624,
+          "Tripod": 8673,
+          "Power": 7728,
+          "Finger_Ext": 7696
+        },
+        "clases_test": {
+          "Rest": 2112,
+          "Pinch": 2679,
+          "Tripod": 2163,
+          "Power": 2037,
+          "Finger_Ext": 1877
+        },
+        "proporciones_test": {
+          "Rest": 0.1943,
+          "Pinch": 0.2465,
+          "Tripod": 0.199,
+          "Power": 0.1874,
+          "Finger_Ext": 0.1727
+        }
+      }
+    ],
+    "desbalance_clases": {
+      "Rest": {
+        "min": 0.1924,
+        "max": 0.2057,
+        "rango": 0.0133,
+        "std": 0.0056,
+        "por_pliegue": [
+          0.1924,
+          0.2057,
+          0.2019,
+          0.2054,
+          0.1943
+        ]
+      },
+      "Pinch": {
+        "min": 0.2266,
+        "max": 0.2563,
+        "rango": 0.0297,
+        "std": 0.0099,
+        "por_pliegue": [
+          0.2266,
+          0.2495,
+          0.2563,
+          0.2447,
+          0.2465
+        ]
+      },
+      "Tripod": {
+        "min": 0.1909,
+        "max": 0.2076,
+        "rango": 0.0167,
+        "std": 0.0055,
+        "por_pliegue": [
+          0.2024,
+          0.1909,
+          0.1971,
+          0.2076,
+          0.199
+        ]
+      },
+      "Power": {
+        "min": 0.17,
+        "max": 0.1874,
+        "rango": 0.0174,
+        "std": 0.0065,
+        "por_pliegue": [
+          0.183,
+          0.1839,
+          0.17,
+          0.1741,
+          0.1874
+        ]
+      },
+      "Finger_Ext": {
+        "min": 0.1681,
+        "max": 0.1956,
+        "rango": 0.0275,
+        "std": 0.01,
+        "por_pliegue": [
+          0.1956,
+          0.1699,
+          0.1748,
+          0.1681,
+          0.1727
+        ]
+      },
+      "_global": {
+        "std_promedio": 0.0075,
+        "rango_maximo": 0.0297
+      }
+    }
+  },
+  "sujeto_stratifiedgroupkfold": {
+    "validador": "StratifiedGroupKFold",
+    "agrupamiento": "sujeto",
+    "n_splits": 5,
+    "sujetos_por_pliegue_test": [
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "pliegues": [
+      {
+        "fold": 1,
+        "sujetos_train": [
+          1,
+          3,
+          4,
+          5,
+          7,
+          8,
+          9,
+          10
+        ],
+        "sujetos_test": [
+          2,
+          6
+        ],
+        "repeticiones_train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "repeticiones_test": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "n_train": 42803,
+        "n_test": 11543,
+        "clases_train": {
+          "Rest": 8691,
+          "Pinch": 10374,
+          "Tripod": 8473,
+          "Power": 7697,
+          "Finger_Ext": 7568
+        },
+        "clases_test": {
+          "Rest": 2178,
+          "Pinch": 2929,
+          "Tripod": 2363,
+          "Power": 2068,
+          "Finger_Ext": 2005
+        },
+        "proporciones_test": {
+          "Rest": 0.1887,
+          "Pinch": 0.2537,
+          "Tripod": 0.2047,
+          "Power": 0.1792,
+          "Finger_Ext": 0.1737
+        }
+      },
+      {
+        "fold": 2,
+        "sujetos_train": [
+          1,
+          2,
+          4,
+          5,
+          6,
+          8,
+          9,
+          10
+        ],
+        "sujetos_test": [
+          3,
+          7
+        ],
+        "repeticiones_train": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "repeticiones_test": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "n_train": 43857,
+        "n_test": 10489,
+        "clases_train": {
+          "Rest": 8778,
+          "Pinch": 10786,
+          "Tripod": 8738,
+          "Power": 7932,
+          "Finger_Ext": 7623
+        },
+        "clases_test": {
+          "Rest": 2091,
+          "Pinch": 2517,
+          "Tripod": 2098,
+          "Power": 1833,
+          "Finger_Ext": 1950
+        },
+        "proporciones_test": {
+          "Rest": 0.1994,
+          "Pinch": 0.24,
+          "Tripod": 0.2,
+          "Power": 0.1748,
+          "Finger_Ext": 0.1859
+        }
+      },
+      {
+        "fold"

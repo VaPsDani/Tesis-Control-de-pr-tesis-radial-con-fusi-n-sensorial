@@ -3,7 +3,7 @@
  *
  * LOGICA:
  *   Se mantiene un buffer circular de TAMANO_VENTANA (20) muestras.
- *   Cada muestra es un vector de NUM_FEATURES (9) valores.
+ *   Cada muestra es un vector de NUM_FEATURES (8) valores.
  *
  *   Cada 10 ms se agrega una muestra via addSample().
  *   Cada 20 ms (STRIDE samples) se ejecuta getWindow() para obtener
