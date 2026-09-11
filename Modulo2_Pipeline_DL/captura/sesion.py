@@ -255,6 +255,10 @@ class Sesion:
                 "muestras_perdidas_est": s.muestras_perdidas_est if s else 0,
                 "lineas_malformadas": s.lineas_malformadas if s else 0,
             } if s else {},
+            # Ganancia de los LED y reposo por canal al iniciar la sesion.
+            # Vacio si el firmware es anterior a la Tarea 3; reposo en 0
+            # si nunca se autocalibro.
+            "optica": self.lector.optica if self.lector else {},
         }
         os.makedirs(os.path.dirname(self.ruta_json) or ".", exist_ok=True)
         with open(self.ruta_json, "w", encoding="utf-8") as f:

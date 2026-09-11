@@ -118,6 +118,9 @@ class LectorSerie(threading.Thread):
         self._ventana_tasa: List[float] = []
         self.marcadores: List[tuple] = []      # (t_esp32, indice_bloque)
         self._marcador_pendiente: Optional[int] = None
+        # Lineas [OPTICA_*] del firmware: config del ADC, duty de cada LED
+        # y reposo por canal en mV (S-barra-r del indice de rendimiento).
+        self.optica: dict = {}
 
     # ---------- ciclo de vida ----------
     def abrir(self):
@@ -195,6 +198,21 @@ class LectorSerie(threading.Thread):
             if self._marcador_pendiente is not None:
                 self.marcadores.append((t_esp32, self._marcador_pendiente))
                 self._marcador_pendiente = None
+            return
+
+        if texto.startswith("[OPTICA_"):
+            # Ganancia de los LED y reposo por canal (S-barra-r). Llegan
+            # al enviar 'L', antes de la primera muestra, y van al JSON.
+            etiqueta, _, resto = texto.partition(" ")
+            clave = etiqueta.strip("[]").lower()      # optica_duty, ...
+            if clave == "optica_config":
+                self.optica[clave] = dict(
+                    par.split("=", 1) for par in resto.split() if "=" in par)
+            else:
+                try:
+                    self.optica[clave] = [float(x) for x in resto.split(",")]
+                except ValueError:
+                    pass
             return
 
         if texto.startswith("["):

@@ -34,6 +34,7 @@
 #include <Wire.h>
 #include "config.h"
 #include "mux_ads1115.h"
+#include "optica_lmg.h"
 #include "sensor_imu.h"
 #include "sliding_window.h"
 #include "inferencia.h"
@@ -43,6 +44,7 @@
 
 // ======================== INSTANCIAS GLOBALES ========================
 MUX_ADS1115     muxAds;
+OpticaLMG       optica(muxAds);
 SensorIMU       imu;
 SlidingWindow   ventana;
 MotorInferencia tflite;
@@ -181,6 +183,57 @@ void reportarLatencias() {
     }
 }
 
+// ======================== AUTOTEST TEMPORAL ========================
+// Mide el ciclo de muestreo REAL: 5 LMG (con trama oscura si esta
+// habilitada) + 1 FSR + acelerometro, sin inferencia. El presupuesto de
+// config.h es analitico; este es el numero que decide si el hardware
+// montado sostiene 100 Hz. Se ejecuta al arrancar y con 'T'.
+void autotestTemporal() {
+    const uint16_t N = 200;
+    unsigned long suma = 0, sumaLMG = 0, peor = 0;
+    for (uint16_t k = 0; k < N; k++) {
+        const unsigned long t0 = micros();
+        optica.leerTodos(valoresLMG);
+        const unsigned long t1 = micros();
+        muxAds.leerCanal(FeedbackFSR::canalDe(k % NUM_FSR));
+        imu.leerAcelerometro(ax, ay, az);
+        const unsigned long dt = micros() - t0;
+        suma += dt;
+        sumaLMG += t1 - t0;
+        if (dt > peor) peor = dt;
+    }
+
+    const float medio   = suma / (float)N;
+    const float medLMG  = sumaLMG / (float)N;
+    const float periodo = INTERVALO_MUESTRA_MS * 1000.0f;
+    const uint8_t convLMG = NUM_LMG * (TRAMA_OSCURA_HABILITADA ? 2 : 1);
+    const float estimado =
+        convLMG * (ADC_CONVERSION_US + ADC_OVERHEAD_I2C_US + ASENTAMIENTO_LED_US)
+        + NUM_LMG * ASENTAMIENTO_MUX_US
+        + (ADC_CONVERSION_US + ADC_OVERHEAD_I2C_US + ASENTAMIENTO_MUX_US)
+        + 400.0f;
+
+    Serial.printf("[AUTOTEST] ADC %s, trama oscura %s, %u ciclos\n",
+                  ADC_MODELO == ADC_ADS1015 ? "ADS1015" : "ADS1115",
+                  TRAMA_OSCURA_HABILITADA ? "SI" : "NO", N);
+    Serial.printf("[AUTOTEST]   5 LMG (%u conversiones): %8.1f us\n",
+                  convLMG, medLMG);
+    Serial.printf("[AUTOTEST]   ciclo completo medio : %8.1f us "
+                  "(%.1f%% de %.0f us)\n", medio, 100.0f * medio / periodo, periodo);
+    Serial.printf("[AUTOTEST]   ciclo completo peor  : %8lu us\n", peor);
+    Serial.printf("[AUTOTEST]   estimado analitico   : %8.1f us\n", estimado);
+    if (peor > periodo) {
+        Serial.println("[AUTOTEST] ERROR: el ciclo NO cabe en el periodo de "
+                       "muestreo. La ventana del modelo no mide 200 ms. Ver "
+                       "la decision de ADC en config.h.");
+    } else if (peor > 0.9f * periodo) {
+        Serial.printf("[AUTOTEST] AVISO: solo %.0f us de margen en el peor "
+                      "caso.\n", periodo - peor);
+    } else {
+        Serial.println("[AUTOTEST] OK: el ciclo cabe con margen.");
+    }
+}
+
 // ======================== SETUP ========================
 void setup() {
     Serial.begin(115200);
@@ -202,6 +255,13 @@ void setup() {
     }
     Serial.println("OK");
 
+    // ========== 2b. LED de los modulos LMG ==========
+    // Antes que nada que lea el ADC: sin esto los LED quedan en el estado
+    // de arranque de los GPIO y la primera lectura no es valida.
+    if (!optica.begin()) {
+        while (1) delay(10);
+    }
+
     // ========== 3. Inicializar MPU6050 ==========
     Serial.print("[MPU6050] Inicializando... ");
     if (!imu.begin()) {
@@ -209,6 +269,9 @@ void setup() {
         while (1) delay(10);
     }
     Serial.println("OK");
+
+    // ========== 3b. Autotest del ciclo de muestreo ==========
+    autotestTemporal();
 
     // ========== 4. Inicializar PCA9685 ==========
     Serial.print("[PCA9685] Inicializando servos... ");
@@ -253,6 +316,8 @@ void setup() {
                    "  'M' → Modo manual: 1=Rest 2=Pinch 3=Tripod 4=Power 5=Ext\n"
                    "  'C' → Calibrar (15 s quieto, sin mover el brazo)\n"
                    "  'X' → Borrar la calibracion guardada\n"
+                   "  'A' → Autocalibrar la corriente de los LED\n"
+                   "  'T' → Autotest del ciclo de muestreo\n"
                    "  'I' → Info de calibracion y desglose de latencias\n");
 
     sistemaActivo = true;
@@ -282,7 +347,29 @@ void loop() {
             case '5': gestoActual = GESTO_EXTENSION; servos.ejecutarGesto(GESTO_EXTENSION); break;
             case 'C': calibrador.iniciar(millis()); break;
             case 'X': calibrador.borrar(); break;
-            case 'I': calibrador.info(); reportarLatencias(); break;
+            case 'A':
+                // Bloqueante (~10 s): con el control detenido y la mano
+                // en reposo, para que los servos no se muevan mientras se
+                // mide el reposo.
+                sistemaActivo = false;
+                gestoActual = GESTO_REST;
+                servos.ejecutarGesto(GESTO_REST);
+                ventana.reset();
+                optica.autocalibrar(AUTOCAL_VERIFICAR_GESTO_MAX);
+                // Si la corriente cambio, el z-score guardado se calculo
+                // con otra ganancia y ya no corresponde a la senal. Se
+                // borra para que el aviso persistente obligue a recalibrar
+                // en vez de normalizar con una escala equivocada.
+                if (optica.cambioGanancia() && calibrador.tieneCalibracion()) {
+                    Serial.println("[OPTICA] La ganancia cambio: la "
+                                   "calibracion z-score queda obsoleta y se "
+                                   "borra. Envie 'C'.");
+                    calibrador.borrar();
+                }
+                Serial.println("[CMD] Envie 'G' para reactivar el control.");
+                break;
+            case 'T': autotestTemporal(); break;
+            case 'I': calibrador.info(); optica.info(); reportarLatencias(); break;
         }
     }
 
@@ -298,12 +385,10 @@ void loop() {
         tUltimoMuestreo = ahora;
         const unsigned long tMuestreo0 = micros();
 
-        // --- Leer 5 LMG via MUX + ADS1115 ---
-        valoresLMG[0] = muxAds.leerCanal(CH_LMG_1);
-        valoresLMG[1] = muxAds.leerCanal(CH_LMG_2);
-        valoresLMG[2] = muxAds.leerCanal(CH_LMG_3);
-        valoresLMG[3] = muxAds.leerCanal(CH_LMG_4);
-        valoresLMG[4] = muxAds.leerCanal(CH_LMG_5);
+        // --- Leer 5 LMG: un LED a la vez, con trama oscura ---
+        // Identico a Modulo1 (optica_lmg.cpp es el mismo archivo): el
+        // modelo tiene que ver aqui la misma senal con que se entreno.
+        optica.leerTodos(valoresLMG);
 
         // --- Leer MPU6050 (solo acelerometro: el modelo no usa giro) ---
         imu.leerAcelerometro(ax, ay, az);

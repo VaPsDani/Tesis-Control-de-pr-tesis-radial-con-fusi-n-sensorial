@@ -6,7 +6,9 @@
  *   - ESP32 WROOM 32
  *   - LMG: 5 fotodiodos OPT101 via MUX CD74HC4067 + ADC ADS1115
  *   - IMU: MPU6050 via I2C
- *   - FSR: 6 sensores de presion (2x FSR402 + 4x DF9-40) via MUX + ADS1115
+ *   - FSR: 5 sensores de presion, uno por yema (2x FSR402 + 3x DF9-40)
+ *          via MUX + ADS1115. No alimentan al clasificador: solo cierran
+ *          el lazo de fuerza.
  *   - Servos: 5x MG90S via Driver PCA9685 (I2C)
  *
  * PINOUT I2C:
@@ -18,7 +20,7 @@
  * MUX CD74HC4067 (compartido LMG + FSR):
  *   S0=32, S1=33, S2=25, S3=26, EN=GND
  *   Canales 0-4:   LMG 1..5
- *   Canales 5-10:  FSR 1..6
+ *   Canales 5-9:   FSR 1..5 (pulgar, indice, medio, anular, menique)
  */
 
 #ifndef CONFIG_H
@@ -50,26 +52,115 @@
 #define CH_FSR_MEDIO    7   // DF9-40
 #define CH_FSR_ANULAR   8   // DF9-40
 #define CH_FSR_MENIQUE  9   // DF9-40
-#define CH_FSR_PALMA    10  // DF9-40 - presion en la palma
 
-// FSR que participan en el LAZO DE CONTROL: uno por yema, cinco.
-//
-// El de palma queda FUERA del escaneo, no porque el sensor sobre en el
-// hardware sino porque la ley de control actual no puede usarlo: el
-// lazo frena servos individuales cuando la yema correspondiente supera
-// su umbral, y no existe un "servo de palma" que frenar. De hecho ya era
-// codigo muerto: verificarUmbrales calculaba su bit 5 y el .ino solo
-// actuaba sobre los bits 0..4.
-//
-// Podria servir para detectar el tipo de agarre o el deslizamiento,
-// pero eso es otra ley de control. Incluirlo cuesta un 17% de tasa de
-// refresco a los otros cinco (20 Hz -> 16.7 Hz).
+// Un FSR por yema, cinco. El sensor de palma (antes en el canal 10) se
+// DESCARTO del diseno: la ley de control frena servos individuales cuando
+// la yema correspondiente supera su umbral, y no existe un servo de palma
+// que frenar. Ya era codigo muerto antes de retirarlo: verificarUmbrales
+// calculaba su bit y el .ino solo actuaba sobre los bits de las yemas.
 #define NUM_FSR         5
-#define NUM_FSR_HW      6   // los que existen fisicamente
 
-// ======================== ADS1115 ========================
+// ======================== ADC ========================
 #define ADS_ADDR        0x48
-#define ADS_GAIN_MV     0.125f  // mV por LSB (GAIN_ONE, ±4.096V)
+
+#define ADC_ADS1115     0
+#define ADC_ADS1015     1
+
+// DECISION (Tarea 3.c): ADS1015. Es la unica de las tres opciones
+// evaluadas que cabe en los 10 ms del ciclo a 100 Hz con trama oscura:
+//
+//                     LMG con trama oscura  +1 FSR  +MPU   total
+//   ADS1115 860 SPS         16.25 ms         1.45   0.4   18.1 ms  NO
+//   ADS1015 3300 SPS         7.65 ms         0.59   0.4    8.6 ms  SI
+//
+//   (ANALITICO, no medido: 1163 o 303 us de conversion + ~240 us de I2C
+//   + 200 us de asentamiento del LED por lectura. El firmware lo mide al
+//   arrancar; ver autotestTemporal().)
+//
+//   Bajar la frecuencia no alcanza con el ADS1115: a 60 y a 80 Hz sigue
+//   sin caber, y 60 Hz es ademas la peor eleccion en Peru, porque el
+//   parpadeo de 120 Hz de las lamparas se plegaria exactamente a DC.
+//   Leer los FSR cada dos ciclos tampoco: solo los LMG ya ocupan 16 ms.
+//
+//   Coste del ADS1015: 12 bits en lugar de 16, 2 mV/LSB en lugar de
+//   0.125. Con el reposo autocalibrado a ~1.3 V, un cambio de gesto del
+//   5-20% son 30-130 LSB, suficiente; los trabajos de referencia usan 12.
+//
+// Pin compatible y misma libreria. MIENTRAS SIGA SOLDADO EL ADS1115,
+// dejar ADC_ADS1115: con trama oscura el ciclo no cabe en 10 ms y el
+// autotest de arranque lo reporta.
+#ifndef ADC_MODELO                      // -DADC_MODELO=1 para compilar la otra rama
+#define ADC_MODELO      ADC_ADS1115
+#endif
+
+#if ADC_MODELO == ADC_ADS1015
+  #define ADC_CONVERSION_US  303
+#else
+  #define ADC_CONVERSION_US  1163
+#endif
+#define ADC_OVERHEAD_I2C_US  240     // estimado a 400 kHz; el autotest mide
+#define ASENTAMIENTO_MUX_US   50
+
+// ======================== LED DE LOS MODULOS LMG (Tarea 3.a) ========================
+// Un pin por LED para encender solo el del canal que se lee y eliminar el
+// crosstalk optico entre modulos vecinos.
+//
+// GPIO elegidos: no son pines de arranque (0, 2, 5, 12, 15), no son de
+// la flash (6-11) ni solo de entrada (34-39), y todos admiten LEDC.
+// Validos en el WROOM 32; en un WROVER, 16 y 17 son de la PSRAM.
+// CONFIRMAR CONTRA EL PCB antes del bring-up.
+//
+// HARDWARE: un GPIO del ESP32 no debe entregar la corriente de un LED IR
+// (decenas de mA). Cada pin comanda un transistor (NPN o MOSFET canal N
+// en lado bajo) que conmuta el LED.
+#define PIN_LED_LMG_1   16
+#define PIN_LED_LMG_2   17
+#define PIN_LED_LMG_3   18
+#define PIN_LED_LMG_4   19
+#define PIN_LED_LMG_5   23
+
+// PWM para regular la corriente de cada LED (autocalibracion). 100 kHz
+// queda muy por encima de los 14 kHz de ancho de banda del OPT101, que lo
+// promedia, y cada conversion del ADC integra ademas decenas de ciclos.
+// LEDC: frecuencia x 2^bits <= 80 MHz -> a 100 kHz caben 9 bits.
+#define LED_PWM_FREQ_HZ   100000
+#define LED_PWM_BITS      9
+#define LED_DUTY_MAX      ((1 << LED_PWM_BITS) - 1)
+
+// ======================== TRAMA OSCURA (Tarea 3.b) ========================
+// Valor del canal = L (LED encendido) - D (apagado). Cancela la continua
+// de la luz ambiental; NO el parpadeo de 120 Hz (ver optica_lmg.h).
+//
+// Va ligada al modelo de ADC a proposito. Con el ADS1115, restar D
+// empeora las cosas por dos lados: el ciclo pasa a ~18 ms y deja de
+// correr a 100 Hz, y D y L quedan separadas ~1.6 ms, con lo que el
+// residuo del parpadeo de 120 Hz sube al 113%, mas que sin restar.
+// Mientras siga soldado el ADS1115 se lee solo L, un LED a la vez.
+#define TRAMA_OSCURA_HABILITADA  (ADC_MODELO == ADC_ADS1015)
+// Asentamiento del OPT101 con su realimentacion interna de 1 MOhm:
+// ~80 us; 200 con margen.
+#define ASENTAMIENTO_LED_US      200
+
+// ======================== AUTOCALIBRACION DE GANANCIA (Tarea 3.d) ========================
+// Fondo de escala UTIL: el menor entre el del ADC (4096 mV a GAIN_ONE) y
+// la excursion maxima del OPT101, que con 5 V de alimentacion satura
+// hacia Vs - 1.3 V = 3.7 V. Si el OPT101 va a 3.3 V, bajar a ~2000.
+#define FONDO_ESCALA_UTIL_MV       3700.0f
+#define AUTOCAL_OBJETIVO_FRAC      0.35f    // reposo en el 35% del FS
+#define AUTOCAL_LIMITE_FRAC        0.95f    // el gesto maximo no pasa del 95%
+// Si max/min del reposo entre canales es menor que esto a corriente
+// nominal, no se ajusta por canal: basta la normalizacion en software.
+#define AUTOCAL_UMBRAL_DISPERSION  1.5f
+#define AUTOCAL_DUTY_NOMINAL_FRAC  0.60f
+#define AUTOCAL_MUESTRAS           24
+#define AUTOCAL_VERIFICAR_GESTO_MAX 1
+
+// mV por LSB, solo informativo: la conversion usa computeVolts().
+#if ADC_MODELO == ADC_ADS1015
+  #define ADS_GAIN_MV   2.0f     // 12 bits, GAIN_ONE
+#else
+  #define ADS_GAIN_MV   0.125f   // 16 bits, GAIN_ONE
+#endif
 
 // ======================== MPU6050 ========================
 #define MPU_ADDR        0x68
@@ -272,7 +363,7 @@ static_assert(TAMANO_VENTANA == 20,
 
 // ======================== ESCANEO DESACOPLADO DEL ADC ========================
 // El problema: LMG y FSR comparten un unico ADS1115 multiplexado. Leer
-// 5 LMG + 6 FSR son 11 conversiones, ~15-18 ms, sobre un presupuesto de
+// 5 LMG + 5 FSR son 10 conversiones, ~14-17 ms, sobre un presupuesto de
 // 10 ms. El ciclo no cerraba.
 //
 // La solucion no es acelerar el ADC, que ya esta a 860 SPS, sino
@@ -289,9 +380,13 @@ static_assert(TAMANO_VENTANA == 20,
 
 // PLAN B DEL PRESUPUESTO, escrito antes de necesitarlo.
 //
-// El presupuesto analitico del ciclo es ~8.8 ms sobre 10, un 12% de
+// El presupuesto analitico del ciclo era ~8.8 ms sobre 10, un 12% de
 // margen, y el overhead de I2C que lo sustenta esta estimado y no
-// medido. Si en el bring-up el comando 'I' reporta que el ciclo no
+// medido. ACTUALIZACION (Tarea 3): encender un LED por canal anade
+// 200 us de asentamiento a cada lectura; con el ADS1115 y sin trama
+// oscura el estimado sube a ~9.9 ms, al limite. Con el ADS1015 y trama
+// oscura, ~8.6 ms. El autotest de arranque (y el comando 'T') mide el
+// ciclo real. Si en el bring-up el comando 'I' reporta que el ciclo no
 // cabe, poner esta constante a 2 libera ~1.4 ms leyendo un FSR cada dos
 // ciclos en vez de cada uno.
 //
@@ -339,7 +434,6 @@ static_assert(TAMANO_VENTANA == 20,
 #define UMBRAL_FSR_MEDIO    180.0f
 #define UMBRAL_FSR_ANULAR   180.0f
 #define UMBRAL_FSR_MENIQUE  180.0f
-#define UMBRAL_FSR_PALMA    150.0f
 
 // ======================== GESTOS ========================
 enum Gesto : uint8_t {
