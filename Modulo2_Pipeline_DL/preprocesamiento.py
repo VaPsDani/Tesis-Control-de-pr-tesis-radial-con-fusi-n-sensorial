@@ -29,9 +29,15 @@ ETIQUETADO:
     3 = Power
     4 = Finger_Extension
 
-ESQUEMA DEL CSV DE CAPTURA (17 columnas):
+ESQUEMA DEL CSV DE CAPTURA (18 columnas):
   subject_id, repetition_id, timestamp_ms, v1..v5,
-  ax, ay, az, gx, gy, gz, label, bloque_tipo, en_margen, es_calibracion
+  ax, ay, az, gx, gy, gz, label, bloque_tipo, en_margen, es_calibracion,
+  fase
+
+  fase la anade anotar_fases.py al cerrar la sesion (reaccion, dinamica,
+  meseta, relajacion, reposo, recorte). Por defecto se entrena con
+  dinamica + meseta como clase del gesto y el reposo estable como Rest;
+  en_margen se sigue grabando, pero ya no decide que filas entran.
 
   De esas, SOLO 8 entran al modelo: v1..v5 + ax, ay, az.
 
@@ -52,6 +58,9 @@ ESTRUCTURA DE SALIDA:
   X: (num_ventanas, window_size, num_features)  → (N, 20, 8)
   y: (num_ventanas,)  → one-hot encoding (N, 5)
 """
+
+import json
+import os
 
 import numpy as np
 import pandas as pd
@@ -109,19 +118,27 @@ class SlidingWindowPreprocessor:
     def cargar_csv(
         self,
         ruta: str,
-        excluir_margenes: bool = True,
+        excluir_margenes: bool = None,
         excluir_calibracion: bool = True,
+        variante_fases: str = "dinamica_meseta",
     ) -> pd.DataFrame:
         """
         Carga el CSV de captura y selecciona los canales del modelo.
 
         Args:
             ruta: Ruta al CSV de la sesion
-            excluir_margenes: descarta las filas con en_margen == 1, que
-                son los periodos de transicion en los que el participante
-                todavia esta reaccionando al estimulo o ya se esta
-                relajando. Se marcan y no se borran en la captura para
-                poder barrer el valor despues; aqui se filtran.
+            variante_fases: que filas entran, segun la columna fase
+                (ver fases.VARIANTES_ABLACION). Por defecto la dinamica
+                y la meseta como clase del gesto, y solo el reposo
+                estable como Rest; la reaccion, la relajacion y los
+                bordes del reposo quedan fuera. Si el CSV no trae la
+                columna fase, o la trae de una version anterior del
+                detector, se calcula al vuelo. None desactiva el
+                criterio de fases y vuelve al de margen fijo.
+            excluir_margenes: criterio ANTERIOR, por margen fijo
+                (en_margen == 1). Por defecto solo se aplica si
+                variante_fases es None: el margen fijo corta a ciegas,
+                y las fases lo sustituyen.
             excluir_calibracion: descarta el bloque de calibracion
                 inicial (es_calibracion == 1). Ese bloque es reposo basal
                 contiguo, grabado para validar la calibracion del
@@ -133,6 +150,30 @@ class SlidingWindowPreprocessor:
             columnas del modelo.
         """
         df = pd.read_csv(ruta)
+
+        # Las fases se calculan sobre la sesion ENTERA, antes de filtrar:
+        # necesitan el bloque de calibracion como base de respaldo y la
+        # continuidad temporal de los reposos.
+        mascara_fases = None
+        if variante_fases is not None and "label" in df.columns:
+            from fases import FASES_VERSION, mascara_entrenamiento
+            vigente = "fase" in df.columns
+            ruta_json = os.path.splitext(ruta)[0] + "_fases.json"
+            if vigente and os.path.exists(ruta_json):
+                with open(ruta_json, encoding="utf-8") as f:
+                    vigente = json.load(f).get("fases_version") == FASES_VERSION
+            if not vigente:
+                from anotar_fases import anotar_df
+                base = df.drop(columns="fase") if "fase" in df.columns else df
+                fase, _, _ = anotar_df(base)
+                df = base.assign(fase=fase)
+                print("[PREPROC] Columna fase ausente u obsoleta: calculada "
+                      "al vuelo (anotar_fases.py la deja en el CSV).")
+            mascara_fases = mascara_entrenamiento(
+                df["fase"].astype(str).values, df["label"].values,
+                variante_fases)
+        if excluir_margenes is None:
+            excluir_margenes = mascara_fases is None
 
         if self.feature_cols is None:
             faltan = [c for c in COLUMNAS_MODELO if c not in df.columns]
@@ -152,14 +193,21 @@ class SlidingWindowPreprocessor:
                 self.feature_cols = candidatas
 
         n_inicial = len(df)
+        conservar = np.ones(len(df), dtype=bool)
+        if mascara_fases is not None:
+            conservar &= mascara_fases
         if excluir_calibracion and "es_calibracion" in df.columns:
-            df = df[df["es_calibracion"] == 0]
+            conservar &= df["es_calibracion"].values == 0
         if excluir_margenes and "en_margen" in df.columns:
-            df = df[df["en_margen"] == 0]
+            conservar &= df["en_margen"].values == 0
+        df = df[conservar]
 
         if len(df) != n_inicial:
+            criterio = (f"fases, variante {variante_fases}"
+                        if mascara_fases is not None else "margen fijo")
             print(f"[PREPROC] Filas: {n_inicial} → {len(df)} "
-                  f"(descartadas {n_inicial - len(df)} de margen/calibracion)")
+                  f"(descartadas {n_inicial - len(df)}: calibracion y "
+                  f"{criterio})")
 
         descartados = [c for c in COLUMNAS_NO_MODELO if c in df.columns]
         if descartados:

@@ -61,8 +61,21 @@ CRITERIO DE ONSET:
   de la etiqueta, porque el movimiento puede adelantarse: el onset puede
   salir negativo, y eso se reporta como anticipacion.
 
-  Cuando hay IMU se usa como confirmacion. Sin IMU (los datasets
+  Cuando hay IMU se usa como confirmacion, con su propia base tomada de
+  la MISMA ventana de reposo que la optica. Sin IMU (los datasets
   publicos de LMG no la tienen) solo cuenta la senal optica.
+
+BASE LOCAL O DE CALIBRACION (modo_base):
+  "local"        (defecto) la base del reposo inmediatamente previo.
+  "calibracion"  la del bloque de calibracion de la sesion (base_global),
+                 que es el S-barra-r que calcula la calibracion.
+  La especificacion original pedia la segunda. Se deja como opcion y no
+  como defecto por la evidencia de arriba: una base de hace minutos es
+  exactamente la base obsoleta con que fallo la version 1. La
+  relajacion se mide SIEMPRE contra la base local; contra la de
+  calibracion, con deriva, la senal podria no volver nunca a la banda y
+  el reposo entero quedaria como relajacion. anotar_fases.py
+  --comparar_bases cuantifica ambas sobre el piloto.
 
 COTAS DE SANIDAD (se MARCAN, no se descartan):
   onset < 0         anticipacion: el movimiento empezo antes de la senal
@@ -250,14 +263,21 @@ def etiquetar_fases(x: np.ndarray, etiquetas: np.ndarray, fs: float,
                     p: ParametrosFases = None,
                     etiqueta_reposo: int = 0,
                     imu: Optional[np.ndarray] = None,
-                    base_global: Optional[tuple] = None):
+                    base_global: Optional[tuple] = None,
+                    imu_base_global: Optional[np.ndarray] = None,
+                    modo_base: str = "local"):
     """
     Asigna una fase a cada muestra de una grabacion continua.
+
+    base_global / imu_base_global: base de respaldo (y la unica en
+    modo_base="calibracion"), p. ej. el bloque de calibracion.
 
     Returns:
         fase: array de str, una por muestra
         informe: lista de dict, uno por bloque de gesto
     """
+    if modo_base not in ("local", "calibracion"):
+        raise ValueError(f"modo_base debe ser 'local' o 'calibracion', no {modo_base!r}")
     p = p or ParametrosFases()
     n = len(etiquetas)
     fase = np.empty(n, dtype=object)
@@ -274,7 +294,7 @@ def etiquetar_fases(x: np.ndarray, etiquetas: np.ndarray, fs: float,
     n_base, n_base_min = ms(p.base_ms), ms(p.base_min_ms)
 
     # ---- 1. Base local de cada periodo de reposo: su tramo final ----
-    bases, derivas = {}, {}
+    bases, derivas, rangos = {}, {}, {}
     for b, (a, z) in enumerate(bloques):
         if not es_reposo[b]:
             continue
@@ -283,6 +303,7 @@ def etiquetar_fases(x: np.ndarray, etiquetas: np.ndarray, fs: float,
         if fin_b - ini_b >= n_base_min:
             bases[b] = estadisticas_base(x[ini_b:fin_b])
             derivas[b] = deriva_base(x[ini_b:fin_b], bases[b])
+            rangos[b] = (ini_b, fin_b)
 
     # ---- 2. Periodos de reposo ----
     for b, (a, z) in enumerate(bloques):
@@ -307,22 +328,35 @@ def etiquetar_fases(x: np.ndarray, etiquetas: np.ndarray, fs: float,
         if es_reposo[b]:
             continue
         lab = int(etiquetas[a])
-        base = bases.get(b - 1) if b > 0 and es_reposo[b - 1] else None
-        deriva = derivas.get(b - 1)
-        if base is None:
-            base = base_global
+        previo = b - 1 if b > 0 and es_reposo[b - 1] else None
+        if modo_base == "calibracion" and base_global is not None:
+            base, deriva, imu_base = base_global, None, imu_base_global
+            origen = "calibracion"
+        else:
+            base = bases.get(previo)
+            deriva = derivas.get(previo)
+            # La IMU se compara contra la MISMA ventana de reposo que la
+            # optica. Antes se pasaba None y la confirmacion no se
+            # calculaba nunca.
+            imu_base = (imu[slice(*rangos[previo])]
+                        if imu is not None and previo in rangos else None)
+            origen = "local"
+            if base is None:
+                base, imu_base = base_global, imu_base_global
+                origen = "respaldo_global"
         if base is None:
             fase[a:z] = FASE_MESETA
             informe.append(dict(bloque=b, label=lab, inicio=a, fin=z,
                                 onset_ms=None, anticipado=False,
                                 dinamica_ms=None, sospechoso=True,
                                 motivo="sin linea base previa",
-                                confirmado_imu=None, deriva_base=None))
+                                confirmado_imu=None, deriva_base=None,
+                                base=None))
             continue
 
         pre = min(ms(p.busqueda_previa_ms), a)
         imu_b = imu[a - pre:z] if imu is not None else None
-        r = detectar_onset(x[a - pre:z], base, fs, p, imu_b, None,
+        r = detectar_onset(x[a - pre:z], base, fs, p, imu_b, imu_base,
                            offset_muestras=pre)
 
         if r.idx_onset is None:
@@ -352,6 +386,7 @@ def etiquetar_fases(x: np.ndarray, etiquetas: np.ndarray, fs: float,
                          1000.0 * (r.idx_meseta - r.idx_onset) / fs),
             sospechoso=sosp, motivo=motivo,
             confirmado_imu=r.confirmado_imu, deriva_base=deriva,
+            base=origen,
         ))
 
     return fase, informe

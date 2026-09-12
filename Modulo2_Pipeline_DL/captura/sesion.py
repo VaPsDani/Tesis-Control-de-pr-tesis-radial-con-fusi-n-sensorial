@@ -19,8 +19,12 @@ PAUSA Y ABORTO SEGUROS:
 import json
 import os
 import queue
+import sys
 import time
 from datetime import datetime
+
+# anotar_fases.py vive en Modulo2_Pipeline_DL, un nivel arriba.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from protocolo import construir_sesion, resumen_sesion, TIPO_CALIBRACION
 from adquisicion import LectorSerie, EscritorCSV, Muestra
@@ -223,9 +227,28 @@ class Sesion:
         if self.escritor:
             self.escritor.cerrar()
             self.op.log(f"CSV cerrado: {self.escritor.filas_escritas} filas")
+            self.anotar_fases()
         self.guardar_metadatos(abortada)
         self.op.btn_pausa.config(state="disabled")
         self.op.btn_abortar.config(state="disabled")
+
+    def anotar_fases(self):
+        """
+        Columna fase sobre el CSV ya cerrado. Un fallo aqui NO compromete
+        la sesion: el dato crudo ya esta en disco y la columna se puede
+        calcular despues con anotar_fases.py.
+        """
+        if not self.ruta_csv or not self.escritor.filas_escritas:
+            return
+        try:
+            from anotar_fases import anotar_csv
+            r = anotar_csv(self.ruta_csv, comparar_bases=True)["resumen"]
+            self.op.log(f"Fases: {r['n_gestos']} gestos, onset mediano "
+                        f"{r['onset_mediana_ms']} ms, "
+                        f"{r['pct_sospechosos']}% sospechosos")
+        except Exception as e:
+            self.op.log(f"AVISO: no se pudo anotar la columna fase ({e}). "
+                        f"Ejecute anotar_fases.py sobre el CSV.")
 
     # ---------- metadatos ----------
     def guardar_metadatos(self, abortada: bool):
