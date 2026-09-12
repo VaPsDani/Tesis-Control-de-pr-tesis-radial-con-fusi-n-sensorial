@@ -1,0 +1,7 @@
+ANALISIS 1.d - clasicos vs CNN (Wilcoxon pareado por sujeto)
+  [40 canales] LDA - CNN: diferencia media F1 +0.0183, p = 0.4316
+  [40 canales] SVM - CNN: diferencia media F1 +0.0027, p = 0.9219
+  [40 canales] RF - CNN: diferencia media F1 +0.0792, p = 0.1602
+  [5 canales (mejor de 1.c)] LDA - CNN: diferencia media F1 +0.0143, p = 0.5566
+  [5 canales (mejor de 1.c)] SVM - CNN: diferencia media F1 -0.0610, p = 0.3750
+  [5 canales (mejor de 1.c)] RF - CNN: diferencia media F1 -0.0341, p = 0.2754

@@ -85,7 +85,29 @@ confirma, la frecuencia de muestreo tiene holgura y la trama oscura cabría
 incluso con un ADC lento. Las diferencias siguen dentro del ruido, así que es
 una hipótesis a verificar con datos propios, no una conclusión.
 
-**CNN:** pendiente (etapa de GPU en curso).
+### Etapa 2: CNN sobre las 6 mejores configuraciones
+
+| ventana | solapamiento efectivo | accuracy | F1 macro | AUC | F1 del LDA |
+|---|---|---|---|---|---|
+| **200 ms** | **62.5%** | **0.5023 ± 0.0488** | **0.4578** | 0.765 | 0.4096 |
+| 150 ms | 50.0% | 0.4863 ± 0.1046 | 0.4461 | 0.736 | 0.4007 |
+| 300 ms | 83.3% | 0.4548 ± 0.0173 | 0.4128 | 0.717 | 0.4101 |
+| 300 ms | 75.0% | 0.4528 ± 0.0703 | 0.3998 | 0.732 | 0.3991 |
+| 250 ms | 70.0% | 0.4565 ± 0.1016 | 0.3934 | 0.738 | 0.3987 |
+| 300 ms | 58.3% | 0.4398 ± 0.0604 | 0.3833 | 0.726 | 0.4135 |
+
+La mejor configuración es **200 ms con 62.5% de solapamiento**, que es
+justamente la ventana de producción del pipeline (200 ms), con un stride
+efectivo de 72 ms.
+
+**La CNN no supera sistemáticamente al LDA:** promediando las seis celdas, F1
+0.4155 frente a 0.4053. Solo gana de forma apreciable en las ventanas cortas
+(150 ms: +0.045; 200 ms: +0.048); en las de 250 y 300 ms empata o pierde.
+
+Dos limitaciones de esta etapa: las seis celdas se eligieron por su F1 con LDA,
+y **las seis resultaron ser de 41.6 Hz**, así que la CNN no se probó a 83.2 Hz;
+y la desviación entre pliegues (hasta ±0.10) supera a casi todas las diferencias
+entre configuraciones.
 
 ---
 
@@ -178,15 +200,28 @@ se puede traducir a posiciones sobre el antebrazo.
 LDA, SVM (RBF), Random Forest y la CNN sobre la misma partición por sujeto, con
 40 canales y con el mejor subconjunto de 5.
 
-| modelo | 40 canales |
-|---|---|
-| LDA | acc 0.4456 ± 0.1061 · F1 0.3982 |
-| SVM | acc 0.4348 ± 0.0577 · F1 0.3929 |
-| Random Forest | acc 0.5031 ± 0.0427 · F1 0.4472 |
-| CNN | acc 0.4299 ± 0.0937 · F1 0.3925 |
+| modelo | 40 canales | 5 canales (el mejor de 1.c) | parámetros (5 canales) |
+|---|---|---|---|
+| LDA | acc 0.4456 ± 0.1061 · F1 0.3982 | **acc 0.5005 ± 0.0704 · F1 0.4804** | 55 |
+| SVM | acc 0.4348 ± 0.0577 · F1 0.3929 | acc 0.4150 ± 0.0316 · F1 0.3889 | 104 342 |
+| Random Forest | **acc 0.5031 ± 0.0427 · F1 0.4472** | acc 0.4470 ± 0.0501 · F1 0.4133 | 1 410 264 |
+| CNN | acc 0.4299 ± 0.0937 · F1 0.3925 | acc 0.4826 ± 0.1147 · F1 0.4519 | — |
 
-Con 40 canales **Random Forest supera a la CNN** (0.503 vs 0.430). La tabla del
-subconjunto de 5 canales está pendiente (etapa en curso).
+**La CNN no gana en ningún escenario.** Con 40 canales la mejor es Random
+Forest (0.503 vs 0.430 de la CNN); con 5 canales es el **LDA** (0.5005 vs
+0.4826), y además con **55 parámetros** frente al millón largo del bosque. El
+resultado es coherente con 1.a: la ventaja de la CNN sobre el LDA en el barrido
+de ventanas era de 0.01 de F1.
+
+Cada modelo cambia de signo al reducir canales: LDA y CNN **mejoran** al pasar
+de 40 a 5, mientras que SVM y Random Forest empeoran. Es la misma maldición de
+la dimensionalidad de 1.c, y afecta más a los modelos con más capacidad.
+
+**Salvedad que hereda de 1.c:** el subconjunto de 5 canales se eligió con los
+mismos pliegues, así que su nivel absoluto es optimista (0.492 optimista contra
+0.339 anidado). La comparación *entre modelos* sobre ese mismo subconjunto sí es
+limpia, porque todos comparten el mismo sesgo; lo que no debe leerse como
+insesgado es el 0.50 del LDA.
 
 ---
 
