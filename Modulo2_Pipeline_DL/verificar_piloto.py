@@ -203,10 +203,36 @@ def main():
         print(f"  {NOMBRES[c]:<14}{n:>12}{100*n/len(yi):>8.1f}%")
     activas = [conteo[NOMBRES[c]] for c in range(1, 5)]
     ratio = conteo["Rest"] / np.mean(activas) if np.mean(activas) else 0
-    print(f"\n  Ratio Rest:activa = {ratio:.2f}:1  (esperado ~1.63)")
+    # El 1.63:1 que promete el protocolo suponia el filtrado por MARGEN
+    # FIJO. Con el criterio de fases, del reposo se descuentan ademas la
+    # relajacion (detectada por senal, tan larga como dure la hiperemia) y
+    # los bordes recortados, asi que el ratio baja por construccion. CUANTO
+    # baja es una medida del asentamiento post-contraccion, que es justo lo
+    # que el piloto tiene que averiguar: se informa siempre, y solo es un
+    # problema si Rest queda inutilizable para entrenar la clase.
+    print(f"\n  Ratio Rest:activa = {ratio:.2f}:1  (el protocolo preve "
+          f"~1.63 con margen fijo; con fases baja segun dure la relajacion)")
     informe["balance"] = {"conteo": conteo, "ratio_rest": round(float(ratio), 2)}
-    if not (1.3 <= ratio <= 2.0):
-        problemas.append(f"Ratio Rest:activa {ratio:.2f} fuera de lo previsto")
+    if not (0.3 <= ratio <= 3.0):
+        problemas.append(f"Ratio Rest:activa {ratio:.2f}: Rest queda "
+                         f"inutilizable para entrenar")
+
+    # Composicion del reposo por fase: el diagnostico de hiperemia.
+    crudo = pd.read_csv(args.csv)
+    if "fase" in crudo.columns:
+        rep = crudo[crudo["label"] == 0]
+        comp = rep["fase"].value_counts()
+        pct = {k: 100.0 * int(comp.get(k, 0)) / max(len(rep), 1)
+               for k in ("reposo", "relajacion", "recorte")}
+        print(f"  Reposo por fase: {pct['reposo']:.0f}% estable, "
+              f"{pct['relajacion']:.0f}% relajacion, "
+              f"{pct['recorte']:.0f}% recorte de bordes")
+        informe["balance"]["reposo_por_fase"] = {str(k): int(v)
+                                                 for k, v in comp.items()}
+        if pct["relajacion"] > 60:
+            problemas.append(f"{pct['relajacion']:.0f}% del reposo es "
+                             f"relajacion: la senal no se asienta dentro del "
+                             f"bloque de 8 s. Alargue el reposo.")
 
     _seccion("VEREDICTO")
     if problemas:
