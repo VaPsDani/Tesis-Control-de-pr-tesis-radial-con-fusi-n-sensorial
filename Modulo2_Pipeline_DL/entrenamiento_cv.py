@@ -288,16 +288,27 @@ def fijar_semilla(seed: int, fold_idx: int, determinismo: bool = False) -> None:
 
 def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
                      epochs, batch_size, lr, early_stopping_start=0,
-                     seed=None, determinismo=False):
+                     seed=None, determinismo=False,
+                     X_test=None, y_test=None):
     """
     Construye, entrena y evalua el modelo en un pliegue.
     Retorna (history, y_pred, metricas_dict).
+
+    X_val, y_val alimentan a EarlyStopping y ReduceLROnPlateau.
+    X_test, y_test son los que se evaluan y predicen. Si no se pasan se
+    evalua sobre X_val, que es el comportamiento historico: la validacion
+    ERA el pliegue de test, y la epoca restaurada se elegia mirando el
+    test (sesgo optimista).
     """
+    val_es_test = X_test is None
+    if val_es_test:
+        X_test, y_test = X_val, y_val
     if seed is not None:
         fijar_semilla(seed, fold_idx, determinismo)
     print(f"\n{'='*60}")
     print(f"  PLIEGUE {fold_idx + 1}")
-    print(f"  Train: {X_train.shape[0]} | Val: {X_val.shape[0]}")
+    print(f"  Train: {X_train.shape[0]} | Val: {X_val.shape[0]}"
+          + (" (= test)" if val_es_test else f" | Test: {X_test.shape[0]}"))
     print(f"{'='*60}")
 
     clases, counts = np.unique(y_train.argmax(axis=1), return_counts=True)
@@ -349,10 +360,10 @@ def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
     )
     duracion = time.time() - t0
 
-    loss, accuracy, auc = modelo.evaluate(X_val, y_val, verbose=0)
-    y_pred = modelo.predict(X_val, verbose=0)
+    loss, accuracy, auc = modelo.evaluate(X_test, y_test, verbose=0)
+    y_pred = modelo.predict(X_test, verbose=0)
 
-    y_true_int = y_val.argmax(axis=1)
+    y_true_int = y_test.argmax(axis=1)
     y_pred_int = y_pred.argmax(axis=1)
     f1_macro = f1_score(y_true_int, y_pred_int, average="macro", zero_division=0)
     f1_clases = f1_score(
@@ -399,6 +410,8 @@ def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
         "restaurada_en_el_umbral": bool(en_el_umbral),
         "detuvo_por_early_stopping": bool(paro_temprano),
         "duracion_seg": round(duracion, 1),
+        "n_val_callbacks": int(X_val.shape[0]),
+        "n_test": int(X_test.shape[0]),
     }
 
     del modelo
@@ -459,6 +472,8 @@ def construir_reporte(args, etiqueta, descripciones, metricas_por_fold,
             "epochs_max": args.epochs,
             "normalizacion": args.normalizacion,
             "seed": args.seed,
+            "validacion": args.validacion,
+            "val_grupos": args.val_grupos,
             "determinismo_gpu": bool(args.determinismo),
             "early_stopping_start": args.early_stopping_start,
             "early_stopping_patience": 15,
@@ -705,6 +720,20 @@ def main():
                         help="Tasa de aprendizaje inicial (default: 1e-3)")
     parser.add_argument("--folds", type=int, default=5,
                         help="Numero de pliegues (default: 5)")
+    parser.add_argument("--validacion", type=str, default="interna",
+                        choices=["interna", "test", "reducido_test"],
+                        help="Que ven EarlyStopping y ReduceLROnPlateau. "
+                             "'interna' (default): grupos enteros separados "
+                             "del train, nunca del test. 'test': el pliegue "
+                             "de test, comportamiento historico y optimista. "
+                             "'reducido_test': control que quita del train "
+                             "los mismos grupos que 'interna' pero vigila el "
+                             "test, para separar el efecto de tener menos "
+                             "datos del efecto de la fuga.")
+    parser.add_argument("--val_grupos", type=int, default=1,
+                        help="Grupos (sujetos o repeticiones, segun el "
+                             "agrupamiento) que se separan del train para la "
+                             "validacion interna. Default: 1")
     parser.add_argument("--seed", type=int, default=None,
                         help="Semilla para inicializacion, barajado y "
                              "augmentation. Sin ella (default) cada corrida "
@@ -746,7 +775,12 @@ def main():
     validador = "stratifiedgroupkfold" if args.estratificado else "groupkfold"
     etiqueta = args.etiqueta or (
         f"{validador}_{args.agrupamiento}_norm-{args.normalizacion}"
+        + ("" if args.validacion == "test" else f"_val-{args.validacion}")
     )
+    if args.validacion == "test":
+        print("[VALIDACION] AVISO: los callbacks vigilan el pliegue de TEST. "
+              "La epoca restaurada se elige mirando el test y las metricas "
+              "son optimistas. Solo para reproducir corridas historicas.")
 
     # ========== 1. DATASET ==========
     print("\n" + "=" * 60)
@@ -836,12 +870,51 @@ def main():
             print(f"  {verificar_normalizacion(X_val, suj_val, args.normalizacion)}"
                   f"  [test pliegue {fold_idx + 1}]")
 
+        # VALIDACION PARA LOS CALLBACKS. Con 'test', EarlyStopping y
+        # ReduceLROnPlateau vigilan el pliegue de test y la epoca restaurada
+        # se elige mirando el test. Con 'interna' se separan grupos enteros
+        # del train (sujetos, o repeticiones si el agrupamiento es por
+        # repeticion) y los callbacks solo ven esos. 'reducido_test' quita
+        # los mismos grupos pero sigue vigilando el test: es el control que
+        # separa el efecto de tener menos datos del efecto de la fuga.
+        # El corte va despues de normalizar: con normalizacion por sujeto
+        # las estadisticas de cada sujeto son solo suyas, asi que da igual;
+        # con 'global' salen del train completo, que no incluye el test.
+        if args.validacion == "test":
+            X_fit, y_fit, X_mon, y_mon = X_train, y_train, X_val, y_val
+            X_eval = y_eval = None
+            grupos_val = []
+        else:
+            g_train = (suj_train if args.agrupamiento == "sujeto"
+                       else grupos_rep[idx_train])
+            g_test = (suj_val if args.agrupamiento == "sujeto"
+                      else grupos_rep[idx_val])
+            rng_val = np.random.RandomState((args.seed or 0) + 1000 + fold_idx)
+            grupos_val = sorted(rng_val.choice(
+                np.unique(g_train), args.val_grupos, replace=False).tolist())
+            en_val = np.isin(g_train, grupos_val)
+            fuga_test = set(grupos_val) & set(np.unique(g_test).tolist())
+            fuga_train = set(grupos_val) & set(np.unique(g_train[~en_val]).tolist())
+            assert not fuga_test, f"validacion interna con grupos de test: {fuga_test}"
+            assert not fuga_train, f"validacion interna con grupos de train: {fuga_train}"
+            X_fit, y_fit = X_train[~en_val], y_train[~en_val]
+            if args.validacion == "interna":
+                X_mon, y_mon = X_train[en_val], y_train[en_val]
+            else:
+                X_mon, y_mon = X_val, y_val
+            X_eval, y_eval = X_val, y_val
+            print(f"  Validacion {args.validacion}: grupos {grupos_val} "
+                  f"({int(en_val.sum())} ventanas separadas del train)")
+
         history, y_pred, metricas = entrenar_pliegue(
-            X_train, y_train, X_val, y_val, fold_idx,
+            X_fit, y_fit, X_mon, y_mon, fold_idx,
             args.epochs, args.batch_size, args.lr,
             early_stopping_start=args.early_stopping_start,
             seed=args.seed, determinismo=args.determinismo,
+            X_test=X_eval, y_test=y_eval,
         )
+        metricas["validacion"] = args.validacion
+        metricas["grupos_validacion"] = list(grupos_val)
 
         historiales.append(history)
         metricas_por_fold.append(metricas)
