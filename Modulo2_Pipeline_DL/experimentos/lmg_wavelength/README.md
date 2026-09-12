@@ -131,7 +131,26 @@ No se detecta efecto de la longitud de onda, **coincidiendo con Guan et al.
 que nuestro LED es de 940 nm**, así que la conclusión se extrapola, no se
 traslada.
 
-**CNN:** pendiente (etapa de GPU en curso).
+### La CNN llega a la misma conclusión
+
+| | green | ir | 250both | 125both |
+|---|---|---|---|---|
+| accuracy | 0.4745 | 0.4575 | 0.4938 | 0.4425 |
+| F1 macro | 0.3958 | 0.3864 | 0.4367 | 0.3940 |
+
+- **ANOVA de medidas repetidas**: F(3,27) = 0.250, **p = 0.860**
+- **Friedman**: chi2 = 2.280, p = 0.516
+- **Verde vs IR**: t pareada p = 0.806, Wilcoxon p = 0.695, diferencia media
+  +0.017 a favor del verde
+
+Con los dos modelos, y con las dos métricas, el resultado es el mismo: **no hay
+efecto de la longitud de onda**. Que un LDA de 55 parámetros y una
+CNN-BiLSTM-Attention coincidan hace difícil atribuir el empate a falta de
+capacidad del clasificador.
+
+La ordenación cambia entre modelos (con LDA el mejor era `green`, con CNN
+`250both`), lo que es de esperar cuando las diferencias no son significativas:
+es ruido de muestreo, no una preferencia distinta de cada modelo.
 
 ---
 
