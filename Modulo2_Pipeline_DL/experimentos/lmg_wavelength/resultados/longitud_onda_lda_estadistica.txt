@@ -1,0 +1,16 @@
+ANALISIS 1.b - longitud de onda (lda)
+
+--- accuracy ---
+  media por configuracion: green 0.4653  ir 0.4433  250both 0.4416  125both 0.4182
+  ANOVA medidas repetidas: F(3,27) = 0.209, p = 0.8892
+  Friedman: chi2 = 1.080, p = 0.7819
+  verde vs IR (la comparacion limpia): t pareada p = 0.7756, Wilcoxon p = 0.9219, diferencia media +0.0220
+
+--- f1_macro ---
+  media por configuracion: green 0.4185  ir 0.3769  250both 0.3859  125both 0.3392
+  ANOVA medidas repetidas: F(3,27) = 0.468, p = 0.7070
+  Friedman: chi2 = 0.360, p = 0.9484
+  verde vs IR (la comparacion limpia): t pareada p = 0.6515, Wilcoxon p = 0.6250, diferencia media +0.0416
+
+Nota: AnovaRM no aplica correccion de esfericidad (Greenhouse-Geisser); con 4 niveles conviene contrastar con Friedman, que no la requiere.
+Extrapolacion: el IR del dataset es 880 nm; nuestro LED es 940 nm.
