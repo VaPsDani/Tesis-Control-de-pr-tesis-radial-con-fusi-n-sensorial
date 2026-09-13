@@ -116,8 +116,10 @@ log "TANDA con $P trabajadores, RAM libre $(awk '/MemAvailable/ {print int($2 / 
 encolar 10 A_sujeto      "$PY -u entrenamiento_cv.py $ECV --normalizacion sujeto --folds 5 --etiqueta A_sujeto --output_dir $OUT_A && bash $YO --gancho-A sujeto"
 encolar 11 A_sujeto_rest "$PY -u entrenamiento_cv.py $ECV --normalizacion sujeto_rest --folds 5 --etiqueta A_sujeto_rest --output_dir $OUT_A && bash $YO --gancho-A sujeto_rest"
 # B: 1.b repartida por configuracion (era la etapa mas larga)
+prio=20
 for c in green ir 250both 125both; do
-  encolar 2${c:0:1}_1b_$c "$PY -u $L/analisis_longitud_onda.py --modelo cnn --configs $c --sufijo _corregido --seed 42 $D --output $L/resultados"
+  encolar "$prio" "1b_$c" "$PY -u $L/analisis_longitud_onda.py --modelo cnn --configs $c --sufijo _corregido --seed 42 $D --output $L/resultados"
+  prio=$((prio + 1))
 done
 # B: 1.a en dos mitades
 encolar 30 1a_celdas012 "$PY -u $L/analisis_ventana.py --etapa cnn --top 6 --celdas 0 1 2 --seed 42 $D --output $L/resultados"
