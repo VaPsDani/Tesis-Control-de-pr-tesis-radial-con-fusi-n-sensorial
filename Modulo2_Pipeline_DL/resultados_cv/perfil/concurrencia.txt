@@ -1,0 +1,15 @@
+ENTRENAMIENTOS SIMULTANEOS EN LA MISMA GPU (RTX 4060, WSL2)
+concurrencia_gpu.py: pipeline real con augmentation, batch 32, 600 pasos
+cronometrados tras calentar y arrancar a la vez. TF_FORCE_GPU_ALLOW_GROWTH.
+
+ procesos   ms/paso por proceso        pasos/s totales   aceleracion   RAM libre (WSL 7.2 GB)
+    1       27.37                          36.5            1.00x         6.0 GB
+    2       32.95, 32.05                   61.5            1.68x         4.9 GB
+    3       68.25, 43.24, 41.93            61.6            1.69x         3.6 GB
+    4       51.56, 52.73, 54.34, 53.38     75.5            2.07x         2.6 GB
+
+Cada proceso: RSS ~1.7 GB, VRAM pico 106 MB. Cada proceso hace la misma
+matematica que en solitario, asi que los resultados no cambian.
+El techo de ~2x viene del reparto por turnos de la GPU entre contextos CUDA
+de procesos distintos (en WSL/Windows no hay MPS). Con P=3 un proceso quedo
+en 68 ms: el reparto entre procesos no es parejo.
