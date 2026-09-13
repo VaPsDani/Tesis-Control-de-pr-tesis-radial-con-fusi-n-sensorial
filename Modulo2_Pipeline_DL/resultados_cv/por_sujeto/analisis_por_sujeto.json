@@ -1,0 +1,65 @@
+{
+  "etiqueta": "5 pliegues",
+  "n_sujetos": 10,
+  "metricas": {
+    "acc": {
+      "media_sujeto": 68.59461497861557,
+      "media_rest": 66.03955704485978,
+      "diferencia_media": 2.555057933755788,
+      "wilcoxon_p": 0.431640625,
+      "t": 0.8427259245626758,
+      "t_p": 0.421212262549065,
+      "d_z": 0.26649333648892926,
+      "sd_entre_sujetos_sujeto": 12.581326910219989,
+      "sd_entre_sujetos_rest": 6.9040381623852545,
+      "cociente_sd_rest_sobre_sujeto": 0.5487527835221424,
+      "pitman_morgan_r": 0.6450136532928638,
+      "pitman_morgan_t": 2.3873897383352487,
+      "pitman_morgan_p": 0.044034858592040475,
+      "ic95_bca": [
+        0.29781760174381655,
+        1.106920514212047
+      ],
+      "ic95_percentil": [
+        0.33073028821903955,
+        1.4664894310059744
+      ],
+      "ic95_bca_error": null
+    },
+    "f1": {
+      "media_sujeto": 67.52820256656223,
+      "media_rest": 64.88825562105475,
+      "diferencia_media": 2.639946945507466,
+      "wilcoxon_p": 0.375,
+      "t": 0.8078738291850516,
+      "t_p": 0.4399929163331706,
+      "d_z": 0.2554721362266574,
+      "sd_entre_sujetos_sujeto": 13.099986284653513,
+      "sd_entre_sujetos_rest": 8.017458225994709,
+      "cociente_sd_rest_sobre_sujeto": 0.6120203526767864,
+      "pitman_morgan_r": 0.5436581156561304,
+      "pitman_morgan_t": 1.8321040849913297,
+      "pitman_morgan_p": 0.10430026386998081,
+      "ic95_bca": [
+        0.37438495152545265,
+        1.0154950382746624
+      ],
+      "ic95_percentil": [
+        0.40873756187301363,
+        1.2374042181140656
+      ],
+      "ic95_bca_error": null
+    }
+  },
+  "decision": {
+    "metodo_intervalo": "BCa",
+    "ic95": [
+      0.29781760174381655,
+      1.106920514212047
+    ],
+    "incluye_1": true,
+    "umbral": 1.15,
+    "lanzar_loso": true,
+    "lectura": "el intervalo incluye 1 POR POCO (extremo superior 1.107 < 1.15): ambiguo, se lanza el deja-un-sujeto-fuera"
+  }
+}

@@ -1,0 +1,39 @@
+SUJETO FRENTE A SUJETO_REST, POR SUJETO (5 pliegues, n = 10)
+==============================================================================
+
+1. TABLA POR SUJETO (%)
+   sujeto  pliegue  acc sujeto  acc rest     dif  F1 sujeto  F1 rest     dif
+        1      [5]       75.75     78.46   -2.70      76.09    78.38   -2.29
+        2      [3]       72.71     68.05   +4.66      73.05    70.56   +2.49
+        3      [1]       77.37     63.46  +13.91      76.98    61.37  +15.61
+        4      [3]       75.41     65.06  +10.35      75.46    61.63  +13.83
+        5      [4]       66.56     73.35   -6.79      60.05    72.11  -12.06
+        6      [1]       38.03     54.27  -16.24      38.76    51.44  -12.68
+        7      [2]       76.00     67.49   +8.50      77.02    67.16   +9.85
+        8      [5]       78.44     65.18  +13.27      77.35    64.09  +13.26
+        9      [2]       69.01     67.22   +1.79      67.78    67.11   +0.67
+       10      [4]       56.66     57.86   -1.20      52.75    55.02   -2.27
+
+2. DIFERENCIA DE MEDIAS (sujeto - sujeto_rest)
+   exactitud: sujeto 68.59, rest 66.04, diferencia +2.56  |  Wilcoxon p = 0.4316 (minimo 0.0020), t(9) = 0.84, p = 0.4212, d_z = +0.27
+   F1 macro: sujeto 67.53, rest 64.89, diferencia +2.64  |  Wilcoxon p = 0.3750 (minimo 0.0020), t(9) = 0.81, p = 0.4400, d_z = +0.26
+
+3. DESVIACION ENTRE SUJETOS (ddof = 1) - la cifra que decide
+   exactitud: sujeto 12.58, rest 6.90, cociente rest/sujeto 0.549
+      IC 95% BCa: [0.298, 1.107]   percentil: [0.331, 1.466]
+      Pitman-Morgan: r = +0.645, t(8) = +2.39, p = 0.0440
+   F1 macro: sujeto 13.10, rest 8.02, cociente rest/sujeto 0.612
+      IC 95% BCa: [0.374, 1.015]   percentil: [0.409, 1.237]
+      Pitman-Morgan: r = +0.544, t(8) = +1.83, p = 0.1043
+
+4. DECISION (regla acordada, intervalo BCa del cociente de exactitud)
+   IC 95% [0.298, 1.107] -> el intervalo incluye 1 POR POCO (extremo superior 1.107 < 1.15): ambiguo, se lanza el deja-un-sujeto-fuera
+   lanzar_loso = True
+
+5. CONSISTENCIA CON LA CORRIDA cc872da (exactitud por pliegue)
+   sujeto       cc872da [55.16, 72.19, 72.98, 62.84, 76.07] media 67.85
+                ahora   [55.53, 72.66, 74.03, 61.54, 77.12] media 68.17  (diferencia +0.33; ruido esperado entre corridas ~0.6)
+   sujeto_rest  cc872da [55.55, 66.08, 65.91, 66.58, 71.95] media 65.21
+                ahora   [58.36, 67.36, 66.59, 65.49, 71.73] media 65.91  (diferencia +0.69; ruido esperado entre corridas ~0.6)
+
+ADVERTENCIA: con 5 pliegues, los dos sujetos de cada pliegue comparten modelo; los 10 pares no son independientes y los p nominales son algo optimistas. La desviacion entre sujetos tambien incluye la variacion entre los modelos de cada pliegue.
