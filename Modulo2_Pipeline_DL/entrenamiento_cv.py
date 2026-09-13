@@ -289,10 +289,16 @@ def fijar_semilla(seed: int, fold_idx: int, determinismo: bool = False) -> None:
 def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
                      epochs, batch_size, lr, early_stopping_start=0,
                      seed=None, determinismo=False,
-                     X_test=None, y_test=None):
+                     X_test=None, y_test=None, lr_por_epoca=None):
     """
     Construye, entrena y evalua el modelo en un pliegue.
     Retorna (history, y_pred, metricas_dict).
+
+    lr_por_epoca: si se pasa, es un REENTRENAMIENTO. Sin EarlyStopping, sin
+    ReduceLROnPlateau y sin datos de validacion: se entrena exactamente
+    len(lr_por_epoca) epocas reproduciendo ese calendario de tasa de
+    aprendizaje, que salio de la fase de seleccion con validacion interna.
+    X_val e y_val se ignoran y pueden ser None.
 
     X_val, y_val alimentan a EarlyStopping y ReduceLROnPlateau.
     X_test, y_test son los que se evaluan y predicen. Si no se pasan se
@@ -300,6 +306,9 @@ def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
     ERA el pliegue de test, y la epoca restaurada se elegia mirando el
     test (sesgo optimista).
     """
+    reentreno = lr_por_epoca is not None
+    if reentreno:
+        epochs = len(lr_por_epoca)
     val_es_test = X_test is None
     if val_es_test:
         X_test, y_test = X_val, y_val
@@ -307,8 +316,13 @@ def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
         fijar_semilla(seed, fold_idx, determinismo)
     print(f"\n{'='*60}")
     print(f"  PLIEGUE {fold_idx + 1}")
-    print(f"  Train: {X_train.shape[0]} | Val: {X_val.shape[0]}"
-          + (" (= test)" if val_es_test else f" | Test: {X_test.shape[0]}"))
+    if reentreno:
+        print(f"  REENTRENO con todo el train: {X_train.shape[0]} | "
+              f"Test: {X_test.shape[0]} | {epochs} epocas con el calendario "
+              f"de lr de la seleccion")
+    else:
+        print(f"  Train: {X_train.shape[0]} | Val: {X_val.shape[0]}"
+              + (" (= test)" if val_es_test else f" | Test: {X_test.shape[0]}"))
     print(f"{'='*60}")
 
     clases, counts = np.unique(y_train.argmax(axis=1), return_counts=True)
@@ -333,22 +347,42 @@ def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
         start_from_epoch=early_stopping_start,
         verbose=0,
     )
-    callbacks = [
-        early_stopping,
-        tf.keras.callbacks.ReduceLROnPlateau(
-            monitor="val_loss",
-            factor=0.5,
-            patience=7,
-            min_lr=1e-6,
-            verbose=0,
-        ),
-    ]
+    # Registra la tasa de aprendizaje con que EMPIEZA cada epoca, para que
+    # un reentreno pueda reproducir el calendario que eligio ReduceLROnPlateau.
+    registro_lr = []
+
+    class RegistroLR(tf.keras.callbacks.Callback):
+        def on_epoch_begin(self, epoch, logs=None):
+            registro_lr.append(float(np.array(self.model.optimizer.learning_rate)))
+
+    if reentreno:
+        calendario = list(lr_por_epoca)
+        callbacks = [
+            tf.keras.callbacks.LearningRateScheduler(
+                lambda epoca, lr_actual: calendario[epoca], verbose=0),
+            RegistroLR(),
+        ]
+    else:
+        callbacks = [
+            early_stopping,
+            tf.keras.callbacks.ReduceLROnPlateau(
+                monitor="val_loss",
+                factor=0.5,
+                patience=7,
+                min_lr=1e-6,
+                verbose=0,
+            ),
+            RegistroLR(),
+        ]
 
     train_ds = tf.data.Dataset.from_tensor_slices((X_train, y_train))
     train_ds = train_ds.map(augmentar_muestra, num_parallel_calls=tf.data.AUTOTUNE)
     train_ds = train_ds.shuffle(1024).batch(batch_size).prefetch(tf.data.AUTOTUNE)
-    val_ds = tf.data.Dataset.from_tensor_slices((X_val, y_val))
-    val_ds = val_ds.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+    if reentreno:
+        val_ds = None
+    else:
+        val_ds = tf.data.Dataset.from_tensor_slices((X_val, y_val))
+        val_ds = val_ds.batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
     t0 = time.time()
     history = modelo.fit(
@@ -372,7 +406,7 @@ def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
     )
 
     n_epocas = len(history.history["loss"])
-    paro_temprano = n_epocas < epochs
+    paro_temprano = (not reentreno) and n_epocas < epochs
 
     # Dos numeros distintos que conviene no confundir:
     #  - epoca_argmin_global: donde esta el minimo de val_loss en toda la
@@ -380,9 +414,15 @@ def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
     #  - epoca_restaurada: la que EarlyStopping realmente devolvio en los
     #    pesos, que con start_from_epoch>0 nunca es anterior al umbral.
     # Reportar solo el primero mentiria sobre que modelo se evaluo.
-    epoca_argmin_global = int(np.argmin(history.history["val_loss"])) + 1
-    epoca_restaurada = int(getattr(early_stopping, "best_epoch", 0)) + 1
-    en_el_umbral = epoca_restaurada <= early_stopping_start + 1
+    if reentreno:
+        # No hay validacion: el modelo evaluado es el de la ultima epoca.
+        epoca_argmin_global = None
+        epoca_restaurada = n_epocas
+        en_el_umbral = False
+    else:
+        epoca_argmin_global = int(np.argmin(history.history["val_loss"])) + 1
+        epoca_restaurada = int(getattr(early_stopping, "best_epoch", 0)) + 1
+        en_el_umbral = epoca_restaurada <= early_stopping_start + 1
 
     print(f"  Resultados Pliegue {fold_idx + 1}:")
     print(f"    Loss:       {loss:.4f}")
@@ -410,8 +450,11 @@ def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
         "restaurada_en_el_umbral": bool(en_el_umbral),
         "detuvo_por_early_stopping": bool(paro_temprano),
         "duracion_seg": round(duracion, 1),
-        "n_val_callbacks": int(X_val.shape[0]),
+        "n_val_callbacks": 0 if reentreno else int(X_val.shape[0]),
         "n_test": int(X_test.shape[0]),
+        "n_train": int(X_train.shape[0]),
+        "lr_por_epoca": registro_lr,
+        "reentreno": bool(reentreno),
     }
 
     del modelo
@@ -474,6 +517,9 @@ def construir_reporte(args, etiqueta, descripciones, metricas_por_fold,
             "seed": args.seed,
             "validacion": args.validacion,
             "val_grupos": args.val_grupos,
+            "reentrenar": bool(args.reentrenar),
+            "reentreno_epocas": "las de la epoca restaurada en la seleccion, "
+                                "sin escalar por el grupo anadido",
             "determinismo_gpu": bool(args.determinismo),
             "early_stopping_start": args.early_stopping_start,
             "early_stopping_patience": 15,
@@ -730,6 +776,14 @@ def main():
                              "los mismos grupos que 'interna' pero vigila el "
                              "test, para separar el efecto de tener menos "
                              "datos del efecto de la fuga.")
+    parser.add_argument("--reentrenar", action="store_true",
+                        help="Con --validacion interna: tras elegir la epoca y "
+                             "el calendario de lr con el grupo interno, "
+                             "reentrena desde cero con TODO el train del "
+                             "pliegue durante esas epocas y evalua ese modelo. "
+                             "Asi la validacion no cuesta datos de "
+                             "entrenamiento. Las metricas de la fase de "
+                             "seleccion se guardan aparte en cada pliegue.")
     parser.add_argument("--val_grupos", type=int, default=1,
                         help="Grupos (sujetos o repeticiones, segun el "
                              "agrupamiento) que se separan del train para la "
@@ -756,6 +810,10 @@ def main():
                         help=f"Directorio de salida (default: {RESULTADOS_DIR}/)")
     args = parser.parse_args()
 
+    if args.reentrenar and args.validacion != "interna":
+        parser.error("--reentrenar solo tiene sentido con --validacion interna: "
+                     "con 'test' la epoca se elegiria mirando el test.")
+
     if args.determinismo and args.seed is None:
         parser.error("--determinismo no sirve sin --seed: forzar kernels "
                      "deterministas no elimina la varianza de inicializacion "
@@ -776,6 +834,7 @@ def main():
     etiqueta = args.etiqueta or (
         f"{validador}_{args.agrupamiento}_norm-{args.normalizacion}"
         + ("" if args.validacion == "test" else f"_val-{args.validacion}")
+        + ("_reentreno" if args.reentrenar else "")
     )
     if args.validacion == "test":
         print("[VALIDACION] AVISO: los callbacks vigilan el pliegue de TEST. "
@@ -915,6 +974,36 @@ def main():
         )
         metricas["validacion"] = args.validacion
         metricas["grupos_validacion"] = list(grupos_val)
+
+        if args.reentrenar:
+            # Fase 2: todo el train del pliegue, las epocas y el calendario
+            # de lr que eligio la validacion interna. El test sigue sin
+            # intervenir en ninguna decision.
+            n_ep = max(1, int(metricas["epoca_restaurada"]))
+            calendario = metricas["lr_por_epoca"][:n_ep]
+            _, y_pred, metricas_final = entrenar_pliegue(
+                X_train, y_train, None, None, fold_idx,
+                args.epochs, args.batch_size, args.lr,
+                seed=args.seed, determinismo=args.determinismo,
+                X_test=X_val, y_test=y_val, lr_por_epoca=calendario,
+            )
+            metricas_final["validacion"] = "interna+reentreno"
+            # El diagnostico de early stopping (epoca restaurada, argmin de
+            # val_loss, pegada al umbral) es el de la SELECCION, que es donde
+            # hubo validacion; el reentreno no tiene val_loss.
+            for clave in ("epoca_restaurada", "epoca_argmin_global",
+                          "restaurada_en_el_umbral", "detuvo_por_early_stopping"):
+                metricas_final[clave] = metricas[clave]
+            metricas_final["grupos_validacion"] = list(grupos_val)
+            metricas_final["seleccion"] = {
+                k: metricas[k] for k in
+                ("accuracy", "f1_macro", "auc", "loss", "epochs",
+                 "epoca_restaurada", "restaurada_en_el_umbral",
+                 "detuvo_por_early_stopping", "n_train", "duracion_seg")
+            }
+            print(f"    Seleccion (7/8 del train): acc {metricas['accuracy']:.4f} "
+                  f"-> reentreno (todo el train): acc {metricas_final['accuracy']:.4f}")
+            metricas = metricas_final
 
         historiales.append(history)
         metricas_por_fold.append(metricas)
