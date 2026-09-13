@@ -1,0 +1,51 @@
+EXPERIMENTO DE NORMALIZACION: ORIGINAL FRENTE A CORREGIDO
+==============================================================================
+Original : EarlyStopping y ReduceLROnPlateau vigilaban el pliegue de TEST; sin semilla.
+Corregido: validacion interna (1 grupo separado del train) para elegir epoca y
+           calendario de lr; reentreno con todo el train del pliegue; semilla 42.
+Desviaciones con ddof=0, la convencion del capitulo original.
+
+1. RESULTADOS POR CONFIGURACION (accuracy %, 5 pliegues)
+   config              original       corregido  cambio  F1 orig  F1 corr  sel. 7  reentr.
+   ninguna        56.99 +-  8.66   55.81 +-  8.73   -1.18    54.43    53.27   55.67    +0.14
+   global         58.57 +- 12.07   55.92 +- 12.37   -2.66    56.06    52.96   54.47    +1.45
+   sujeto         70.00 +-  7.86   67.85 +-  7.73   -2.15    68.76    66.51   67.18    +0.67
+   sujeto_rest    69.11 +-  3.92   65.21 +-  5.32   -3.89    68.54    64.31   64.85    +0.36
+   repeticion     83.62 +-  2.91   82.89 +-  3.05   -0.73    81.78    81.01   81.20    +1.70
+   'sel. 7' = modelo de la fase de seleccion, entrenado sin el grupo de validacion.
+   'reentr.' = lo que aporta reentrenar con todo el train sobre ese modelo.
+
+2. POR PLIEGUE (corregido)
+   pliegue  sujetos test       ninguna      global      sujeto sujeto_rest
+   1        [3, 6]               49.79       51.28       55.16       55.55
+   2        [7, 9]               57.89       57.32       72.19       66.08
+   3        [2, 4]               67.63       73.45       72.98       65.91
+   4        [5, 10]              42.65       35.89       62.84       66.58
+   5        [1, 8]               61.09       61.65       76.07       71.95
+   epocas restauradas en la seleccion: ninguna [13, 11, 15, 28, 21], global [20, 15, 18, 24, 16], sujeto [19, 19, 15, 17, 11], sujeto_rest [17, 13, 13, 14, 15], repeticion [63, 67, 25, 28, 13]
+   pliegues con la epoca restaurada pegada al umbral: {'ninguna': 1, 'global': 0, 'sujeto': 1, 'sujeto_rest': 0, 'repeticion': 0}
+
+3. CONTRASTES PAREADOS POR PLIEGUE (mismas particiones por sujeto en las 4 configuraciones)
+   Con 5 pliegues el Wilcoxon no puede bajar de p = 0.062: ninguna diferencia puede
+   declararse significativa a 0.05 con este diseno, ni en el original ni en el corregido.
+   contraste                   original   corregido   por pliegue (corregido)          t p    Wilcoxon p
+   sujeto - ninguna              +13.01      +12.04   [+5.4, +14.3, +5.4, +20.2, +15.0]   0.014     0.062
+   sujeto - global               +11.43      +11.93   [+3.9, +14.9, -0.5, +27.0, +14.4]   0.067     0.125
+   global - ninguna               +1.58       +0.11   [+1.5, -0.6, +5.8, -6.8, +0.6]   0.961     1.000
+   sujeto - sujeto_rest           +0.90       +2.63   [-0.4, +6.1, +7.1, -3.7, +4.1]   0.267     0.312
+   sujeto_rest - ninguna         +12.12       +9.40   [+5.8, +8.2, -1.7, +23.9, +10.9]   0.088     0.125
+
+   desviacion de sujeto_rest relativa a sujeto: original 0.50, corregido 0.69
+   brecha intra-sujeto (repeticion) frente a inter-sujeto (ninguna): original +26.63, corregido +27.09
+
+4. LECTURA
+   - La correccion baja todas las cifras entre 0.7 y 3.9 puntos. Afecta mas a las
+     configuraciones con particion por sujeto que al control por repeticion.
+   - Sobrevive: normalizar por sujeto supera en ~12 puntos a no normalizar y a la
+     normalizacion global. La brecha intra frente a inter sujeto se mantiene en ~27 puntos.
+   - Se refuerza: la normalizacion global no aporta nada frente a no normalizar.
+   - Se debilita: sujeto_rest ya no iguala a sujeto en media y reduce su dispersion
+     entre pliegues en torno a un tercio, no a la mitad. Ninguna de las dos diferencias
+     es demostrable con 5 pliegues; hace falta comparar por sujeto (n = 10).
+   - El pliegue 4 (sujetos 5 y 10) explica la gran dispersion de global y ninguna: con
+     estadisticas ajenas esos sujetos caen a 36-43%, con las suyas recuperan 63-67%.

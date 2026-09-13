@@ -1,0 +1,1000 @@
+{
+  "esquema": {
+    "etiqueta": "sujeto_norm-global",
+    "agrupamiento": "sujeto",
+    "validador": "GroupKFold",
+    "k": 5
+  },
+  "generado": "2026-09-13T07:16:42",
+  "config": {
+    "optimizador": "Adam",
+    "learning_rate": 0.001,
+    "batch_size": 32,
+    "epochs_max": 100,
+    "normalizacion": "global",
+    "seed": 42,
+    "validacion": "interna",
+    "val_grupos": 1,
+    "reentrenar": true,
+    "reentreno_epocas": "las de la epoca restaurada en la seleccion, sin escalar por el grupo anadido",
+    "determinismo_gpu": false,
+    "early_stopping_start": 10,
+    "early_stopping_patience": 15,
+    "reduce_lr_factor": 0.5,
+    "reduce_lr_patience": 7,
+    "dropout": 0.5,
+    "l2": 0.0001,
+    "label_smoothing": 0.1,
+    "forma_entrada": [
+      40,
+      8
+    ],
+    "ventana_ms": 200,
+    "stride_ms": 20,
+    "tasa_hz": 200,
+    "data_augmentation": "ruido N(0,0.02) + escala U(0.95,1.05) + roll temporal +/-1"
+  },
+  "dataset": {
+    "n_ventanas": 54346,
+    "forma_ventana": [
+      40,
+      8
+    ],
+    "n_sujetos": 10,
+    "sujetos": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "n_archivos_mat": 30,
+    "repeticiones": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "ventanas_por_sujeto": {
+      "1": 5366,
+      "2": 5584,
+      "3": 4773,
+      "4": 5323,
+      "5": 5362,
+      "6": 5959,
+      "7": 5716,
+      "8": 5502,
+      "9": 5244,
+      "10": 5517
+    },
+    "distribucion_clases": {
+      "Rest": 10869,
+      "Pinch": 13303,
+      "Tripod": 10836,
+      "Power": 9765,
+      "Finger_Ext": 9573
+    }
+  },
+  "pliegues": [
+    {
+      "fold": 1,
+      "sujetos_train": [
+        1,
+        2,
+        4,
+        5,
+        7,
+        8,
+        9,
+        10
+      ],
+      "sujetos_test": [
+        3,
+        6
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 43614,
+      "n_test": 10732,
+      "clases_train": {
+        "Rest": 8804,
+        "Pinch": 10871,
+        "Tripod": 8664,
+        "Power": 7801,
+        "Finger_Ext": 7474
+      },
+      "clases_test": {
+        "Rest": 2065,
+        "Pinch": 2432,
+        "Tripod": 2172,
+        "Power": 1964,
+        "Finger_Ext": 2099
+      },
+      "proporciones_test": {
+        "Rest": 0.1924,
+        "Pinch": 0.2266,
+        "Tripod": 0.2024,
+        "Power": 0.183,
+        "Finger_Ext": 0.1956
+      },
+      "loss": 1.7436341047286987,
+      "accuracy": 0.5127655863761902,
+      "auc": 0.7513461112976074,
+      "f1_macro": 0.49323951615340444,
+      "f1_por_clase": {
+        "Rest": 0.8146376464960535,
+        "Pinch": 0.07005141388174807,
+        "Tripod": 0.5437949798139372,
+        "Power": 0.5907906168549087,
+        "Finger_Ext": 0.44692292372037445
+      },
+      "epochs": 20,
+      "epoca_restaurada": 20,
+      "epoca_argmin_global": 7,
+      "restaurada_en_el_umbral": false,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 1308.7,
+      "n_val_callbacks": 0,
+      "lr_por_epoca": [
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257
+      ],
+      "reentreno": true,
+      "validacion": "interna+reentreno",
+      "grupos_validacion": [
+        9
+      ],
+      "seleccion": {
+        "accuracy": 0.5349422097206116,
+        "f1_macro": 0.5094317408067813,
+        "auc": 0.7793518900871277,
+        "loss": 1.655487060546875,
+        "epochs": 35,
+        "epoca_restaurada": 20,
+        "restaurada_en_el_umbral": false,
+        "detuvo_por_early_stopping": true,
+        "n_train": 38370,
+        "duracion_seg": 2163.8
+      }
+    },
+    {
+      "fold": 2,
+      "sujetos_train": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        8,
+        10
+      ],
+      "sujetos_test": [
+        7,
+        9
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 43386,
+      "n_test": 10960,
+      "clases_train": {
+        "Rest": 8614,
+        "Pinch": 10568,
+        "Tripod": 8744,
+        "Power": 7749,
+        "Finger_Ext": 7711
+      },
+      "clases_test": {
+        "Rest": 2255,
+        "Pinch": 2735,
+        "Tripod": 2092,
+        "Power": 2016,
+        "Finger_Ext": 1862
+      },
+      "proporciones_test": {
+        "Rest": 0.2057,
+        "Pinch": 0.2495,
+        "Tripod": 0.1909,
+        "Power": 0.1839,
+        "Finger_Ext": 0.1699
+      },
+      "loss": 1.5711129903793335,
+      "accuracy": 0.5731751918792725,
+      "auc": 0.8212140798568726,
+      "f1_macro": 0.5474718472318074,
+      "f1_por_clase": {
+        "Rest": 0.7031301482701812,
+        "Pinch": 0.09376693766937669,
+        "Tripod": 0.5905590893873451,
+        "Power": 0.6665306954925556,
+        "Finger_Ext": 0.6833723653395785
+      },
+      "epochs": 15,
+      "epoca_restaurada": 15,
+      "epoca_argmin_global": 1,
+      "restaurada_en_el_umbral": false,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 976.1,
+      "n_val_callbacks": 0,
+      "lr_por_epoca": [
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257
+      ],
+      "reentreno": true,
+      "validacion": "interna+reentreno",
+      "grupos_validacion": [
+        8
+      ],
+      "seleccion": {
+        "accuracy": 0.5967153310775757,
+        "f1_macro": 0.5809126655758888,
+        "auc": 0.8391514420509338,
+        "loss": 1.4812670946121216,
+        "epochs": 30,
+        "epoca_restaurada": 15,
+        "restaurada_en_el_umbral": false,
+        "detuvo_por_early_stopping": true,
+        "n_train": 37884,
+        "duracion_seg": 1820.4
+      }
+    },
+    {
+      "fold": 3,
+      "sujetos_train": [
+        1,
+        3,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "sujetos_test": [
+        2,
+        4
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 43439,
+      "n_test": 10907,
+      "clases_train": {
+        "Rest": 8667,
+        "Pinch": 10508,
+        "Tripod": 8686,
+        "Power": 7911,
+        "Finger_Ext": 7667
+      },
+      "clases_test": {
+        "Rest": 2202,
+        "Pinch": 2795,
+        "Tripod": 2150,
+        "Power": 1854,
+        "Finger_Ext": 1906
+      },
+      "proporciones_test": {
+        "Rest": 0.2019,
+        "Pinch": 0.2563,
+        "Tripod": 0.1971,
+        "Power": 0.17,
+        "Finger_Ext": 0.1748
+      },
+      "loss": 1.0403043031692505,
+      "accuracy": 0.73448246717453,
+      "auc": 0.9155018329620361,
+      "f1_macro": 0.7371591615585376,
+      "f1_por_clase": {
+        "Rest": 0.7197860962566844,
+        "Pinch": 0.7082594824530308,
+        "Tripod": 0.8135508155583437,
+        "Power": 0.7289413307112422,
+        "Finger_Ext": 0.7152580828133863
+      },
+      "epochs": 18,
+      "epoca_restaurada": 18,
+      "epoca_argmin_global": 1,
+      "restaurada_en_el_umbral": false,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 1168.2,
+      "n_val_callbacks": 0,
+      "lr_por_epoca": [
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628
+      ],
+      "reentreno": true,
+      "validacion": "interna+reentreno",
+      "grupos_validacion": [
+        1
+      ],
+      "seleccion": {
+        "accuracy": 0.6438984274864197,
+        "f1_macro": 0.6471345714993018,
+        "auc": 0.8631480932235718,
+        "loss": 1.288482427597046,
+        "epochs": 33,
+        "epoca_restaurada": 18,
+        "restaurada_en_el_umbral": false,
+        "detuvo_por_early_stopping": true,
+        "n_train": 38073,
+        "duracion_seg": 1992.4
+      }
+    },
+    {
+      "fold": 4,
+      "sujetos_train": [
+        1,
+        2,
+        3,
+        4,
+        6,
+        7,
+        8,
+        9
+      ],
+      "sujetos_test": [
+        5,
+        10
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 43467,
+      "n_test": 10879,
+      "clases_train": {
+        "Rest": 8634,
+        "Pinch": 10641,
+        "Tripod": 8577,
+        "Power": 7871,
+        "Finger_Ext": 7744
+      },
+      "clases_test": {
+        "Rest": 2235,
+        "Pinch": 2662,
+        "Tripod": 2259,
+        "Power": 1894,
+        "Finger_Ext": 1829
+      },
+      "proporciones_test": {
+        "Rest": 0.2054,
+        "Pinch": 0.2447,
+        "Tripod": 0.2076,
+        "Power": 0.1741,
+        "Finger_Ext": 0.1681
+      },
+      "loss": 2.352912664413452,
+      "accuracy": 0.3588564991950989,
+      "auc": 0.5549619793891907,
+      "f1_macro": 0.26383090654591224,
+      "f1_por_clase": {
+        "Rest": 0.5830322300910536,
+        "Pinch": 0.0,
+        "Tripod": 0.4030007896814951,
+        "Power": 0.2382939267501159,
+        "Finger_Ext": 0.09482758620689655
+      },
+      "epochs": 24,
+      "epoca_restaurada": 24,
+      "epoca_argmin_global": 2,
+      "restaurada_en_el_umbral": false,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 1570.0,
+      "n_val_callbacks": 0,
+      "lr_por_epoca": [
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0001250000059371814
+      ],
+      "reentreno": true,
+      "validacion": "interna+reentreno",
+      "grupos_validacion": [
+        3
+      ],
+      "seleccion": {
+        "accuracy": 0.29754573106765747,
+        "f1_macro": 0.2066250093403859,
+        "auc": 0.5698366761207581,
+        "loss": 2.4600026607513428,
+        "epochs": 39,
+        "epoca_restaurada": 24,
+        "restaurada_en_el_umbral": false,
+        "detuvo_por_early_stopping": true,
+        "n_train": 38694,
+        "duracion_seg": 2409.6
+      }
+    },
+    {
+      "fold": 5,
+      "sujetos_train": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        9,
+        10
+      ],
+      "sujetos_test": [
+        1,
+        8
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 43478,
+      "n_test": 10868,
+      "clases_train": {
+        "Rest": 8757,
+        "Pinch": 10624,
+        "Tripod": 8673,
+        "Power": 7728,
+        "Finger_Ext": 7696
+      },
+      "clases_test": {
+        "Rest": 2112,
+        "Pinch": 2679,
+        "Tripod": 2163,
+        "Power": 2037,
+        "Finger_Ext": 1877
+      },
+      "proporciones_test": {
+        "Rest": 0.1943,
+        "Pinch": 0.2465,
+        "Tripod": 0.199,
+        "Power": 0.1874,
+        "Finger_Ext": 0.1727
+      },
+      "loss": 1.3415138721466064,
+      "accuracy": 0.6164887547492981,
+      "auc": 0.8516804575920105,
+      "f1_macro": 0.6062925879773171,
+      "f1_por_clase": {
+        "Rest": 0.7721446336330591,
+        "Pinch": 0.445703125,
+        "Tripod": 0.8618576143328619,
+        "Power": 0.5160958022147824,
+        "Finger_Ext": 0.43566176470588236
+      },
+      "epochs": 16,
+      "epoca_restaurada": 16,
+      "epoca_argmin_global": 1,
+      "restaurada_en_el_umbral": false,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 732.9,
+      "n_val_callbacks": 0,
+      "lr_por_epoca": [
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0002500000118743628
+      ],
+      "reentreno": true,
+      "validacion": "interna+reentreno",
+      "grupos_validacion": [
+        6
+      ],
+      "seleccion": {
+        "accuracy": 0.6503496766090393,
+        "f1_macro": 0.6441516975716034,
+        "auc": 0.8683388829231262,
+        "loss": 1.2696329355239868,
+        "epochs": 31,
+        "epoca_restaurada": 16,
+        "restaurada_en_el_umbral": false,
+        "detuvo_por_early_stopping": true,
+        "n_train": 37519,
+        "duracion_seg": 1806.4
+      }
+    }
+  ],
+  "agregado": {
+    "accuracy_media": 0.559153699874878,
+    "accuracy_std": 0.12368905616296087,
+    "accuracy_por_fold": [
+      0.5127655863761902,
+      0.5731751918792725,
+      0.73448246717453,
+      0.3588564991950989,
+      0.6164887547492981
+    ],
+    "f1_macro_media": 0.5295988038933958,
+    "f1_macro_std": 0.15571593196255257,
+    "f1_macro_por_fold": [
+      0.49323951615340444,
+      0.5474718472318074,
+      0.7371591615585376,
+      0.26383090654591224,
+      0.6062925879773171
+    ],
+    "auc_media": 0.7789408922195434,
+    "auc_std": 0.12381840140049236,
+    "auc_por_fold": [
+      0.7513461112976074,
+      0.8212140798568726,
+      0.9155018329620361,
+      0.5549619793891907,
+      0.8516804575920105
+    ],
+    "loss_media": 1.6098955869674683,
+    "loss_std": 0.4399835073582982,
+    "loss_por_fold": [
+      1.7436341047286987,
+      1.5711129903793335,
+      1.0403043031692505,
+      2.352912664413452,
+      1.3415138721466064
+    ],
+    "epochs_por_fold": [
+      20,
+      15,
+      18,
+      24,
+      16
+    ],
+    "epoca_restaurada_por_fold": [
+      20,
+      15,
+      18,
+      24,
+      16
+    ],
+    "epoca_argmin_global_por_fold": [
+      7,
+      1,
+      1,
+      2,
+      1
+    ],
+    "pliegues_restaurados_en_el_umbral": []
+  },
+  "por_clase_global": {
+    "Rest": {
+      "precision": 0.5771385225813981,
+      "recall": 0.9100193210046923,
+      "f1": 0.7063234191452137,
+      "support": 10869
+    },
+    "Pinch": {
+      "precision": 0.4714069174590051,
+      "recall": 0.2571600390889273,
+      "f1": 0.33278210116731516,
+      "support": 13303
+    },
+    "Tripod": {
+      "precision": 0.542017114020332,
+      "recall": 0.6839239571797712,
+      "f1": 0.6047574360439022,
+      "support": 10836
+    },
+    "Power": {
+      "precision": 0.6541265295495965,
+      "recall": 0.5145929339477726,
+      "f1": 0.5760302630824784,
+      "support": 9765
+    },
+    "Finger_Ext": {
+      "precision": 0.5411819450907399,
+      "recall": 0.4859500678993001,
+      "f1": 0.5120810171170675,
+      "support": 9573
+    }
+  },
+  "matriz_confusion_conteos": [
+    [
+      9891,
+      306,
+      374,
+      116,
+      182
+    ],
+    [
+      4208,
+      3421,
+      2548,
+      1373,
+      1753
+    ],
+    [
+      1302,
+      1079,
+      7411,
+      240,
+      804
+    ],
+    [
+      955,
+      1251,
+      1329,
+      5025,
+      1205
+    ],
+    [
+      782,
+      1200,
+      2011,
+      928,
+      4652
+    ]
+  ],
+  "matriz_confusion_normalizada": [
+    [
+      0.91,
+      0.0282,
+      0.0344,
+      0.0107,
+      0.0167
+    ],
+    [
+      0.3163,
+      0.2572,
+      0.1915,
+      0.1032,
+      0.1318
+    ],
+    [
+      0.1202,
+      0.0996,
+      0.6839,
+      0.0221,
+      0.0742
+    ],
+    [
+      0.0978,
+      0.1281,
+      0.1361,
+      0.5146,
+      0.1234
+    ],
+    [
+      0.0817,
+      0.1254,
+      0.2101,
+      0.0969,
+      0.486
+    ]
+  ],
+  "clases": [
+    "Rest",
+    "Pinch",
+    "Tripod",
+    "Power",
+    "Finger_Ext"
+  ],
+  "linea_base_si2": {
+    "esquema": "GroupKFold k=5 agrupado por repeticion",
+    "origen": "tag si2-groupkfold-repeticion (commit af6a26a), resultados_preliminares/metricas.txt",
+    "accuracy_por_fold": [
+      0.7936,
+      0.8275,
+      0.8438,
+      0.8756,
+      0.8087
+    ],
+    "loss_por_fold": [
+      0.9132,
+      0.7995,
+      0.7884,
+      0.7062,
+      0.8575
+    ],
+    "auc_por_fold": [
+      0.9457,
+      0.966,
+      0.9703,
+      0.9774,
+      0.9595
+    ],
+    "epochs_por_fold": [
+      30,
+      41,
+      25,
+      71,
+      23
+    ],
+    "accuracy_media": 0.8298,
+    "accuracy_std": 0.0285,
+    "auc_media": 0.9638,
+    "f1_por_clase": {
+      "Rest": 0.8875,
+      "Pinch": 0.8352,
+      "Tripod": 0.8554,
+      "Power": 0.7943,
+      "Finger_Ext": 0.7775
+    },
+    "f1_macro": 0.83,
+    "n_ventanas_evaluadas": 54346
+  },
+  "normalizacion_por_pliegue": [
+    {
+      "modo": "global",
+      "origen_estadisticas": "solo ventanas de train del pliegue",
+      "n_ventanas_stats": 43614,
+      "mu": [
+        -0.938885,
+        -1.076392,
+        -0.951203,
+        -0.821161,
+        -0.83439,
+        -0.037187,
+        0.895388,
+        -0.341145
+      ],
+      "sd": [
+        18.017553,
+        19.693218,
+        11.816441,
+        5.070914,
+        8.814743,
+        0.103363,
+        0.085076,
+        0.204756
+      ]
+    },
+    {
+      "modo": "global",
+      "origen_estadisticas": "solo ventanas de train del pliegue",
+      "n_ventanas_stats": 43386,
+      "mu": [
+        -0.92144,
+        -1.049772,
+        -0.950613,
+        -0.821837,
+        -0.869622,
+        -0.027777,
+        0.879395,
+        -0.364348
+      ],
+      "sd": [
+        17.844149,
+        19.627172,
+        11.984255,
+        6.051229,
+        10.584796,
+        0.1002,
+        0.09675,
+        0.229415
+      ]
+    },
+    {
+      "modo": "global",
+      "origen_estadisticas": "solo ventanas de train del pliegue",
+      "n_ventanas_stats": 43439,
+      "mu": [
+        -0.931989,
+        -1.116925,
+        -0.955691,
+        -0.823871,
+        -0.868047,
+        -0.032982,
+        0.88798,
+        -0.354558
+      ],
+      "sd": [
+        18.290831,
+        21.308865,
+        11.865396,
+        6.217463,
+        11.443501,
+        0.104901,
+        0.091918,
+        0.207117
+      ]
+    },
+    {
+      "modo": "global",
+      "origen_estadisticas": "solo ventanas de train del pliegue",
+      "n_ventanas_stats": 43467,
+      "mu": [
+        -0.944863,
+        -1.130915,
+        -0.952522,
+        -0.824425,
+        -0.868415,
+        -0.063081,
+        0.868795,
+        -0.420577
+      ],
+      "sd": [
+        19.632261,
+        21.908468,
+        12.892825,
+        6.303642,
+        10.880669,
+        0.079535,
+        0.081282,
+        0.191041
+      ]
+    },
+    {
+      "modo": "global",
+      "origen_estadisticas": "solo ventanas de train del pliegue",
+      "n_ventanas_stats": 43478,
+      "mu": [
+        -0.929964,
+        -1.110397,
+        -0.897329,
+        -0.821207,
+        -0.871322,
+        -0.040599,
+        0.892493,
+        -0.342526
+      ],
+      "sd": [
+        19.02689,
+        21.090172,
+        10.650114,
+        6.125967,
+        11.224413,
+        0.105413,
+        0.087228,
+        0.208275
+      ]
+    }
+  ]
+}
