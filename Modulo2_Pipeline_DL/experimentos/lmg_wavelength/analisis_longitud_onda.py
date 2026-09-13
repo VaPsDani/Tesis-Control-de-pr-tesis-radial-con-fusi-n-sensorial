@@ -68,14 +68,13 @@ def evaluar_config(config, modelo, args):
             m.fit(F[tr], y[tr])
             y_pred[te] = m.predict(F[te])
         else:
-            from entrenamiento_cv import entrenar_pliegue
-            if len(tr) > args.n_max:
-                tr = rng.choice(tr, args.n_max, replace=False)
+            from entrenamiento_cv import entrenar_con_validacion_interna
             Y = np.eye(NUM_CLASES, dtype=np.float32)[y]
-            _, prob, _ = entrenar_pliegue(X[tr], Y[tr], X[te], Y[te], k,
-                                          args.epochs, 32, 1e-3,
-                                          early_stopping_start=10,
-                                          seed=args.seed)
+            # Validacion interna + reentreno: los callbacks nunca ven el test.
+            _, prob, _ = entrenar_con_validacion_interna(
+                X[tr], Y[tr], subj[tr], X[te], Y[te], subj[te], k,
+                args.epochs, 32, 1e-3, early_stopping_start=10,
+                seed=args.seed, n_max=args.n_max)
             y_pred[te] = prob.argmax(axis=1)
 
     # deteccion de onset por configuracion: muestra si el filtro de un
@@ -89,6 +88,14 @@ def evaluar_config(config, modelo, args):
 def main():
     p = argparse.ArgumentParser(description="1.b Longitud de onda")
     p.add_argument("--modelo", choices=["lda", "cnn"], default="lda")
+    p.add_argument("--configs", nargs="+", default=list(CONFIGS),
+                   help="Configuraciones a correr. Con un subconjunto se guarda "
+                        "un parcial; la estadistica se hace con --solo_estadistica")
+    p.add_argument("--sufijo", default="",
+                   help="Sufijo de las salidas (p. ej. _corregido)")
+    p.add_argument("--solo_estadistica", action="store_true",
+                   help="Fusiona los parciales de las 4 configuraciones y "
+                        "calcula la estadistica, sin entrenar")
     p.add_argument("--variante", default="dinamica_meseta")
     p.add_argument("--n_max", type=int, default=40000)
     p.add_argument("--epochs", type=int, default=100)
@@ -99,28 +106,41 @@ def main():
     args = p.parse_args()
     os.makedirs(args.output, exist_ok=True)
 
-    filas, globales = [], []
-    for cfg in CONFIGS:
-        print(f"\n=== {cfg} ({args.modelo}) ===")
-        ps, g, det = evaluar_config(cfg, args.modelo, args)
-        for s, m in ps.items():
-            filas.append(dict(subj=s, config=cfg, accuracy=m["accuracy"],
-                              f1_macro=m["f1_macro"]))
-        globales.append(dict(config=cfg, **{k: v for k, v in g.items()
-                                            if k != "f1_por_clase"},
-                             f1_por_clase=json.dumps(g["f1_por_clase"]),
-                             bloques_sin_onset=det["sin_onset"],
-                             bloques=det["bloques"]))
-        print(f"  acc {g['accuracy']:.4f}  F1 {g['f1_macro']:.4f}  "
-              f"(bloques sin onset: {det['sin_onset']}/{det['bloques']})")
+    base = f"longitud_onda_{args.modelo}{args.sufijo}"
+    if args.solo_estadistica:
+        # Fusiona las configuraciones corridas en procesos separados.
+        tabla = pd.concat([pd.read_csv(os.path.join(
+            args.output, f"{base}_parcial_{c}_por_sujeto.csv")) for c in CONFIGS])
+        glob_df = pd.concat([pd.read_csv(os.path.join(
+            args.output, f"{base}_parcial_{c}_global.csv")) for c in CONFIGS])
+    else:
+        filas, globales = [], []
+        for cfg in args.configs:
+            print(f"\n=== {cfg} ({args.modelo}) ===")
+            ps, g, det = evaluar_config(cfg, args.modelo, args)
+            for s_id, m in ps.items():
+                filas.append(dict(subj=s_id, config=cfg, accuracy=m["accuracy"],
+                                  f1_macro=m["f1_macro"]))
+            globales.append(dict(config=cfg, **{k: v for k, v in g.items()
+                                                if k != "f1_por_clase"},
+                                 f1_por_clase=json.dumps(g["f1_por_clase"]),
+                                 bloques_sin_onset=det["sin_onset"],
+                                 bloques=det["bloques"]))
+            print(f"  acc {g['accuracy']:.4f}  F1 {g['f1_macro']:.4f}  "
+                  f"(bloques sin onset: {det['sin_onset']}/{det['bloques']})")
+        tabla, glob_df = pd.DataFrame(filas), pd.DataFrame(globales)
+        if set(args.configs) != set(CONFIGS):
+            for cfg in args.configs:
+                tabla[tabla.config == cfg].to_csv(os.path.join(
+                    args.output, f"{base}_parcial_{cfg}_por_sujeto.csv"), index=False)
+                glob_df[glob_df.config == cfg].to_csv(os.path.join(
+                    args.output, f"{base}_parcial_{cfg}_global.csv"), index=False)
+            print(f"[PARCIAL] {args.configs}: la estadistica se calcula con "
+                  f"--solo_estadistica cuando esten las 4 configuraciones")
+            return
 
-    tabla = pd.DataFrame(filas)
-    tabla.to_csv(os.path.join(args.output,
-                              f"longitud_onda_{args.modelo}_por_sujeto.csv"),
-                 index=False)
-    pd.DataFrame(globales).to_csv(
-        os.path.join(args.output, f"longitud_onda_{args.modelo}_global.csv"),
-        index=False)
+    tabla.to_csv(os.path.join(args.output, f"{base}_por_sujeto.csv"), index=False)
+    glob_df.to_csv(os.path.join(args.output, f"{base}_global.csv"), index=False)
 
     # ---------- Estadistica ----------
     from statsmodels.stats.anova import AnovaRM
@@ -156,7 +176,7 @@ def main():
     texto = "\n".join(lineas)
     print("\n" + texto)
     with open(os.path.join(args.output,
-                           f"longitud_onda_{args.modelo}_estadistica.txt"),
+                           f"{base}_estadistica.txt"),
               "w", encoding="utf-8") as f:
         f.write(texto)
 
@@ -174,7 +194,7 @@ def main():
                  f"lineas = mismo sujeto")
     ax.grid(alpha=0.3)
     plt.savefig(os.path.join(args.output,
-                             f"longitud_onda_{args.modelo}.png"),
+                             f"{base}.png"),
                 dpi=150, bbox_inches="tight")
 
 

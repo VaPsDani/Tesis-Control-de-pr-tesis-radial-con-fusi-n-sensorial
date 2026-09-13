@@ -173,20 +173,19 @@ def submuestrear_rest(idx, y, rng):
 # ============================================================
 # MODELO
 # ============================================================
-def ajustar_predecir(args, F, X, y, tr, te, pliegue, rng):
+def ajustar_predecir(args, F, X, y, tr, te, pliegue, rng, grupos=None):
     if args.modelo == "lda":
         m = LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto")
         return m.fit(F[tr], y[tr]).predict(F[te])
-    from entrenamiento_cv import entrenar_pliegue   # importa TensorFlow
-    if len(tr) > args.n_max:
-        tr = np.sort(rng.choice(tr, args.n_max, replace=False))
+    from entrenamiento_cv import entrenar_con_validacion_interna   # importa TensorFlow
     Y = np.eye(NUM_CLASES, dtype=np.float32)[y]
-    # entrenar_pliegue usa el pliegue de test para la parada temprana,
-    # igual que el resto del pipeline: optimista en absoluto, pero igual
-    # para las tres variantes, que es lo que se compara.
-    _, prob, _ = entrenar_pliegue(X[tr], Y[tr], X[te], Y[te], pliegue,
-                                  args.epochs, 32, 1e-3,
-                                  early_stopping_start=10, seed=args.seed)
+    # Validacion interna + reentreno: los callbacks vigilan un grupo separado
+    # del train de ESTA variante, nunca el test. Con la misma semilla y el
+    # mismo pliegue, las tres variantes separan el mismo grupo.
+    _, prob, _ = entrenar_con_validacion_interna(
+        X[tr], Y[tr], grupos[tr], X[te], Y[te], grupos[te], pliegue,
+        args.epochs, 32, 1e-3, early_stopping_start=10, seed=args.seed,
+        n_max=args.n_max)
     return prob.argmax(axis=1)
 
 
@@ -212,7 +211,7 @@ def main():
     ap.add_argument("--stride_ms", type=float, default=20.0)
     ap.add_argument("--k", type=int, default=5)
     ap.add_argument("--permitir_intra_sujeto", action="store_true")
-    ap.add_argument("--epochs", type=int, default=40)
+    ap.add_argument("--epochs", type=int, default=100)
     ap.add_argument("--n_max", type=int, default=40000)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--output", default=None)
@@ -273,7 +272,7 @@ def main():
             m_v = es_rest_estable | ((y > 0) & np.isin(fase, VARIANTES_ABLACION[v]))
             tr_v = submuestrear_rest(tr[m_v[tr]], y, rng)
             n_train[v].append(len(tr_v))
-            pred[v][te] = ajustar_predecir(args, F, X, y, tr_v, te, kf, rng)
+            pred[v][te] = ajustar_predecir(args, F, X, y, tr_v, te, kf, rng, grupos)
         print(f"  pliegue {kf+1}/{k}: grupos test "
               f"{sorted(np.unique(grupos[te]).tolist())}")
 

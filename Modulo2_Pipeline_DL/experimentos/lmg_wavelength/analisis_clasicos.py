@@ -83,6 +83,9 @@ def main():
     p.add_argument("--config", default="ir")
     p.add_argument("--variante", default="dinamica_meseta")
     p.add_argument("--modelos", default="LDA,SVM,RF,CNN")
+    p.add_argument("--sufijo", default="",
+                   help="Sufijo de las salidas. Con --modelos CNN --sufijo "
+                        "_cnn_corregido no se tocan las filas de LDA/SVM/RF")
     p.add_argument("--n_max", type=int, default=40000)
     p.add_argument("--epochs", type=int, default=100)
     p.add_argument("--seed", type=int, default=42)
@@ -120,13 +123,14 @@ def main():
             for k, (tr, te) in enumerate(pliegues):
                 t0 = time.time()
                 if nombre == "CNN":
-                    from entrenamiento_cv import entrenar_pliegue
-                    if len(tr) > args.n_max:
-                        tr = rng.choice(tr, args.n_max, replace=False)
+                    from entrenamiento_cv import entrenar_con_validacion_interna
                     Y = np.eye(NUM_CLASES, dtype=np.float32)[y]
-                    _, prob, _ = entrenar_pliegue(
-                        Xc[tr], Y[tr], Xc[te], Y[te], k, args.epochs, 32,
-                        1e-3, early_stopping_start=10, seed=args.seed)
+                    # Validacion interna + reentreno: los callbacks nunca
+                    # ven el test.
+                    _, prob, _ = entrenar_con_validacion_interna(
+                        Xc[tr], Y[tr], subj[tr], Xc[te], Y[te], subj[te], k,
+                        args.epochs, 32, 1e-3, early_stopping_start=10,
+                        seed=args.seed, n_max=args.n_max)
                     y_pred[te] = prob.argmax(axis=1)
                 else:
                     if nombre == "SVM" and len(tr) > N_MAX_SVM:
@@ -152,11 +156,11 @@ def main():
                   f" +/- {d.accuracy.std():.4f}  F1 {d.f1_macro.mean():.4f}"
                   f"  ({t_fit:.0f} s)")
             pd.DataFrame(filas).to_csv(
-                os.path.join(args.output, "clasicos_por_pliegue.csv"),
+                os.path.join(args.output, f"clasicos{args.sufijo}_por_pliegue.csv"),
                 index=False)
 
     ps = pd.DataFrame(por_suj)
-    ps.to_csv(os.path.join(args.output, "clasicos_por_sujeto.csv"), index=False)
+    ps.to_csv(os.path.join(args.output, f"clasicos{args.sufijo}_por_sujeto.csv"), index=False)
 
     # Wilcoxon pareado por sujeto: cada clasico contra la CNN
     from scipy.stats import wilcoxon
@@ -178,7 +182,7 @@ def main():
                     f"{w.pvalue if w else float('nan'):.4f}")
     texto = "\n".join(lineas)
     print("\n" + texto)
-    with open(os.path.join(args.output, "clasicos_estadistica.txt"), "w",
+    with open(os.path.join(args.output, f"clasicos{args.sufijo}_estadistica.txt"), "w",
               encoding="utf-8") as f:
         f.write(texto)
 

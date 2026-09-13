@@ -464,6 +464,111 @@ def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
 
 
 # ============================================================
+# VALIDACION INTERNA + REENTRENO (mecanismo unico)
+# ============================================================
+def entrenar_con_validacion_interna(X_train, y_train, grupos_train,
+                                    X_test, y_test, grupos_test, fold_idx,
+                                    epochs, batch_size, lr,
+                                    early_stopping_start=10, seed=None,
+                                    determinismo=False, modo="interna",
+                                    val_grupos=1, reentrenar=True, n_max=None):
+    """
+    El mismo mecanismo para entrenamiento_cv.py y para los scripts de
+    experimentos/: nadie debe volver a pasar el test como validation_data.
+
+    modo 'interna'       separa val_grupos grupos enteros del train (nunca
+                         del test, con verificacion) para EarlyStopping y
+                         ReduceLROnPlateau. Con reentrenar, entrena despues
+                         desde cero con TODO el train durante las epocas y el
+                         calendario de lr elegidos, y evalua ese modelo.
+    modo 'reducido_test' control: los mismos grupos fuera del train, pero los
+                         callbacks vigilan el test.
+    modo 'test'          comportamiento historico, optimista.
+
+    grupos_*: el vector con que se agrupa la particion (sujetos, o
+    repeticiones si el agrupamiento es por repeticion).
+
+    n_max: tope de ventanas de entrenamiento. Se aplica despues de separar
+    la validacion, por separado en la seleccion y en el reentreno. Si ambos
+    superan el tope, el reentreno no gana ventanas: solo la diversidad del
+    grupo anadido.
+
+    Returns: (history de la seleccion, probabilidades sobre test, metricas)
+    """
+    if reentrenar and modo != "interna":
+        raise ValueError("reentrenar solo tiene sentido con modo 'interna'")
+    rng_tope = np.random.RandomState((seed or 0) + 2000 + fold_idx)
+
+    def tope(Xa, ya):
+        if n_max is None or len(Xa) <= n_max:
+            return Xa, ya
+        idx = np.sort(rng_tope.choice(len(Xa), n_max, replace=False))
+        return Xa[idx], ya[idx]
+
+    if modo == "test":
+        X_fit, y_fit = tope(X_train, y_train)
+        X_mon, y_mon, X_eval, y_eval = X_test, y_test, None, None
+        grupos_val = []
+    else:
+        rng_val = np.random.RandomState((seed or 0) + 1000 + fold_idx)
+        grupos_val = sorted(rng_val.choice(
+            np.unique(grupos_train), val_grupos, replace=False).tolist())
+        en_val = np.isin(grupos_train, grupos_val)
+        fuga_test = set(grupos_val) & set(np.unique(grupos_test).tolist())
+        fuga_train = set(grupos_val) & set(np.unique(grupos_train[~en_val]).tolist())
+        assert not fuga_test, f"validacion interna con grupos de test: {fuga_test}"
+        assert not fuga_train, f"validacion interna con grupos de train: {fuga_train}"
+        X_fit, y_fit = tope(X_train[~en_val], y_train[~en_val])
+        if modo == "interna":
+            X_mon, y_mon = X_train[en_val], y_train[en_val]
+        else:
+            X_mon, y_mon = X_test, y_test
+        X_eval, y_eval = X_test, y_test
+        print(f"  Validacion {modo}: grupos {grupos_val} "
+              f"({int(en_val.sum())} ventanas separadas del train)")
+
+    history, y_pred, metricas = entrenar_pliegue(
+        X_fit, y_fit, X_mon, y_mon, fold_idx, epochs, batch_size, lr,
+        early_stopping_start=early_stopping_start,
+        seed=seed, determinismo=determinismo,
+        X_test=X_eval, y_test=y_eval,
+    )
+    metricas["validacion"] = modo
+    metricas["grupos_validacion"] = list(grupos_val)
+
+    if reentrenar:
+        # Fase 2: todo el train, las epocas y el calendario de lr que eligio
+        # la validacion interna. El test sigue sin intervenir en ninguna
+        # decision.
+        n_ep = max(1, int(metricas["epoca_restaurada"]))
+        calendario = metricas["lr_por_epoca"][:n_ep]
+        X_re, y_re = tope(X_train, y_train)
+        _, y_pred, metricas_final = entrenar_pliegue(
+            X_re, y_re, None, None, fold_idx, epochs, batch_size, lr,
+            seed=seed, determinismo=determinismo,
+            X_test=X_test, y_test=y_test, lr_por_epoca=calendario,
+        )
+        metricas_final["validacion"] = "interna+reentreno"
+        metricas_final["grupos_validacion"] = list(grupos_val)
+        # El diagnostico de early stopping es el de la SELECCION, la unica
+        # fase con val_loss.
+        for clave in ("epoca_restaurada", "epoca_argmin_global",
+                      "restaurada_en_el_umbral", "detuvo_por_early_stopping"):
+            metricas_final[clave] = metricas[clave]
+        metricas_final["seleccion"] = {
+            k: metricas[k] for k in
+            ("accuracy", "f1_macro", "auc", "loss", "epochs",
+             "epoca_restaurada", "restaurada_en_el_umbral",
+             "detuvo_por_early_stopping", "n_train", "duracion_seg")
+        }
+        print(f"    Seleccion: acc {metricas['accuracy']:.4f} -> reentreno "
+              f"(todo el train): acc {metricas_final['accuracy']:.4f}")
+        metricas = metricas_final
+
+    return history, y_pred, metricas
+
+
+# ============================================================
 # REPORTE
 # ============================================================
 def ruta_sin_sobrescribir(directorio: str, base: str, ext: str) -> str:
@@ -907,6 +1012,8 @@ def main():
     cm_total = np.zeros((NUM_CLASES, NUM_CLASES), dtype=np.int64)
     todas_y_true = []
     todas_y_pred = []
+    todos_sujetos = []
+    todos_pliegues = []
 
     infos_normalizacion = []
 
@@ -929,81 +1036,20 @@ def main():
             print(f"  {verificar_normalizacion(X_val, suj_val, args.normalizacion)}"
                   f"  [test pliegue {fold_idx + 1}]")
 
-        # VALIDACION PARA LOS CALLBACKS. Con 'test', EarlyStopping y
-        # ReduceLROnPlateau vigilan el pliegue de test y la epoca restaurada
-        # se elige mirando el test. Con 'interna' se separan grupos enteros
-        # del train (sujetos, o repeticiones si el agrupamiento es por
-        # repeticion) y los callbacks solo ven esos. 'reducido_test' quita
-        # los mismos grupos pero sigue vigilando el test: es el control que
-        # separa el efecto de tener menos datos del efecto de la fuga.
-        # El corte va despues de normalizar: con normalizacion por sujeto
-        # las estadisticas de cada sujeto son solo suyas, asi que da igual;
-        # con 'global' salen del train completo, que no incluye el test.
-        if args.validacion == "test":
-            X_fit, y_fit, X_mon, y_mon = X_train, y_train, X_val, y_val
-            X_eval = y_eval = None
-            grupos_val = []
-        else:
-            g_train = (suj_train if args.agrupamiento == "sujeto"
-                       else grupos_rep[idx_train])
-            g_test = (suj_val if args.agrupamiento == "sujeto"
-                      else grupos_rep[idx_val])
-            rng_val = np.random.RandomState((args.seed or 0) + 1000 + fold_idx)
-            grupos_val = sorted(rng_val.choice(
-                np.unique(g_train), args.val_grupos, replace=False).tolist())
-            en_val = np.isin(g_train, grupos_val)
-            fuga_test = set(grupos_val) & set(np.unique(g_test).tolist())
-            fuga_train = set(grupos_val) & set(np.unique(g_train[~en_val]).tolist())
-            assert not fuga_test, f"validacion interna con grupos de test: {fuga_test}"
-            assert not fuga_train, f"validacion interna con grupos de train: {fuga_train}"
-            X_fit, y_fit = X_train[~en_val], y_train[~en_val]
-            if args.validacion == "interna":
-                X_mon, y_mon = X_train[en_val], y_train[en_val]
-            else:
-                X_mon, y_mon = X_val, y_val
-            X_eval, y_eval = X_val, y_val
-            print(f"  Validacion {args.validacion}: grupos {grupos_val} "
-                  f"({int(en_val.sum())} ventanas separadas del train)")
-
-        history, y_pred, metricas = entrenar_pliegue(
-            X_fit, y_fit, X_mon, y_mon, fold_idx,
+        # Validacion de los callbacks y reentreno: el mecanismo unico,
+        # compartido con los scripts de experimentos/.
+        g_train = (suj_train if args.agrupamiento == "sujeto"
+                   else grupos_rep[idx_train])
+        g_test = (suj_val if args.agrupamiento == "sujeto"
+                  else grupos_rep[idx_val])
+        history, y_pred, metricas = entrenar_con_validacion_interna(
+            X_train, y_train, g_train, X_val, y_val, g_test, fold_idx,
             args.epochs, args.batch_size, args.lr,
             early_stopping_start=args.early_stopping_start,
             seed=args.seed, determinismo=args.determinismo,
-            X_test=X_eval, y_test=y_eval,
+            modo=args.validacion, val_grupos=args.val_grupos,
+            reentrenar=args.reentrenar,
         )
-        metricas["validacion"] = args.validacion
-        metricas["grupos_validacion"] = list(grupos_val)
-
-        if args.reentrenar:
-            # Fase 2: todo el train del pliegue, las epocas y el calendario
-            # de lr que eligio la validacion interna. El test sigue sin
-            # intervenir en ninguna decision.
-            n_ep = max(1, int(metricas["epoca_restaurada"]))
-            calendario = metricas["lr_por_epoca"][:n_ep]
-            _, y_pred, metricas_final = entrenar_pliegue(
-                X_train, y_train, None, None, fold_idx,
-                args.epochs, args.batch_size, args.lr,
-                seed=args.seed, determinismo=args.determinismo,
-                X_test=X_val, y_test=y_val, lr_por_epoca=calendario,
-            )
-            metricas_final["validacion"] = "interna+reentreno"
-            # El diagnostico de early stopping (epoca restaurada, argmin de
-            # val_loss, pegada al umbral) es el de la SELECCION, que es donde
-            # hubo validacion; el reentreno no tiene val_loss.
-            for clave in ("epoca_restaurada", "epoca_argmin_global",
-                          "restaurada_en_el_umbral", "detuvo_por_early_stopping"):
-                metricas_final[clave] = metricas[clave]
-            metricas_final["grupos_validacion"] = list(grupos_val)
-            metricas_final["seleccion"] = {
-                k: metricas[k] for k in
-                ("accuracy", "f1_macro", "auc", "loss", "epochs",
-                 "epoca_restaurada", "restaurada_en_el_umbral",
-                 "detuvo_por_early_stopping", "n_train", "duracion_seg")
-            }
-            print(f"    Seleccion (7/8 del train): acc {metricas['accuracy']:.4f} "
-                  f"-> reentreno (todo el train): acc {metricas_final['accuracy']:.4f}")
-            metricas = metricas_final
 
         historiales.append(history)
         metricas_por_fold.append(metricas)
@@ -1014,6 +1060,8 @@ def main():
         )
         todas_y_true.append(y_val)
         todas_y_pred.append(y_pred)
+        todos_sujetos.append(suj_val)
+        todos_pliegues.append(np.full(len(suj_val), fold_idx))
 
     y_true_total = np.concatenate(todas_y_true, axis=0)
     y_pred_total = np.concatenate(todas_y_pred, axis=0)
@@ -1031,6 +1079,29 @@ def main():
         y_true_total, y_pred_total, cm_total, dataset_info,
     )
     reporte["normalizacion_por_pliegue"] = infos_normalizacion
+
+    # Predicciones por ventana con su sujeto: permiten metricas POR SUJETO
+    # (10 valores pareados) en vez de por pliegue (5).
+    sujetos_total = np.concatenate(todos_sujetos)
+    pliegues_total = np.concatenate(todos_pliegues)
+    ruta_npz = ruta_sin_sobrescribir(args.output_dir, f"predicciones_{etiqueta}", ".npz")
+    yt_int = y_true_total.argmax(axis=1)
+    yp_int = y_pred_total.argmax(axis=1)
+    np.savez_compressed(ruta_npz, pliegue=pliegues_total.astype(np.int16),
+                        sujeto=sujetos_total, y_true=yt_int.astype(np.int16),
+                        prob=y_pred_total.astype(np.float32))
+    reporte["archivo_predicciones"] = os.path.basename(ruta_npz)
+    reporte["metricas_por_sujeto"] = {}
+    for s_id in np.unique(sujetos_total):
+        m_s = sujetos_total == s_id
+        reporte["metricas_por_sujeto"][str(int(s_id))] = {
+            "accuracy": float(np.mean(yt_int[m_s] == yp_int[m_s])),
+            "f1_macro": float(f1_score(yt_int[m_s], yp_int[m_s], average="macro",
+                                       labels=range(NUM_CLASES), zero_division=0)),
+            "n_ventanas": int(m_s.sum()),
+            "pliegues": [int(p) + 1 for p in np.unique(pliegues_total[m_s])],
+        }
+    print(f"[NPZ] {ruta_npz}")
 
     ruta_json = ruta_sin_sobrescribir(args.output_dir, f"metricas_{etiqueta}", ".json")
     with open(ruta_json, "w", encoding="utf-8") as f:

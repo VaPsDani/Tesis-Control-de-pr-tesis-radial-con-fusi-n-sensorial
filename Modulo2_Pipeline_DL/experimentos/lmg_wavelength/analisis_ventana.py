@@ -175,7 +175,7 @@ def etapa_lda_igual_n(args):
 
 def etapa_cnn(args):
     """CNN sobre las mejores configuraciones efectivas del LDA."""
-    from entrenamiento_cv import entrenar_pliegue   # importa TensorFlow
+    from entrenamiento_cv import entrenar_con_validacion_interna   # importa TensorFlow
 
     ruta_lda = os.path.join(args.output, "ventana_lda.csv")
     if not os.path.exists(ruta_lda):
@@ -183,6 +183,11 @@ def etapa_cnn(args):
     lda = pd.read_csv(ruta_lda)
     top = (lda[~lda.duplicada].sort_values("f1_media", ascending=False)
            .head(args.top))
+    if args.celdas:
+        top = top.iloc[args.celdas]
+    salida = os.path.join(
+        args.output, f"ventana_cnn{args.sufijo}"
+        + ("_celdas" + "-".join(map(str, args.celdas)) if args.celdas else "") + ".csv")
     print("Configuraciones seleccionadas (por F1 macro del LDA):")
     print(top[["fs_hz", "ventana_ms", "solap_efectivo", "f1_media"]]
           .to_string(index=False))
@@ -198,22 +203,22 @@ def etapa_cnn(args):
                                   con_crudo=True)
         y, X, subj = submuestrear_rest(y, X, subj)
         Y = np.eye(NUM_CLASES, dtype=np.float32)[y]
-        rng = np.random.RandomState(args.seed)
         for k, (tr, te) in enumerate(particiones_por_sujeto(y, subj)):
-            if len(tr) > args.n_max:
-                tr = rng.choice(tr, args.n_max, replace=False)
-            _, _, m = entrenar_pliegue(
-                X[tr], Y[tr], X[te], Y[te], k, args.epochs, 32, 1e-3,
-                early_stopping_start=10, seed=args.seed)
+            # Validacion interna + reentreno: los callbacks nunca ven el test.
+            _, _, m = entrenar_con_validacion_interna(
+                X[tr], Y[tr], subj[tr], X[te], Y[te], subj[te], k,
+                args.epochs, 32, 1e-3, early_stopping_start=10,
+                seed=args.seed, n_max=args.n_max)
             filas.append(dict(
                 fs_hz=fs, ventana_ms=int(c.ventana_ms),
                 solap_efectivo=float(c.solap_efectivo), pliegue=k + 1,
-                n_train=len(tr), accuracy=m["accuracy"],
+                n_train=m["n_train"], accuracy=m["accuracy"],
                 f1_macro=m["f1_macro"], auc=m["auc"],
-                epoca_restaurada=m["epoca_restaurada"]))
-            pd.DataFrame(filas).to_csv(
-                os.path.join(args.output, "ventana_cnn.csv"), index=False)
-    print(f"[CSV] {os.path.join(args.output, 'ventana_cnn.csv')}")
+                epoca_restaurada=m["epoca_restaurada"],
+                acc_seleccion=m["seleccion"]["accuracy"],
+                grupo_validacion=str(m["grupos_validacion"])))
+            pd.DataFrame(filas).to_csv(salida, index=False)
+    print(f"[CSV] {salida}")
 
 
 def figuras(args):
@@ -272,6 +277,12 @@ def main():
                         "a nuestro LED de 940 nm)")
     p.add_argument("--variante", default="dinamica_meseta")
     p.add_argument("--top", type=int, default=6)
+    p.add_argument("--celdas", type=int, nargs="+", default=None,
+                   help="Indices (0..top-1) de las celdas a correr, para "
+                        "repartir la etapa CNN en varios procesos")
+    p.add_argument("--sufijo", default="_corregido",
+                   help="Sufijo del CSV de la etapa CNN. ventana_cnn.csv es la "
+                        "corrida historica, con fuga del test en los callbacks")
     p.add_argument("--n_max", type=int, default=40000,
                    help="Tope de ventanas de entrenamiento por pliegue en "
                         "la CNN: acota computo y separa solapamiento de N")
