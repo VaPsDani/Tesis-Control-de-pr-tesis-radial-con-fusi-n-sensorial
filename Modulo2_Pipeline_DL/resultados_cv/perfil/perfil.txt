@@ -1,0 +1,81 @@
+PERFIL DE UN PLIEGUE - normalizacion 'sujeto', validacion interna
+============================================================================
+GPU: ['/physical_device:GPU:0']   ventana [40, 8] float32   parametros 76,933
+Ventanas: fit 38370, val 5244, test 10732   pasos/epoca 1200 (batch 32)
+
+1. TIEMPO DE PARED POR FASE Y UTILIZACION MEDIA
+   fase                            s  % plieg   GPU %   CPU %  nucleos  hilo1
+   reposo_inicial                3.0             13.2     0.6     0.00   0.00
+   carga_dataset                 0.3      0.0    49.3     8.5     0.80   0.80
+   particion_normalizacion       0.3      0.0    50.0     nan      nan    nan
+   construir_modelo              0.8      0.1    33.2    11.9     0.81   0.81
+   construir_datasets            0.7      0.1     7.0    11.0     0.90   0.90
+   fit                         999.2     98.9    36.8    12.2     1.24   0.22
+   evaluate_predict_test         9.0      0.9    21.5     9.3     0.86   0.22
+   banco_pipeline                0.7              2.6    40.1     0.38   0.38
+   banco_fit_trivial             6.7             37.1    10.9     1.11   0.29
+   banco_gpu_bs32                6.8             35.5    10.9     1.14   0.39
+   banco_host_bs32               6.7             36.2    11.2     1.13   0.36
+   banco_gpu_bs64                9.0             28.3    10.7     1.11   0.32
+   banco_gpu_bs128               9.1             30.8    10.6     1.11   0.30
+   banco_gpu_bs256               8.8             31.6    11.1     1.11   0.30
+   sonda_spe32                  10.2             24.2     7.3     0.74   0.12
+   sonda_sin_auc                 6.4             36.8    10.7     1.11   0.31
+   sonda_xla                     6.1             35.9    11.4     1.12   0.27
+   sonda_spe32_xla               6.6             36.7    11.6     1.17   0.20
+   PLIEGUE COMPLETO           1010.3    100.0    36.6
+   GPU en reposo antes de empezar: 13.2% (escritorio y otros procesos)
+
+2. DESGLOSE POR EPOCA (32 epocas hasta early stopping; la 1 incluye trazado del grafo)
+                  total s  entreno  valid.  callbk  resto  ms/paso GPU%ent GPU%val
+   epoca 1          40.76    38.35    2.41   0.001  0.001    31.95    32.8    26.1
+   mediana 2..N     30.57    28.83    1.76   0.001  0.001    24.02    37.3    32.7
+   fracciones de la epoca: entrenamiento 94.3%, validacion 5.8%, callbacks 0.00%
+
+3. DESGLOSE DE UN PASO DE ENTRENAMIENTO (batch 32)
+   paso real dentro de fit (mediana epocas 2..N)     24.02 ms
+   fit con entrada trivial (sin augmentation)         20.93 ms
+   train_on_batch, batch en RAM                       20.83 ms
+   train_on_batch, batch ya en GPU                    21.20 ms   (GPU ocupada 35%)
+   pipeline tf.data solo, por batch                    0.61 ms
+   reparto del paso real:
+     carga de datos (augmentation + tf.data)           3.10 ms  12.9%
+     copia host->GPU del batch                          0.00 ms   0.0%   (RAM igual o mas rapida que GPU: indistinguible de cero)
+     computo de GPU (utilizacion durante fit x paso)    8.96 ms  37.3%
+     GPU ociosa dentro del paso: despacho de ops,      11.96 ms  49.8%
+     lanzamiento de kernels y sincronizacion
+
+4. COSTE FIJO POR PASO (batch ya en GPU)
+     batch   ms/paso  ventanas/s   GPU %  x vs 32
+        32     21.20        1509    35.5     1.00
+        64     28.11        2277    28.3     1.51
+       128     28.55        4484    30.8     2.97
+       256     27.54        9294    31.6     6.16
+   ajuste lineal: ms/paso = 24.17 + 18.16 x batch/1000
+   -> 24.2 ms por paso NO dependen del volumen de datos; a batch 32 son el 114% del paso
+   (informativo: cambiar el batch cambia la optimizacion y los resultados)
+
+5. SONDAS DE OPTIMIZACION (fit con entrada trivial, batch 32)
+   variante                            ms/paso      x   GPU %   cambia resultados?
+   fit_trivial                           20.93   1.00    37.1   referencia
+   sonda_spe32                           31.95   0.65    24.2   no: misma matematica, 32 pasos por llamada
+   sonda_sin_auc                         20.07   1.04    36.8   no el modelo; se pierde la AUC reportada
+   sonda_xla                             19.05   1.10    35.9   numericamente minimo (fusion de kernels)
+   sonda_spe32_xla                       20.57   1.02    36.7   idem
+
+6. MEMORIA: CABE EN VRAM O SE PAGINA?
+   dataset completo en RAM                  66.3 MB (float32)
+   train del pliegue                        46.8 MB
+   VRAM total                               8188 MB
+   VRAM pico asignada por TF (fit)          94.9 MB
+   VRAM segun nvidia-smi (fit)              6188 MB  (TF reserva por adelantado; no es uso)
+   RSS del proceso (fit, media)             2046 MB
+   paginas de swap in / out (fit)       0 / 0
+   fallos de pagina mayores (fit)       168
+   PCIe host->GPU medido (fit)              78.6 MB/s
+   PCIe GPU->host medido (fit)              24.3 MB/s
+   datos de entrada esperados                1.7 MB/s  (bytes por batch x pasos por segundo)
+
+7. CPU DURANTE EL ENTRENAMIENTO (media epocas 2..N)
+   CPU total 12.3% de 12 nucleos; proceso 1.25 nucleos; hilo mas cargado 0.22 nucleos
+   hilo mas cargado por muestra: python (1987)

@@ -1,0 +1,25 @@
+1. MODELO REAL (construir_modelo): forward frente a paso completo
+    batch  forward ms   paso ms  backward+Adam
+       32        6.93     16.62           9.69
+      256        6.70     16.75          10.05
+
+2. VARIANTES DE LA ARQUITECTURA (paso completo, ms)
+   variante                              bs 32   bs 256  256/32
+   LSTM auto (= produccion)              15.34    16.00    1.04
+   LSTM cuDNN forzado                    16.91    17.08    1.01
+   LSTM generico forzado                158.55   153.65    0.97
+   sin LSTM (conv + atencion)             8.68     8.83    1.02
+   BiLSTM sin atencion                   15.51    15.78    1.02
+
+3. CAPACIDAD BRUTA DE LA GPU
+   matmul 2048x2048 float32: 1.73 ms  ->  9904 GFLOPS
+
+4. COSTE DE LANZAR KERNELS (cadena de tanh, grappler desactivado)
+    kernels  tensor (32,40,64) ms  tensor (256,40,256) ms
+          1                 0.470                   0.453
+         10                 0.689                   0.759
+        100                 2.520                   3.392
+       1000                11.038                  22.968
+   coste marginal por kernel: 10.3 us con tensor pequeno, 22.3 us con tensor 128x mayor
+   Si ambos son parecidos, lo que cuesta es LANZAR el kernel, no calcularlo.
+   Referencia orientativa en Linux nativo con CUDA: ~10-30 us por kernel.
