@@ -1,0 +1,4143 @@
+{
+  "esquema": {
+    "etiqueta": "LOSO_sujeto",
+    "agrupamiento": "sujeto",
+    "validador": "GroupKFold",
+    "k": 10
+  },
+  "generado": "2026-09-14T05:03:05",
+  "config": {
+    "optimizador": "Adam",
+    "learning_rate": 0.001,
+    "batch_size": 32,
+    "epochs_max": 100,
+    "normalizacion": "sujeto",
+    "seed": 42,
+    "validacion": "interna",
+    "val_grupos": 1,
+    "reentrenar": true,
+    "reentreno_epocas": "las de la epoca restaurada en la seleccion, sin escalar por el grupo anadido",
+    "determinismo_gpu": false,
+    "early_stopping_start": 10,
+    "early_stopping_patience": 15,
+    "reduce_lr_factor": 0.5,
+    "reduce_lr_patience": 7,
+    "dropout": 0.5,
+    "l2": 0.0001,
+    "label_smoothing": 0.1,
+    "forma_entrada": [
+      40,
+      8
+    ],
+    "ventana_ms": 200,
+    "stride_ms": 20,
+    "tasa_hz": 200,
+    "data_augmentation": "ruido N(0,0.02) + escala U(0.95,1.05) + roll temporal +/-1"
+  },
+  "dataset": {
+    "n_ventanas": 54346,
+    "forma_ventana": [
+      40,
+      8
+    ],
+    "n_sujetos": 10,
+    "sujetos": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "n_archivos_mat": 30,
+    "repeticiones": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "ventanas_por_sujeto": {
+      "1": 5366,
+      "2": 5584,
+      "3": 4773,
+      "4": 5323,
+      "5": 5362,
+      "6": 5959,
+      "7": 5716,
+      "8": 5502,
+      "9": 5244,
+      "10": 5517
+    },
+    "distribucion_clases": {
+      "Rest": 10869,
+      "Pinch": 13303,
+      "Tripod": 10836,
+      "Power": 9765,
+      "Finger_Ext": 9573
+    }
+  },
+  "pliegues": [
+    {
+      "fold": 1,
+      "sujetos_train": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        7,
+        8,
+        9,
+        10
+      ],
+      "sujetos_test": [
+        6
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 48387,
+      "n_test": 5959,
+      "clases_train": {
+        "Rest": 9794,
+        "Pinch": 11891,
+        "Tripod": 9625,
+        "Power": 8660,
+        "Finger_Ext": 8417
+      },
+      "clases_test": {
+        "Rest": 1075,
+        "Pinch": 1412,
+        "Tripod": 1211,
+        "Power": 1105,
+        "Finger_Ext": 1156
+      },
+      "proporciones_test": {
+        "Rest": 0.1804,
+        "Pinch": 0.237,
+        "Tripod": 0.2032,
+        "Power": 0.1854,
+        "Finger_Ext": 0.194
+      },
+      "loss": 2.231023073196411,
+      "accuracy": 0.39620742201805115,
+      "auc": 0.6690718531608582,
+      "f1_macro": 0.39556353764831825,
+      "f1_por_clase": {
+        "Rest": 0.773733583489681,
+        "Pinch": 0.0,
+        "Tripod": 0.7755886592984143,
+        "Power": 0.386317907444668,
+        "Finger_Ext": 0.042177538008827856
+      },
+      "epochs": 42,
+      "epoca_restaurada": 42,
+      "epoca_argmin_global": 1,
+      "restaurada_en_el_umbral": false,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 3215.6,
+      "n_val_callbacks": 0,
+      "lr_por_epoca": [
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0001250000059371814,
+        0.0001250000059371814,
+        0.0001250000059371814,
+        0.0001250000059371814,
+        0.0001250000059371814,
+        0.0001250000059371814,
+        0.0001250000059371814,
+        6.25000029685907e-05,
+        6.25000029685907e-05,
+        6.25000029685907e-05,
+        6.25000029685907e-05,
+        6.25000029685907e-05,
+        6.25000029685907e-05,
+        6.25000029685907e-05,
+        3.125000148429535e-05,
+        3.125000148429535e-05,
+        3.125000148429535e-05,
+        3.125000148429535e-05,
+        3.125000148429535e-05,
+        3.125000148429535e-05
+      ],
+      "reentreno": true,
+      "validacion": "interna+reentreno",
+      "grupos_validacion": [
+        3
+      ],
+      "seleccion": {
+        "accuracy": 0.38395702838897705,
+        "f1_macro": 0.37610143187653844,
+        "auc": 0.6507709622383118,
+        "loss": 2.225165367126465,
+        "epochs": 57,
+        "epoca_restaurada": 42,
+        "restaurada_en_el_umbral": false,
+        "detuvo_por_early_stopping": true,
+        "n_train": 43614,
+        "duracion_seg": 4312.6
+      }
+    },
+    {
+      "fold": 2,
+      "sujetos_train": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        8,
+        9,
+        10
+      ],
+      "sujetos_test": [
+        7
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 48630,
+      "n_test": 5716,
+      "clases_train": {
+        "Rest": 9768,
+        "Pinch": 11806,
+        "Tripod": 9699,
+        "Power": 8791,
+        "Finger_Ext": 8566
+      },
+      "clases_test": {
+        "Rest": 1101,
+        "Pinch": 1497,
+        "Tripod": 1137,
+        "Power": 974,
+        "Finger_Ext": 1007
+      },
+      "proporciones_test": {
+        "Rest": 0.1926,
+        "Pinch": 0.2619,
+        "Tripod": 0.1989,
+        "Power": 0.1704,
+        "Finger_Ext": 0.1762
+      },
+      "loss": 1.0243557691574097,
+      "accuracy": 0.7788663506507874,
+      "auc": 0.912568211555481,
+      "f1_macro": 0.7878220910167402,
+      "f1_por_clase": {
+        "Rest": 0.6919555264879006,
+        "Pinch": 0.5612575127138234,
+        "Tripod": 0.9448610498456109,
+        "Power": 0.8771367521367521,
+        "Finger_Ext": 0.8638996138996139
+      },
+      "epochs": 14,
+      "epoca_restaurada": 14,
+      "epoca_argmin_global": 1,
+      "restaurada_en_el_umbral": false,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 1792.9,
+      "n_val_callbacks": 0,
+      "lr_por_epoca": [
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257
+      ],
+      "reentreno": true,
+      "validacion": "interna+reentreno",
+      "grupos_validacion": [
+        2
+      ],
+      "seleccion": {
+        "accuracy": 0.7547236084938049,
+        "f1_macro": 0.7630181318287729,
+        "auc": 0.9104028940200806,
+        "loss": 1.0993680953979492,
+        "epochs": 29,
+        "epoca_restaurada": 14,
+        "restaurada_en_el_umbral": false,
+        "detuvo_por_early_stopping": true,
+        "n_train": 43046,
+        "duracion_seg": 1966.8
+      }
+    },
+    {
+      "fold": 3,
+      "sujetos_train": [
+        1,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "sujetos_test": [
+        2
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 48762,
+      "n_test": 5584,
+      "clases_train": {
+        "Rest": 9766,
+        "Pinch": 11786,
+        "Tripod": 9684,
+        "Power": 8802,
+        "Finger_Ext": 8724
+      },
+      "clases_test": {
+        "Rest": 1103,
+        "Pinch": 1517,
+        "Tripod": 1152,
+        "Power": 963,
+        "Finger_Ext": 849
+      },
+      "proporciones_test": {
+        "Rest": 0.1975,
+        "Pinch": 0.2717,
+        "Tripod": 0.2063,
+        "Power": 0.1725,
+        "Finger_Ext": 0.152
+      },
+      "loss": 1.1365939378738403,
+      "accuracy": 0.7362105846405029,
+      "auc": 0.8887732028961182,
+      "f1_macro": 0.7401697535747983,
+      "f1_por_clase": {
+        "Rest": 0.7720125786163522,
+        "Pinch": 0.5687789799072643,
+        "Tripod": 0.8990990990990991,
+        "Power": 0.7960560456668396,
+        "Finger_Ext": 0.6649020645844362
+      },
+      "epochs": 11,
+      "epoca_restaurada": 11,
+      "epoca_argmin_global": 1,
+      "restaurada_en_el_umbral": true,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 778.1,
+      "n_val_callbacks": 0,
+      "lr_por_epoca": [
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257
+      ],
+      "reentreno": true,
+      "validacion": "interna+reentreno",
+      "grupos_validacion": [
+        1
+      ],
+      "seleccion": {
+        "accuracy": 0.6882163286209106,
+        "f1_macro": 0.6886408522050974,
+        "auc": 0.8913856148719788,
+        "loss": 1.2019497156143188,
+        "epochs": 26,
+        "epoca_restaurada": 11,
+        "restaurada_en_el_umbral": true,
+        "detuvo_por_early_stopping": true,
+        "n_train": 43396,
+        "duracion_seg": 1747.3
+      }
+    },
+    {
+      "fold": 4,
+      "sujetos_train": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "sujetos_test": [
+        10
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 48829,
+      "n_test": 5517,
+      "clases_train": {
+        "Rest": 9741,
+        "Pinch": 11909,
+        "Tripod": 9805,
+        "Power": 8701,
+        "Finger_Ext": 8673
+      },
+      "clases_test": {
+        "Rest": 1128,
+        "Pinch": 1394,
+        "Tripod": 1031,
+        "Power": 1064,
+        "Finger_Ext": 900
+      },
+      "proporciones_test": {
+        "Rest": 0.2045,
+        "Pinch": 0.2527,
+        "Tripod": 0.1869,
+        "Power": 0.1929,
+        "Finger_Ext": 0.1631
+      },
+      "loss": 1.6731970310211182,
+      "accuracy": 0.5031720399856567,
+      "auc": 0.7816011905670166,
+      "f1_macro": 0.446301703593251,
+      "f1_por_clase": {
+        "Rest": 0.6163915765509391,
+        "Pinch": 0.2688558234992304,
+        "Tripod": 0.6467806475081848,
+        "Power": 0.488358886996025,
+        "Finger_Ext": 0.2111215834118756
+      },
+      "epochs": 14,
+      "epoca_restaurada": 14,
+      "epoca_argmin_global": 1,
+      "restaurada_en_el_umbral": false,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 818.2,
+      "n_val_callbacks": 0,
+      "lr_por_epoca": [
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257
+      ],
+      "reentreno": true,
+      "validacion": "interna+reentreno",
+      "grupos_validacion": [
+        3
+      ],
+      "seleccion": {
+        "accuracy": 0.5823817253112793,
+        "f1_macro": 0.5682170494513648,
+        "auc": 0.8538708686828613,
+        "loss": 1.3666017055511475,
+        "epochs": 29,
+        "epoca_restaurada": 14,
+        "restaurada_en_el_umbral": false,
+        "detuvo_por_early_stopping": true,
+        "n_train": 44056,
+        "duracion_seg": 1658.3
+      }
+    },
+    {
+      "fold": 5,
+      "sujetos_train": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        9,
+        10
+      ],
+      "sujetos_test": [
+        8
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 48844,
+      "n_test": 5502,
+      "clases_train": {
+        "Rest": 9648,
+        "Pinch": 11915,
+        "Tripod": 9772,
+        "Power": 8748,
+        "Finger_Ext": 8761
+      },
+      "clases_test": {
+        "Rest": 1221,
+        "Pinch": 1388,
+        "Tripod": 1064,
+        "Power": 1017,
+        "Finger_Ext": 812
+      },
+      "proporciones_test": {
+        "Rest": 0.2219,
+        "Pinch": 0.2523,
+        "Tripod": 0.1934,
+        "Power": 0.1848,
+        "Finger_Ext": 0.1476
+      },
+      "loss": 1.0200296640396118,
+      "accuracy": 0.7535441517829895,
+      "auc": 0.9248636364936829,
+      "f1_macro": 0.7452286744935905,
+      "f1_por_clase": {
+        "Rest": 0.8759367194004996,
+        "Pinch": 0.7038123167155426,
+        "Tripod": 0.9220970112689858,
+        "Power": 0.6903225806451613,
+        "Finger_Ext": 0.533974744437763
+      },
+      "epochs": 11,
+      "epoca_restaurada": 11,
+      "epoca_argmin_global": 1,
+      "restaurada_en_el_umbral": true,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 768.0,
+      "n_val_callbacks": 0,
+      "lr_por_epoca": [
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257
+      ],
+      "reentreno": true,
+      "validacion": "interna+reentreno",
+      "grupos_validacion": [
+        4
+      ],
+      "seleccion": {
+        "accuracy": 0.7351872324943542,
+        "f1_macro": 0.7199595665149541,
+        "auc": 0.9286317825317383,
+        "loss": 1.0364214181900024,
+        "epochs": 26,
+        "epoca_restaurada": 11,
+        "restaurada_en_el_umbral": true,
+        "detuvo_por_early_stopping": true,
+        "n_train": 43521,
+        "duracion_seg": 1751.9
+      }
+    },
+    {
+      "fold": 6,
+      "sujetos_train": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "sujetos_test": [
+        1
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 48980,
+      "n_test": 5366,
+      "clases_train": {
+        "Rest": 9978,
+        "Pinch": 12012,
+        "Tripod": 9737,
+        "Power": 8745,
+        "Finger_Ext": 8508
+      },
+      "clases_test": {
+        "Rest": 891,
+        "Pinch": 1291,
+        "Tripod": 1099,
+        "Power": 1020,
+        "Finger_Ext": 1065
+      },
+      "proporciones_test": {
+        "Rest": 0.166,
+        "Pinch": 0.2406,
+        "Tripod": 0.2048,
+        "Power": 0.1901,
+        "Finger_Ext": 0.1985
+      },
+      "loss": 1.0107159614562988,
+      "accuracy": 0.7732016444206238,
+      "auc": 0.924272358417511,
+      "f1_macro": 0.7743889777034517,
+      "f1_por_clase": {
+        "Rest": 0.7560763888888888,
+        "Pinch": 0.6258565555047967,
+        "Tripod": 0.8919045390734675,
+        "Power": 0.8069216757741348,
+        "Finger_Ext": 0.7911857292759706
+      },
+      "epochs": 31,
+      "epoca_restaurada": 31,
+      "epoca_argmin_global": 5,
+      "restaurada_en_el_umbral": false,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 2180.1,
+      "n_val_callbacks": 0,
+      "lr_por_epoca": [
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0001250000059371814,
+        0.0001250000059371814,
+        0.0001250000059371814,
+        0.0001250000059371814,
+        0.0001250000059371814
+      ],
+      "reentreno": true,
+      "validacion": "interna+reentreno",
+      "grupos_validacion": [
+        8
+      ],
+      "seleccion": {
+        "accuracy": 0.7778605818748474,
+        "f1_macro": 0.7806198243821919,
+        "auc": 0.9345336556434631,
+        "loss": 0.9836057424545288,
+        "epochs": 46,
+        "epoca_restaurada": 31,
+        "restaurada_en_el_umbral": false,
+        "detuvo_por_early_stopping": true,
+        "n_train": 43478,
+        "duracion_seg": 3048.7
+      }
+    },
+    {
+      "fold": 7,
+      "sujetos_train": [
+        1,
+        2,
+        3,
+        4,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "sujetos_test": [
+        5
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 48984,
+      "n_test": 5362,
+      "clases_train": {
+        "Rest": 9762,
+        "Pinch": 12035,
+        "Tripod": 9608,
+        "Power": 8935,
+        "Finger_Ext": 8644
+      },
+      "clases_test": {
+        "Rest": 1107,
+        "Pinch": 1268,
+        "Tripod": 1228,
+        "Power": 830,
+        "Finger_Ext": 929
+      },
+      "proporciones_test": {
+        "Rest": 0.2065,
+        "Pinch": 0.2365,
+        "Tripod": 0.229,
+        "Power": 0.1548,
+        "Finger_Ext": 0.1733
+      },
+      "loss": 1.3521369695663452,
+      "accuracy": 0.6719507575035095,
+      "auc": 0.851840078830719,
+      "f1_macro": 0.6069495100068624,
+      "f1_por_clase": {
+        "Rest": 0.814900153609831,
+        "Pinch": 0.6443914081145584,
+        "Tripod": 0.7651579846285226,
+        "Power": 0.7096069868995634,
+        "Finger_Ext": 0.10069101678183613
+      },
+      "epochs": 11,
+      "epoca_restaurada": 11,
+      "epoca_argmin_global": 1,
+      "restaurada_en_el_umbral": true,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 779.2,
+      "n_val_callbacks": 0,
+      "lr_por_epoca": [
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257
+      ],
+      "reentreno": true,
+      "validacion": "interna+reentreno",
+      "grupos_validacion": [
+        1
+      ],
+      "seleccion": {
+        "accuracy": 0.6771727204322815,
+        "f1_macro": 0.6204038446923321,
+        "auc": 0.867889404296875,
+        "loss": 1.3122830390930176,
+        "epochs": 26,
+        "epoca_restaurada": 11,
+        "restaurada_en_el_umbral": true,
+        "detuvo_por_early_stopping": true,
+        "n_train": 43618,
+        "duracion_seg": 1738.7
+      }
+    },
+    {
+      "fold": 8,
+      "sujetos_train": [
+        1,
+        2,
+        3,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "sujetos_test": [
+        4
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 49023,
+      "n_test": 5323,
+      "clases_train": {
+        "Rest": 9770,
+        "Pinch": 12025,
+        "Tripod": 9838,
+        "Power": 8874,
+        "Finger_Ext": 8516
+      },
+      "clases_test": {
+        "Rest": 1099,
+        "Pinch": 1278,
+        "Tripod": 998,
+        "Power": 891,
+        "Finger_Ext": 1057
+      },
+      "proporciones_test": {
+        "Rest": 0.2065,
+        "Pinch": 0.2401,
+        "Tripod": 0.1875,
+        "Power": 0.1674,
+        "Finger_Ext": 0.1986
+      },
+      "loss": 0.9399771690368652,
+      "accuracy": 0.7792598009109497,
+      "auc": 0.9381336569786072,
+      "f1_macro": 0.7804081156718954,
+      "f1_por_clase": {
+        "Rest": 0.8078565328778822,
+        "Pinch": 0.746398952422523,
+        "Tripod": 0.9003868471953579,
+        "Power": 0.781038374717833,
+        "Finger_Ext": 0.6663598711458812
+      },
+      "epochs": 17,
+      "epoca_restaurada": 17,
+      "epoca_argmin_global": 1,
+      "restaurada_en_el_umbral": false,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 1195.8,
+      "n_val_callbacks": 0,
+      "lr_por_epoca": [
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0002500000118743628,
+        0.0002500000118743628
+      ],
+      "reentreno": true,
+      "validacion": "interna+reentreno",
+      "grupos_validacion": [
+        1
+      ],
+      "seleccion": {
+        "accuracy": 0.8100695013999939,
+        "f1_macro": 0.8095327177907976,
+        "auc": 0.9584504961967468,
+        "loss": 0.8439726233482361,
+        "epochs": 32,
+        "epoca_restaurada": 17,
+        "restaurada_en_el_umbral": false,
+        "detuvo_por_early_stopping": true,
+        "n_train": 43657,
+        "duracion_seg": 2153.8
+      }
+    },
+    {
+      "fold": 9,
+      "sujetos_train": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        10
+      ],
+      "sujetos_test": [
+        9
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 49102,
+      "n_test": 5244,
+      "clases_train": {
+        "Rest": 9715,
+        "Pinch": 12065,
+        "Tripod": 9881,
+        "Power": 8723,
+        "Finger_Ext": 8718
+      },
+      "clases_test": {
+        "Rest": 1154,
+        "Pinch": 1238,
+        "Tripod": 955,
+        "Power": 1042,
+        "Finger_Ext": 855
+      },
+      "proporciones_test": {
+        "Rest": 0.2201,
+        "Pinch": 0.2361,
+        "Tripod": 0.1821,
+        "Power": 0.1987,
+        "Finger_Ext": 0.163
+      },
+      "loss": 1.2138234376907349,
+      "accuracy": 0.6781083345413208,
+      "auc": 0.893068790435791,
+      "f1_macro": 0.6751427946424875,
+      "f1_por_clase": {
+        "Rest": 0.7691143073429221,
+        "Pinch": 0.46681175190424373,
+        "Tripod": 0.788627935723115,
+        "Power": 0.7097112860892388,
+        "Finger_Ext": 0.6414486921529176
+      },
+      "epochs": 16,
+      "epoca_restaurada": 16,
+      "epoca_argmin_global": 4,
+      "restaurada_en_el_umbral": false,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 816.6,
+      "n_val_callbacks": 0,
+      "lr_por_epoca": [
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257
+      ],
+      "reentreno": true,
+      "validacion": "interna+reentreno",
+      "grupos_validacion": [
+        6
+      ],
+      "seleccion": {
+        "accuracy": 0.7072845101356506,
+        "f1_macro": 0.7050344468369331,
+        "auc": 0.9033007025718689,
+        "loss": 1.1667027473449707,
+        "epochs": 31,
+        "epoca_restaurada": 16,
+        "restaurada_en_el_umbral": false,
+        "detuvo_por_early_stopping": true,
+        "n_train": 43143,
+        "duracion_seg": 1959.8
+      }
+    },
+    {
+      "fold": 10,
+      "sujetos_train": [
+        1,
+        2,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "sujetos_test": [
+        3
+      ],
+      "repeticiones_train": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "repeticiones_test": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "n_train": 49573,
+      "n_test": 4773,
+      "clases_train": {
+        "Rest": 9879,
+        "Pinch": 12283,
+        "Tripod": 9875,
+        "Power": 8906,
+        "Finger_Ext": 8630
+      },
+      "clases_test": {
+        "Rest": 990,
+        "Pinch": 1020,
+        "Tripod": 961,
+        "Power": 859,
+        "Finger_Ext": 943
+      },
+      "proporciones_test": {
+        "Rest": 0.2074,
+        "Pinch": 0.2137,
+        "Tripod": 0.2013,
+        "Power": 0.18,
+        "Finger_Ext": 0.1976
+      },
+      "loss": 1.0360831022262573,
+      "accuracy": 0.7494238615036011,
+      "auc": 0.9204375743865967,
+      "f1_macro": 0.7422126609314288,
+      "f1_por_clase": {
+        "Rest": 0.7762711864406779,
+        "Pinch": 0.6707997520148791,
+        "Tripod": 0.8035217794253939,
+        "Power": 0.7841845140032949,
+        "Finger_Ext": 0.6762860727728983
+      },
+      "epochs": 27,
+      "epoca_restaurada": 27,
+      "epoca_argmin_global": 1,
+      "restaurada_en_el_umbral": false,
+      "detuvo_por_early_stopping": true,
+      "duracion_seg": 1417.0,
+      "n_val_callbacks": 0,
+      "lr_por_epoca": [
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0010000000474974513,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0005000000237487257,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0002500000118743628,
+        0.0001250000059371814,
+        0.0001250000059371814,
+        0.0001250000059371814,
+        0.0001250000059371814,
+        0.0001250000059371814
+      ],
+      "reentreno": true,
+      "validacion": "interna+reentreno",
+      "grupos_validacion": [
+        2
+      ],
+      "seleccion": {
+        "accuracy": 0.7504714131355286,
+        "f1_macro": 0.7456661098809572,
+        "auc": 0.915901243686676,
+        "loss": 1.0254265069961548,
+        "epochs": 42,
+        "epoca_restaurada": 27,
+        "restaurada_en_el_umbral": false,
+        "detuvo_por_early_stopping": true,
+        "n_train": 43989,
+        "duracion_seg": 2041.4
+      }
+    }
+  ],
+  "agregado": {
+    "accuracy_media": 0.6819944947957992,
+    "accuracy_std": 0.12390988576070788,
+    "accuracy_por_fold": [
+      0.39620742201805115,
+      0.7788663506507874,
+      0.7362105846405029,
+      0.5031720399856567,
+      0.7535441517829895,
+      0.7732016444206238,
+      0.6719507575035095,
+      0.7792598009109497,
+      0.6781083345413208,
+      0.7494238615036011
+    ],
+    "f1_macro_media": 0.6694187819282824,
+    "f1_macro_std": 0.1349524383438046,
+    "f1_macro_por_fold": [
+      0.39556353764831825,
+      0.7878220910167402,
+      0.7401697535747983,
+      0.446301703593251,
+      0.7452286744935905,
+      0.7743889777034517,
+      0.6069495100068624,
+      0.7804081156718954,
+      0.6751427946424875,
+      0.7422126609314288
+    ],
+    "auc_media": 0.8704630553722381,
+    "auc_std": 0.08021995682525063,
+    "auc_por_fold": [
+      0.6690718531608582,
+      0.912568211555481,
+      0.8887732028961182,
+      0.7816011905670166,
+      0.9248636364936829,
+      0.924272358417511,
+      0.851840078830719,
+      0.9381336569786072,
+      0.893068790435791,
+      0.9204375743865967
+    ],
+    "loss_media": 1.2637936115264892,
+    "loss_std": 0.38303186805625694,
+    "loss_por_fold": [
+      2.231023073196411,
+      1.0243557691574097,
+      1.1365939378738403,
+      1.6731970310211182,
+      1.0200296640396118,
+      1.0107159614562988,
+      1.3521369695663452,
+      0.9399771690368652,
+      1.2138234376907349,
+      1.0360831022262573
+    ],
+    "epochs_por_fold": [
+      42,
+      14,
+      11,
+      14,
+      11,
+      31,
+      11,
+      17,
+      16,
+      27
+    ],
+    "epoca_restaurada_por_fold": [
+      42,
+      14,
+      11,
+      14,
+      11,
+      31,
+      11,
+      17,
+      16,
+      27
+    ],
+    "epoca_argmin_global_por_fold": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      5,
+      1,
+      1,
+      4,
+      1
+    ],
+    "pliegues_restaurados_en_el_umbral": [
+      3,
+      5,
+      7
+    ]
+  },
+  "por_clase_global": {
+    "Rest": {
+      "precision": 0.6434536810998329,
+      "recall": 0.9215199190357899,
+      "f1": 0.757783241914129,
+      "support": 10869
+    },
+    "Pinch": {
+      "precision": 0.624675728961295,
+      "recall": 0.4525295046230174,
+      "f1": 0.5248474280732345,
+      "support": 13303
+    },
+    "Tripod": {
+      "precision": 0.829045643153527,
+      "recall": 0.829734219269103,
+      "f1": 0.8293897882938979,
+      "support": 10836
+    },
+    "Power": {
+      "precision": 0.6881515637530072,
+      "recall": 0.703020993343574,
+      "f1": 0.6955068132313459,
+      "support": 9765
+    },
+    "Finger_Ext": {
+      "precision": 0.5992549867820236,
+      "recall": 0.5209443225739058,
+      "f1": 0.5573623917295334,
+      "support": 9573
+    }
+  },
+  "matriz_confusion_conteos": [
+    [
+      10016,
+      493,
+      96,
+      135,
+      129
+    ],
+    [
+      3709,
+      6020,
+      414,
+      1276,
+      1884
+    ],
+    [
+      653,
+      333,
+      8991,
+      275,
+      584
+    ],
+    [
+      606,
+      1021,
+      535,
+      6865,
+      738
+    ],
+    [
+      582,
+      1770,
+      809,
+      1425,
+      4987
+    ]
+  ],
+  "matriz_confusion_normalizada": [
+    [
+      0.9215,
+      0.0454,
+      0.0088,
+      0.0124,
+      0.0119
+    ],
+    [
+      0.2788,
+      0.4525,
+      0.0311,
+      0.0959,
+      0.1416
+    ],
+    [
+      0.0603,
+      0.0307,
+      0.8297,
+      0.0254,
+      0.0539
+    ],
+    [
+      0.0621,
+      0.1046,
+      0.0548,
+      0.703,
+      0.0756
+    ],
+    [
+      0.0608,
+      0.1849,
+      0.0845,
+      0.1489,
+      0.5209
+    ]
+  ],
+  "clases": [
+    "Rest",
+    "Pinch",
+    "Tripod",
+    "Power",
+    "Finger_Ext"
+  ],
+  "linea_base_si2": {
+    "esquema": "GroupKFold k=5 agrupado por repeticion",
+    "origen": "tag si2-groupkfold-repeticion (commit af6a26a), resultados_preliminares/metricas.txt",
+    "accuracy_por_fold": [
+      0.7936,
+      0.8275,
+      0.8438,
+      0.8756,
+      0.8087
+    ],
+    "loss_por_fold": [
+      0.9132,
+      0.7995,
+      0.7884,
+      0.7062,
+      0.8575
+    ],
+    "auc_por_fold": [
+      0.9457,
+      0.966,
+      0.9703,
+      0.9774,
+      0.9595
+    ],
+    "epochs_por_fold": [
+      30,
+      41,
+      25,
+      71,
+      23
+    ],
+    "accuracy_media": 0.8298,
+    "accuracy_std": 0.0285,
+    "auc_media": 0.9638,
+    "f1_por_clase": {
+      "Rest": 0.8875,
+      "Pinch": 0.8352,
+      "Tripod": 0.8554,
+      "Power": 0.7943,
+      "Finger_Ext": 0.7775
+    },
+    "f1_macro": 0.83,
+    "n_ventanas_evaluadas": 54346
+  },
+  "normalizacion_por_pliegue": [
+    {
+      "modo": "sujeto",
+      "origen_estadisticas": "todas las ventanas de cada sujeto",
+      "usa_etiquetas_de_test": false,
+      "estadisticas_por_sujeto": {
+        "1": {
+          "n_ventanas_stats": 5366,
+          "n_ventanas_normalizadas": 5366,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.013739,
+            -1.081043,
+            -1.332049,
+            -0.827688,
+            -0.829906,
+            -0.02867,
+            0.772594,
+            -0.619593
+          ],
+          "sd": [
+            21.628986,
+            20.560854,
+            21.578753,
+            6.6746,
+            9.195283,
+            0.079046,
+            0.045381,
+            0.060384
+          ]
+        },
+        "2": {
+          "n_ventanas_stats": 5584,
+          "n_ventanas_normalizadas": 5584,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.921217,
+            -1.066229,
+            -0.875242,
+            -0.818916,
+            -0.829379,
+            -0.046115,
+            0.818195,
+            -0.542331
+          ],
+          "sd": [
+            17.408123,
+            17.33424,
+            13.33206,
+            4.960133,
+            7.60173,
+            0.065274,
+            0.055445,
+            0.110188
+          ]
+        },
+        "3": {
+          "n_ventanas_stats": 4773,
+          "n_ventanas_normalizadas": 4773,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.136099,
+            -1.160565,
+            -0.910559,
+            -0.808517,
+            -1.098361,
+            -0.039783,
+            0.885961,
+            -0.352977
+          ],
+          "sd": [
+            29.222311,
+            28.513653,
+            14.667935,
+            7.225059,
+            19.877663,
+            0.095104,
+            0.090487,
+            0.23158
+          ]
+        },
+        "4": {
+          "n_ventanas_stats": 5323,
+          "n_ventanas_normalizadas": 5323,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.958069,
+            -0.965475,
+            -0.894899,
+            -0.815067,
+            -0.850319,
+            -0.094213,
+            0.928917,
+            -0.260261
+          ],
+          "sd": [
+            21.779312,
+            19.31772,
+            10.073372,
+            4.75702,
+            4.928419,
+            0.06523,
+            0.047533,
+            0.211651
+          ]
+        },
+        "5": {
+          "n_ventanas_stats": 5362,
+          "n_ventanas_normalizadas": 5362,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.872832,
+            -0.95698,
+            -0.890834,
+            -0.815102,
+            -0.837808,
+            0.052461,
+            1.037529,
+            -0.16571
+          ],
+          "sd": [
+            11.637177,
+            14.284411,
+            5.275087,
+            4.673463,
+            10.3747,
+            0.097817,
+            0.026734,
+            0.126248
+          ]
+        },
+        "7": {
+          "n_ventanas_stats": 5716,
+          "n_ventanas_normalizadas": 5716,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.907147,
+            -1.065465,
+            -0.911735,
+            -0.822393,
+            -0.827003,
+            -0.107262,
+            0.913358,
+            -0.351177
+          ],
+          "sd": [
+            16.040771,
+            19.783703,
+            9.959207,
+            6.803615,
+            10.945359,
+            0.050679,
+            0.037189,
+            0.09505
+          ]
+        },
+        "8": {
+          "n_ventanas_stats": 5502,
+          "n_ventanas_normalizadas": 5502,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.882556,
+            -1.00553,
+            -0.909365,
+            -0.827649,
+            -0.822964,
+            -0.049566,
+            0.933634,
+            -0.290492
+          ],
+          "sd": [
+            9.527763,
+            17.993128,
+            6.285101,
+            3.473353,
+            6.164234,
+            0.066857,
+            0.034785,
+            0.136502
+          ]
+        },
+        "9": {
+          "n_ventanas_stats": 5244,
+          "n_ventanas_normalizadas": 5244,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.061346,
+            -1.520891,
+            -0.898246,
+            -0.828099,
+            -0.84058,
+            -0.071216,
+            0.898593,
+            -0.381472
+          ],
+          "sd": [
+            25.702404,
+            29.087824,
+            12.733063,
+            3.99712,
+            10.650168,
+            0.102152,
+            0.045431,
+            0.116165
+          ]
+        },
+        "10": {
+          "n_ventanas_stats": 5517,
+          "n_ventanas_normalizadas": 5517,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.902311,
+            -0.964718,
+            -0.903612,
+            -0.814514,
+            -0.838295,
+            0.048746,
+            0.862651,
+            -0.11702
+          ],
+          "sd": [
+            15.174295,
+            16.105013,
+            7.045338,
+            4.09997,
+            8.697282,
+            0.137122,
+            0.018317,
+            0.09525
+          ]
+        },
+        "6": {
+          "n_ventanas_stats": 5959,
+          "n_ventanas_normalizadas": 5959,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.731226,
+            -1.195838,
+            -0.894999,
+            -0.843493,
+            -0.877836,
+            -0.063758,
+            0.806552,
+            -0.545718
+          ],
+          "sd": [
+            9.296335,
+            20.86178,
+            9.446038,
+            9.749287,
+            12.051419,
+            0.070484,
+            0.077333,
+            0.131976
+          ]
+        }
+      }
+    },
+    {
+      "modo": "sujeto",
+      "origen_estadisticas": "todas las ventanas de cada sujeto",
+      "usa_etiquetas_de_test": false,
+      "estadisticas_por_sujeto": {
+        "1": {
+          "n_ventanas_stats": 5366,
+          "n_ventanas_normalizadas": 5366,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.013739,
+            -1.081043,
+            -1.332049,
+            -0.827688,
+            -0.829906,
+            -0.02867,
+            0.772594,
+            -0.619593
+          ],
+          "sd": [
+            21.628986,
+            20.560854,
+            21.578753,
+            6.6746,
+            9.195283,
+            0.079046,
+            0.045381,
+            0.060384
+          ]
+        },
+        "2": {
+          "n_ventanas_stats": 5584,
+          "n_ventanas_normalizadas": 5584,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.921217,
+            -1.066229,
+            -0.875242,
+            -0.818916,
+            -0.829379,
+            -0.046115,
+            0.818195,
+            -0.542331
+          ],
+          "sd": [
+            17.408123,
+            17.33424,
+            13.33206,
+            4.960133,
+            7.60173,
+            0.065274,
+            0.055445,
+            0.110188
+          ]
+        },
+        "3": {
+          "n_ventanas_stats": 4773,
+          "n_ventanas_normalizadas": 4773,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.136099,
+            -1.160565,
+            -0.910559,
+            -0.808517,
+            -1.098361,
+            -0.039783,
+            0.885961,
+            -0.352977
+          ],
+          "sd": [
+            29.222311,
+            28.513653,
+            14.667935,
+            7.225059,
+            19.877663,
+            0.095104,
+            0.090487,
+            0.23158
+          ]
+        },
+        "4": {
+          "n_ventanas_stats": 5323,
+          "n_ventanas_normalizadas": 5323,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.958069,
+            -0.965475,
+            -0.894899,
+            -0.815067,
+            -0.850319,
+            -0.094213,
+            0.928917,
+            -0.260261
+          ],
+          "sd": [
+            21.779312,
+            19.31772,
+            10.073372,
+            4.75702,
+            4.928419,
+            0.06523,
+            0.047533,
+            0.211651
+          ]
+        },
+        "5": {
+          "n_ventanas_stats": 5362,
+          "n_ventanas_normalizadas": 5362,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.872832,
+            -0.95698,
+            -0.890834,
+            -0.815102,
+            -0.837808,
+            0.052461,
+            1.037529,
+            -0.16571
+          ],
+          "sd": [
+            11.637177,
+            14.284411,
+            5.275087,
+            4.673463,
+            10.3747,
+            0.097817,
+            0.026734,
+            0.126248
+          ]
+        },
+        "6": {
+          "n_ventanas_stats": 5959,
+          "n_ventanas_normalizadas": 5959,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.731226,
+            -1.195838,
+            -0.894999,
+            -0.843493,
+            -0.877836,
+            -0.063758,
+            0.806552,
+            -0.545718
+          ],
+          "sd": [
+            9.296335,
+            20.86178,
+            9.446038,
+            9.749287,
+            12.051419,
+            0.070484,
+            0.077333,
+            0.131976
+          ]
+        },
+        "8": {
+          "n_ventanas_stats": 5502,
+          "n_ventanas_normalizadas": 5502,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.882556,
+            -1.00553,
+            -0.909365,
+            -0.827649,
+            -0.822964,
+            -0.049566,
+            0.933634,
+            -0.290492
+          ],
+          "sd": [
+            9.527763,
+            17.993128,
+            6.285101,
+            3.473353,
+            6.164234,
+            0.066857,
+            0.034785,
+            0.136502
+          ]
+        },
+        "9": {
+          "n_ventanas_stats": 5244,
+          "n_ventanas_normalizadas": 5244,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.061346,
+            -1.520891,
+            -0.898246,
+            -0.828099,
+            -0.84058,
+            -0.071216,
+            0.898593,
+            -0.381472
+          ],
+          "sd": [
+            25.702404,
+            29.087824,
+            12.733063,
+            3.99712,
+            10.650168,
+            0.102152,
+            0.045431,
+            0.116165
+          ]
+        },
+        "10": {
+          "n_ventanas_stats": 5517,
+          "n_ventanas_normalizadas": 5517,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.902311,
+            -0.964718,
+            -0.903612,
+            -0.814514,
+            -0.838295,
+            0.048746,
+            0.862651,
+            -0.11702
+          ],
+          "sd": [
+            15.174295,
+            16.105013,
+            7.045338,
+            4.09997,
+            8.697282,
+            0.137122,
+            0.018317,
+            0.09525
+          ]
+        },
+        "7": {
+          "n_ventanas_stats": 5716,
+          "n_ventanas_normalizadas": 5716,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.907147,
+            -1.065465,
+            -0.911735,
+            -0.822393,
+            -0.827003,
+            -0.107262,
+            0.913358,
+            -0.351177
+          ],
+          "sd": [
+            16.040771,
+            19.783703,
+            9.959207,
+            6.803615,
+            10.945359,
+            0.050679,
+            0.037189,
+            0.09505
+          ]
+        }
+      }
+    },
+    {
+      "modo": "sujeto",
+      "origen_estadisticas": "todas las ventanas de cada sujeto",
+      "usa_etiquetas_de_test": false,
+      "estadisticas_por_sujeto": {
+        "1": {
+          "n_ventanas_stats": 5366,
+          "n_ventanas_normalizadas": 5366,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.013739,
+            -1.081043,
+            -1.332049,
+            -0.827688,
+            -0.829906,
+            -0.02867,
+            0.772594,
+            -0.619593
+          ],
+          "sd": [
+            21.628986,
+            20.560854,
+            21.578753,
+            6.6746,
+            9.195283,
+            0.079046,
+            0.045381,
+            0.060384
+          ]
+        },
+        "3": {
+          "n_ventanas_stats": 4773,
+          "n_ventanas_normalizadas": 4773,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.136099,
+            -1.160565,
+            -0.910559,
+            -0.808517,
+            -1.098361,
+            -0.039783,
+            0.885961,
+            -0.352977
+          ],
+          "sd": [
+            29.222311,
+            28.513653,
+            14.667935,
+            7.225059,
+            19.877663,
+            0.095104,
+            0.090487,
+            0.23158
+          ]
+        },
+        "4": {
+          "n_ventanas_stats": 5323,
+          "n_ventanas_normalizadas": 5323,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.958069,
+            -0.965475,
+            -0.894899,
+            -0.815067,
+            -0.850319,
+            -0.094213,
+            0.928917,
+            -0.260261
+          ],
+          "sd": [
+            21.779312,
+            19.31772,
+            10.073372,
+            4.75702,
+            4.928419,
+            0.06523,
+            0.047533,
+            0.211651
+          ]
+        },
+        "5": {
+          "n_ventanas_stats": 5362,
+          "n_ventanas_normalizadas": 5362,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.872832,
+            -0.95698,
+            -0.890834,
+            -0.815102,
+            -0.837808,
+            0.052461,
+            1.037529,
+            -0.16571
+          ],
+          "sd": [
+            11.637177,
+            14.284411,
+            5.275087,
+            4.673463,
+            10.3747,
+            0.097817,
+            0.026734,
+            0.126248
+          ]
+        },
+        "6": {
+          "n_ventanas_stats": 5959,
+          "n_ventanas_normalizadas": 5959,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.731226,
+            -1.195838,
+            -0.894999,
+            -0.843493,
+            -0.877836,
+            -0.063758,
+            0.806552,
+            -0.545718
+          ],
+          "sd": [
+            9.296335,
+            20.86178,
+            9.446038,
+            9.749287,
+            12.051419,
+            0.070484,
+            0.077333,
+            0.131976
+          ]
+        },
+        "7": {
+          "n_ventanas_stats": 5716,
+          "n_ventanas_normalizadas": 5716,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.907147,
+            -1.065465,
+            -0.911735,
+            -0.822393,
+            -0.827003,
+            -0.107262,
+            0.913358,
+            -0.351177
+          ],
+          "sd": [
+            16.040771,
+            19.783703,
+            9.959207,
+            6.803615,
+            10.945359,
+            0.050679,
+            0.037189,
+            0.09505
+          ]
+        },
+        "8": {
+          "n_ventanas_stats": 5502,
+          "n_ventanas_normalizadas": 5502,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.882556,
+            -1.00553,
+            -0.909365,
+            -0.827649,
+            -0.822964,
+            -0.049566,
+            0.933634,
+            -0.290492
+          ],
+          "sd": [
+            9.527763,
+            17.993128,
+            6.285101,
+            3.473353,
+            6.164234,
+            0.066857,
+            0.034785,
+            0.136502
+          ]
+        },
+        "9": {
+          "n_ventanas_stats": 5244,
+          "n_ventanas_normalizadas": 5244,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.061346,
+            -1.520891,
+            -0.898246,
+            -0.828099,
+            -0.84058,
+            -0.071216,
+            0.898593,
+            -0.381472
+          ],
+          "sd": [
+            25.702404,
+            29.087824,
+            12.733063,
+            3.99712,
+            10.650168,
+            0.102152,
+            0.045431,
+            0.116165
+          ]
+        },
+        "10": {
+          "n_ventanas_stats": 5517,
+          "n_ventanas_normalizadas": 5517,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.902311,
+            -0.964718,
+            -0.903612,
+            -0.814514,
+            -0.838295,
+            0.048746,
+            0.862651,
+            -0.11702
+          ],
+          "sd": [
+            15.174295,
+            16.105013,
+            7.045338,
+            4.09997,
+            8.697282,
+            0.137122,
+            0.018317,
+            0.09525
+          ]
+        },
+        "2": {
+          "n_ventanas_stats": 5584,
+          "n_ventanas_normalizadas": 5584,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.921217,
+            -1.066229,
+            -0.875242,
+            -0.818916,
+            -0.829379,
+            -0.046115,
+            0.818195,
+            -0.542331
+          ],
+          "sd": [
+            17.408123,
+            17.33424,
+            13.33206,
+            4.960133,
+            7.60173,
+            0.065274,
+            0.055445,
+            0.110188
+          ]
+        }
+      }
+    },
+    {
+      "modo": "sujeto",
+      "origen_estadisticas": "todas las ventanas de cada sujeto",
+      "usa_etiquetas_de_test": false,
+      "estadisticas_por_sujeto": {
+        "1": {
+          "n_ventanas_stats": 5366,
+          "n_ventanas_normalizadas": 5366,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.013739,
+            -1.081043,
+            -1.332049,
+            -0.827688,
+            -0.829906,
+            -0.02867,
+            0.772594,
+            -0.619593
+          ],
+          "sd": [
+            21.628986,
+            20.560854,
+            21.578753,
+            6.6746,
+            9.195283,
+            0.079046,
+            0.045381,
+            0.060384
+          ]
+        },
+        "2": {
+          "n_ventanas_stats": 5584,
+          "n_ventanas_normalizadas": 5584,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.921217,
+            -1.066229,
+            -0.875242,
+            -0.818916,
+            -0.829379,
+            -0.046115,
+            0.818195,
+            -0.542331
+          ],
+          "sd": [
+            17.408123,
+            17.33424,
+            13.33206,
+            4.960133,
+            7.60173,
+            0.065274,
+            0.055445,
+            0.110188
+          ]
+        },
+        "3": {
+          "n_ventanas_stats": 4773,
+          "n_ventanas_normalizadas": 4773,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.136099,
+            -1.160565,
+            -0.910559,
+            -0.808517,
+            -1.098361,
+            -0.039783,
+            0.885961,
+            -0.352977
+          ],
+          "sd": [
+            29.222311,
+            28.513653,
+            14.667935,
+            7.225059,
+            19.877663,
+            0.095104,
+            0.090487,
+            0.23158
+          ]
+        },
+        "4": {
+          "n_ventanas_stats": 5323,
+          "n_ventanas_normalizadas": 5323,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.958069,
+            -0.965475,
+            -0.894899,
+            -0.815067,
+            -0.850319,
+            -0.094213,
+            0.928917,
+            -0.260261
+          ],
+          "sd": [
+            21.779312,
+            19.31772,
+            10.073372,
+            4.75702,
+            4.928419,
+            0.06523,
+            0.047533,
+            0.211651
+          ]
+        },
+        "5": {
+          "n_ventanas_stats": 5362,
+          "n_ventanas_normalizadas": 5362,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.872832,
+            -0.95698,
+            -0.890834,
+            -0.815102,
+            -0.837808,
+            0.052461,
+            1.037529,
+            -0.16571
+          ],
+          "sd": [
+            11.637177,
+            14.284411,
+            5.275087,
+            4.673463,
+            10.3747,
+            0.097817,
+            0.026734,
+            0.126248
+          ]
+        },
+        "6": {
+          "n_ventanas_stats": 5959,
+          "n_ventanas_normalizadas": 5959,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.731226,
+            -1.195838,
+            -0.894999,
+            -0.843493,
+            -0.877836,
+            -0.063758,
+            0.806552,
+            -0.545718
+          ],
+          "sd": [
+            9.296335,
+            20.86178,
+            9.446038,
+            9.749287,
+            12.051419,
+            0.070484,
+            0.077333,
+            0.131976
+          ]
+        },
+        "7": {
+          "n_ventanas_stats": 5716,
+          "n_ventanas_normalizadas": 5716,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.907147,
+            -1.065465,
+            -0.911735,
+            -0.822393,
+            -0.827003,
+            -0.107262,
+            0.913358,
+            -0.351177
+          ],
+          "sd": [
+            16.040771,
+            19.783703,
+            9.959207,
+            6.803615,
+            10.945359,
+            0.050679,
+            0.037189,
+            0.09505
+          ]
+        },
+        "8": {
+          "n_ventanas_stats": 5502,
+          "n_ventanas_normalizadas": 5502,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.882556,
+            -1.00553,
+            -0.909365,
+            -0.827649,
+            -0.822964,
+            -0.049566,
+            0.933634,
+            -0.290492
+          ],
+          "sd": [
+            9.527763,
+            17.993128,
+            6.285101,
+            3.473353,
+            6.164234,
+            0.066857,
+            0.034785,
+            0.136502
+          ]
+        },
+        "9": {
+          "n_ventanas_stats": 5244,
+          "n_ventanas_normalizadas": 5244,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.061346,
+            -1.520891,
+            -0.898246,
+            -0.828099,
+            -0.84058,
+            -0.071216,
+            0.898593,
+            -0.381472
+          ],
+          "sd": [
+            25.702404,
+            29.087824,
+            12.733063,
+            3.99712,
+            10.650168,
+            0.102152,
+            0.045431,
+            0.116165
+          ]
+        },
+        "10": {
+          "n_ventanas_stats": 5517,
+          "n_ventanas_normalizadas": 5517,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.902311,
+            -0.964718,
+            -0.903612,
+            -0.814514,
+            -0.838295,
+            0.048746,
+            0.862651,
+            -0.11702
+          ],
+          "sd": [
+            15.174295,
+            16.105013,
+            7.045338,
+            4.09997,
+            8.697282,
+            0.137122,
+            0.018317,
+            0.09525
+          ]
+        }
+      }
+    },
+    {
+      "modo": "sujeto",
+      "origen_estadisticas": "todas las ventanas de cada sujeto",
+      "usa_etiquetas_de_test": false,
+      "estadisticas_por_sujeto": {
+        "1": {
+          "n_ventanas_stats": 5366,
+          "n_ventanas_normalizadas": 5366,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.013739,
+            -1.081043,
+            -1.332049,
+            -0.827688,
+            -0.829906,
+            -0.02867,
+            0.772594,
+            -0.619593
+          ],
+          "sd": [
+            21.628986,
+            20.560854,
+            21.578753,
+            6.6746,
+            9.195283,
+            0.079046,
+            0.045381,
+            0.060384
+          ]
+        },
+        "2": {
+          "n_ventanas_stats": 5584,
+          "n_ventanas_normalizadas": 5584,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.921217,
+            -1.066229,
+            -0.875242,
+            -0.818916,
+            -0.829379,
+            -0.046115,
+            0.818195,
+            -0.542331
+          ],
+          "sd": [
+            17.408123,
+            17.33424,
+            13.33206,
+            4.960133,
+            7.60173,
+            0.065274,
+            0.055445,
+            0.110188
+          ]
+        },
+        "3": {
+          "n_ventanas_stats": 4773,
+          "n_ventanas_normalizadas": 4773,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.136099,
+            -1.160565,
+            -0.910559,
+            -0.808517,
+            -1.098361,
+            -0.039783,
+            0.885961,
+            -0.352977
+          ],
+          "sd": [
+            29.222311,
+            28.513653,
+            14.667935,
+            7.225059,
+            19.877663,
+            0.095104,
+            0.090487,
+            0.23158
+          ]
+        },
+        "4": {
+          "n_ventanas_stats": 5323,
+          "n_ventanas_normalizadas": 5323,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.958069,
+            -0.965475,
+            -0.894899,
+            -0.815067,
+            -0.850319,
+            -0.094213,
+            0.928917,
+            -0.260261
+          ],
+          "sd": [
+            21.779312,
+            19.31772,
+            10.073372,
+            4.75702,
+            4.928419,
+            0.06523,
+            0.047533,
+            0.211651
+          ]
+        },
+        "5": {
+          "n_ventanas_stats": 5362,
+          "n_ventanas_normalizadas": 5362,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.872832,
+            -0.95698,
+            -0.890834,
+            -0.815102,
+            -0.837808,
+            0.052461,
+            1.037529,
+            -0.16571
+          ],
+          "sd": [
+            11.637177,
+            14.284411,
+            5.275087,
+            4.673463,
+            10.3747,
+            0.097817,
+            0.026734,
+            0.126248
+          ]
+        },
+        "6": {
+          "n_ventanas_stats": 5959,
+          "n_ventanas_normalizadas": 5959,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.731226,
+            -1.195838,
+            -0.894999,
+            -0.843493,
+            -0.877836,
+            -0.063758,
+            0.806552,
+            -0.545718
+          ],
+          "sd": [
+            9.296335,
+            20.86178,
+            9.446038,
+            9.749287,
+            12.051419,
+            0.070484,
+            0.077333,
+            0.131976
+          ]
+        },
+        "7": {
+          "n_ventanas_stats": 5716,
+          "n_ventanas_normalizadas": 5716,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.907147,
+            -1.065465,
+            -0.911735,
+            -0.822393,
+            -0.827003,
+            -0.107262,
+            0.913358,
+            -0.351177
+          ],
+          "sd": [
+            16.040771,
+            19.783703,
+            9.959207,
+            6.803615,
+            10.945359,
+            0.050679,
+            0.037189,
+            0.09505
+          ]
+        },
+        "9": {
+          "n_ventanas_stats": 5244,
+          "n_ventanas_normalizadas": 5244,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.061346,
+            -1.520891,
+            -0.898246,
+            -0.828099,
+            -0.84058,
+            -0.071216,
+            0.898593,
+            -0.381472
+          ],
+          "sd": [
+            25.702404,
+            29.087824,
+            12.733063,
+            3.99712,
+            10.650168,
+            0.102152,
+            0.045431,
+            0.116165
+          ]
+        },
+        "10": {
+          "n_ventanas_stats": 5517,
+          "n_ventanas_normalizadas": 5517,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.902311,
+            -0.964718,
+            -0.903612,
+            -0.814514,
+            -0.838295,
+            0.048746,
+            0.862651,
+            -0.11702
+          ],
+          "sd": [
+            15.174295,
+            16.105013,
+            7.045338,
+            4.09997,
+            8.697282,
+            0.137122,
+            0.018317,
+            0.09525
+          ]
+        },
+        "8": {
+          "n_ventanas_stats": 5502,
+          "n_ventanas_normalizadas": 5502,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.882556,
+            -1.00553,
+            -0.909365,
+            -0.827649,
+            -0.822964,
+            -0.049566,
+            0.933634,
+            -0.290492
+          ],
+          "sd": [
+            9.527763,
+            17.993128,
+            6.285101,
+            3.473353,
+            6.164234,
+            0.066857,
+            0.034785,
+            0.136502
+          ]
+        }
+      }
+    },
+    {
+      "modo": "sujeto",
+      "origen_estadisticas": "todas las ventanas de cada sujeto",
+      "usa_etiquetas_de_test": false,
+      "estadisticas_por_sujeto": {
+        "2": {
+          "n_ventanas_stats": 5584,
+          "n_ventanas_normalizadas": 5584,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.921217,
+            -1.066229,
+            -0.875242,
+            -0.818916,
+            -0.829379,
+            -0.046115,
+            0.818195,
+            -0.542331
+          ],
+          "sd": [
+            17.408123,
+            17.33424,
+            13.33206,
+            4.960133,
+            7.60173,
+            0.065274,
+            0.055445,
+            0.110188
+          ]
+        },
+        "3": {
+          "n_ventanas_stats": 4773,
+          "n_ventanas_normalizadas": 4773,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.136099,
+            -1.160565,
+            -0.910559,
+            -0.808517,
+            -1.098361,
+            -0.039783,
+            0.885961,
+            -0.352977
+          ],
+          "sd": [
+            29.222311,
+            28.513653,
+            14.667935,
+            7.225059,
+            19.877663,
+            0.095104,
+            0.090487,
+            0.23158
+          ]
+        },
+        "4": {
+          "n_ventanas_stats": 5323,
+          "n_ventanas_normalizadas": 5323,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.958069,
+            -0.965475,
+            -0.894899,
+            -0.815067,
+            -0.850319,
+            -0.094213,
+            0.928917,
+            -0.260261
+          ],
+          "sd": [
+            21.779312,
+            19.31772,
+            10.073372,
+            4.75702,
+            4.928419,
+            0.06523,
+            0.047533,
+            0.211651
+          ]
+        },
+        "5": {
+          "n_ventanas_stats": 5362,
+          "n_ventanas_normalizadas": 5362,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.872832,
+            -0.95698,
+            -0.890834,
+            -0.815102,
+            -0.837808,
+            0.052461,
+            1.037529,
+            -0.16571
+          ],
+          "sd": [
+            11.637177,
+            14.284411,
+            5.275087,
+            4.673463,
+            10.3747,
+            0.097817,
+            0.026734,
+            0.126248
+          ]
+        },
+        "6": {
+          "n_ventanas_stats": 5959,
+          "n_ventanas_normalizadas": 5959,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.731226,
+            -1.195838,
+            -0.894999,
+            -0.843493,
+            -0.877836,
+            -0.063758,
+            0.806552,
+            -0.545718
+          ],
+          "sd": [
+            9.296335,
+            20.86178,
+            9.446038,
+            9.749287,
+            12.051419,
+            0.070484,
+            0.077333,
+            0.131976
+          ]
+        },
+        "7": {
+          "n_ventanas_stats": 5716,
+          "n_ventanas_normalizadas": 5716,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.907147,
+            -1.065465,
+            -0.911735,
+            -0.822393,
+            -0.827003,
+            -0.107262,
+            0.913358,
+            -0.351177
+          ],
+          "sd": [
+            16.040771,
+            19.783703,
+            9.959207,
+            6.803615,
+            10.945359,
+            0.050679,
+            0.037189,
+            0.09505
+          ]
+        },
+        "8": {
+          "n_ventanas_stats": 5502,
+          "n_ventanas_normalizadas": 5502,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.882556,
+            -1.00553,
+            -0.909365,
+            -0.827649,
+            -0.822964,
+            -0.049566,
+            0.933634,
+            -0.290492
+          ],
+          "sd": [
+            9.527763,
+            17.993128,
+            6.285101,
+            3.473353,
+            6.164234,
+            0.066857,
+            0.034785,
+            0.136502
+          ]
+        },
+        "9": {
+          "n_ventanas_stats": 5244,
+          "n_ventanas_normalizadas": 5244,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.061346,
+            -1.520891,
+            -0.898246,
+            -0.828099,
+            -0.84058,
+            -0.071216,
+            0.898593,
+            -0.381472
+          ],
+          "sd": [
+            25.702404,
+            29.087824,
+            12.733063,
+            3.99712,
+            10.650168,
+            0.102152,
+            0.045431,
+            0.116165
+          ]
+        },
+        "10": {
+          "n_ventanas_stats": 5517,
+          "n_ventanas_normalizadas": 5517,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.902311,
+            -0.964718,
+            -0.903612,
+            -0.814514,
+            -0.838295,
+            0.048746,
+            0.862651,
+            -0.11702
+          ],
+          "sd": [
+            15.174295,
+            16.105013,
+            7.045338,
+            4.09997,
+            8.697282,
+            0.137122,
+            0.018317,
+            0.09525
+          ]
+        },
+        "1": {
+          "n_ventanas_stats": 5366,
+          "n_ventanas_normalizadas": 5366,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.013739,
+            -1.081043,
+            -1.332049,
+            -0.827688,
+            -0.829906,
+            -0.02867,
+            0.772594,
+            -0.619593
+          ],
+          "sd": [
+            21.628986,
+            20.560854,
+            21.578753,
+            6.6746,
+            9.195283,
+            0.079046,
+            0.045381,
+            0.060384
+          ]
+        }
+      }
+    },
+    {
+      "modo": "sujeto",
+      "origen_estadisticas": "todas las ventanas de cada sujeto",
+      "usa_etiquetas_de_test": false,
+      "estadisticas_por_sujeto": {
+        "1": {
+          "n_ventanas_stats": 5366,
+          "n_ventanas_normalizadas": 5366,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.013739,
+            -1.081043,
+            -1.332049,
+            -0.827688,
+            -0.829906,
+            -0.02867,
+            0.772594,
+            -0.619593
+          ],
+          "sd": [
+            21.628986,
+            20.560854,
+            21.578753,
+            6.6746,
+            9.195283,
+            0.079046,
+            0.045381,
+            0.060384
+          ]
+        },
+        "2": {
+          "n_ventanas_stats": 5584,
+          "n_ventanas_normalizadas": 5584,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.921217,
+            -1.066229,
+            -0.875242,
+            -0.818916,
+            -0.829379,
+            -0.046115,
+            0.818195,
+            -0.542331
+          ],
+          "sd": [
+            17.408123,
+            17.33424,
+            13.33206,
+            4.960133,
+            7.60173,
+            0.065274,
+            0.055445,
+            0.110188
+          ]
+        },
+        "3": {
+          "n_ventanas_stats": 4773,
+          "n_ventanas_normalizadas": 4773,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.136099,
+            -1.160565,
+            -0.910559,
+            -0.808517,
+            -1.098361,
+            -0.039783,
+            0.885961,
+            -0.352977
+          ],
+          "sd": [
+            29.222311,
+            28.513653,
+            14.667935,
+            7.225059,
+            19.877663,
+            0.095104,
+            0.090487,
+            0.23158
+          ]
+        },
+        "4": {
+          "n_ventanas_stats": 5323,
+          "n_ventanas_normalizadas": 5323,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.958069,
+            -0.965475,
+            -0.894899,
+            -0.815067,
+            -0.850319,
+            -0.094213,
+            0.928917,
+            -0.260261
+          ],
+          "sd": [
+            21.779312,
+            19.31772,
+            10.073372,
+            4.75702,
+            4.928419,
+            0.06523,
+            0.047533,
+            0.211651
+          ]
+        },
+        "6": {
+          "n_ventanas_stats": 5959,
+          "n_ventanas_normalizadas": 5959,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.731226,
+            -1.195838,
+            -0.894999,
+            -0.843493,
+            -0.877836,
+            -0.063758,
+            0.806552,
+            -0.545718
+          ],
+          "sd": [
+            9.296335,
+            20.86178,
+            9.446038,
+            9.749287,
+            12.051419,
+            0.070484,
+            0.077333,
+            0.131976
+          ]
+        },
+        "7": {
+          "n_ventanas_stats": 5716,
+          "n_ventanas_normalizadas": 5716,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.907147,
+            -1.065465,
+            -0.911735,
+            -0.822393,
+            -0.827003,
+            -0.107262,
+            0.913358,
+            -0.351177
+          ],
+          "sd": [
+            16.040771,
+            19.783703,
+            9.959207,
+            6.803615,
+            10.945359,
+            0.050679,
+            0.037189,
+            0.09505
+          ]
+        },
+        "8": {
+          "n_ventanas_stats": 5502,
+          "n_ventanas_normalizadas": 5502,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.882556,
+            -1.00553,
+            -0.909365,
+            -0.827649,
+            -0.822964,
+            -0.049566,
+            0.933634,
+            -0.290492
+          ],
+          "sd": [
+            9.527763,
+            17.993128,
+            6.285101,
+            3.473353,
+            6.164234,
+            0.066857,
+            0.034785,
+            0.136502
+          ]
+        },
+        "9": {
+          "n_ventanas_stats": 5244,
+          "n_ventanas_normalizadas": 5244,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.061346,
+            -1.520891,
+            -0.898246,
+            -0.828099,
+            -0.84058,
+            -0.071216,
+            0.898593,
+            -0.381472
+          ],
+          "sd": [
+            25.702404,
+            29.087824,
+            12.733063,
+            3.99712,
+            10.650168,
+            0.102152,
+            0.045431,
+            0.116165
+          ]
+        },
+        "10": {
+          "n_ventanas_stats": 5517,
+          "n_ventanas_normalizadas": 5517,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.902311,
+            -0.964718,
+            -0.903612,
+            -0.814514,
+            -0.838295,
+            0.048746,
+            0.862651,
+            -0.11702
+          ],
+          "sd": [
+            15.174295,
+            16.105013,
+            7.045338,
+            4.09997,
+            8.697282,
+            0.137122,
+            0.018317,
+            0.09525
+          ]
+        },
+        "5": {
+          "n_ventanas_stats": 5362,
+          "n_ventanas_normalizadas": 5362,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.872832,
+            -0.95698,
+            -0.890834,
+            -0.815102,
+            -0.837808,
+            0.052461,
+            1.037529,
+            -0.16571
+          ],
+          "sd": [
+            11.637177,
+            14.284411,
+            5.275087,
+            4.673463,
+            10.3747,
+            0.097817,
+            0.026734,
+            0.126248
+          ]
+        }
+      }
+    },
+    {
+      "modo": "sujeto",
+      "origen_estadisticas": "todas las ventanas de cada sujeto",
+      "usa_etiquetas_de_test": false,
+      "estadisticas_por_sujeto": {
+        "1": {
+          "n_ventanas_stats": 5366,
+          "n_ventanas_normalizadas": 5366,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.013739,
+            -1.081043,
+            -1.332049,
+            -0.827688,
+            -0.829906,
+            -0.02867,
+            0.772594,
+            -0.619593
+          ],
+          "sd": [
+            21.628986,
+            20.560854,
+            21.578753,
+            6.6746,
+            9.195283,
+            0.079046,
+            0.045381,
+            0.060384
+          ]
+        },
+        "2": {
+          "n_ventanas_stats": 5584,
+          "n_ventanas_normalizadas": 5584,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.921217,
+            -1.066229,
+            -0.875242,
+            -0.818916,
+            -0.829379,
+            -0.046115,
+            0.818195,
+            -0.542331
+          ],
+          "sd": [
+            17.408123,
+            17.33424,
+            13.33206,
+            4.960133,
+            7.60173,
+            0.065274,
+            0.055445,
+            0.110188
+          ]
+        },
+        "3": {
+          "n_ventanas_stats": 4773,
+          "n_ventanas_normalizadas": 4773,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.136099,
+            -1.160565,
+            -0.910559,
+            -0.808517,
+            -1.098361,
+            -0.039783,
+            0.885961,
+            -0.352977
+          ],
+          "sd": [
+            29.222311,
+            28.513653,
+            14.667935,
+            7.225059,
+            19.877663,
+            0.095104,
+            0.090487,
+            0.23158
+          ]
+        },
+        "5": {
+          "n_ventanas_stats": 5362,
+          "n_ventanas_normalizadas": 5362,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.872832,
+            -0.95698,
+            -0.890834,
+            -0.815102,
+            -0.837808,
+            0.052461,
+            1.037529,
+            -0.16571
+          ],
+          "sd": [
+            11.637177,
+            14.284411,
+            5.275087,
+            4.673463,
+            10.3747,
+            0.097817,
+            0.026734,
+            0.126248
+          ]
+        },
+        "6": {
+          "n_ventanas_stats": 5959,
+          "n_ventanas_normalizadas": 5959,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.731226,
+            -1.195838,
+            -0.894999,
+            -0.843493,
+            -0.877836,
+            -0.063758,
+            0.806552,
+            -0.545718
+          ],
+          "sd": [
+            9.296335,
+            20.86178,
+            9.446038,
+            9.749287,
+            12.051419,
+            0.070484,
+            0.077333,
+            0.131976
+          ]
+        },
+        "7": {
+          "n_ventanas_stats": 5716,
+          "n_ventanas_normalizadas": 5716,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.907147,
+            -1.065465,
+            -0.911735,
+            -0.822393,
+            -0.827003,
+            -0.107262,
+            0.913358,
+            -0.351177
+          ],
+          "sd": [
+            16.040771,
+            19.783703,
+            9.959207,
+            6.803615,
+            10.945359,
+            0.050679,
+            0.037189,
+            0.09505
+          ]
+        },
+        "8": {
+          "n_ventanas_stats": 5502,
+          "n_ventanas_normalizadas": 5502,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.882556,
+            -1.00553,
+            -0.909365,
+            -0.827649,
+            -0.822964,
+            -0.049566,
+            0.933634,
+            -0.290492
+          ],
+          "sd": [
+            9.527763,
+            17.993128,
+            6.285101,
+            3.473353,
+            6.164234,
+            0.066857,
+            0.034785,
+            0.136502
+          ]
+        },
+        "9": {
+          "n_ventanas_stats": 5244,
+          "n_ventanas_normalizadas": 5244,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.061346,
+            -1.520891,
+            -0.898246,
+            -0.828099,
+            -0.84058,
+            -0.071216,
+            0.898593,
+            -0.381472
+          ],
+          "sd": [
+            25.702404,
+            29.087824,
+            12.733063,
+            3.99712,
+            10.650168,
+            0.102152,
+            0.045431,
+            0.116165
+          ]
+        },
+        "10": {
+          "n_ventanas_stats": 5517,
+          "n_ventanas_normalizadas": 5517,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.902311,
+            -0.964718,
+            -0.903612,
+            -0.814514,
+            -0.838295,
+            0.048746,
+            0.862651,
+            -0.11702
+          ],
+          "sd": [
+            15.174295,
+            16.105013,
+            7.045338,
+            4.09997,
+            8.697282,
+            0.137122,
+            0.018317,
+            0.09525
+          ]
+        },
+        "4": {
+          "n_ventanas_stats": 5323,
+          "n_ventanas_normalizadas": 5323,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.958069,
+            -0.965475,
+            -0.894899,
+            -0.815067,
+            -0.850319,
+            -0.094213,
+            0.928917,
+            -0.260261
+          ],
+          "sd": [
+            21.779312,
+            19.31772,
+            10.073372,
+            4.75702,
+            4.928419,
+            0.06523,
+            0.047533,
+            0.211651
+          ]
+        }
+      }
+    },
+    {
+      "modo": "sujeto",
+      "origen_estadisticas": "todas las ventanas de cada sujeto",
+      "usa_etiquetas_de_test": false,
+      "estadisticas_por_sujeto": {
+        "1": {
+          "n_ventanas_stats": 5366,
+          "n_ventanas_normalizadas": 5366,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.013739,
+            -1.081043,
+            -1.332049,
+            -0.827688,
+            -0.829906,
+            -0.02867,
+            0.772594,
+            -0.619593
+          ],
+          "sd": [
+            21.628986,
+            20.560854,
+            21.578753,
+            6.6746,
+            9.195283,
+            0.079046,
+            0.045381,
+            0.060384
+          ]
+        },
+        "2": {
+          "n_ventanas_stats": 5584,
+          "n_ventanas_normalizadas": 5584,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.921217,
+            -1.066229,
+            -0.875242,
+            -0.818916,
+            -0.829379,
+            -0.046115,
+            0.818195,
+            -0.542331
+          ],
+          "sd": [
+            17.408123,
+            17.33424,
+            13.33206,
+            4.960133,
+            7.60173,
+            0.065274,
+            0.055445,
+            0.110188
+          ]
+        },
+        "3": {
+          "n_ventanas_stats": 4773,
+          "n_ventanas_normalizadas": 4773,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.136099,
+            -1.160565,
+            -0.910559,
+            -0.808517,
+            -1.098361,
+            -0.039783,
+            0.885961,
+            -0.352977
+          ],
+          "sd": [
+            29.222311,
+            28.513653,
+            14.667935,
+            7.225059,
+            19.877663,
+            0.095104,
+            0.090487,
+            0.23158
+          ]
+        },
+        "4": {
+          "n_ventanas_stats": 5323,
+          "n_ventanas_normalizadas": 5323,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.958069,
+            -0.965475,
+            -0.894899,
+            -0.815067,
+            -0.850319,
+            -0.094213,
+            0.928917,
+            -0.260261
+          ],
+          "sd": [
+            21.779312,
+            19.31772,
+            10.073372,
+            4.75702,
+            4.928419,
+            0.06523,
+            0.047533,
+            0.211651
+          ]
+        },
+        "5": {
+          "n_ventanas_stats": 5362,
+          "n_ventanas_normalizadas": 5362,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.872832,
+            -0.95698,
+            -0.890834,
+            -0.815102,
+            -0.837808,
+            0.052461,
+            1.037529,
+            -0.16571
+          ],
+          "sd": [
+            11.637177,
+            14.284411,
+            5.275087,
+            4.673463,
+            10.3747,
+            0.097817,
+            0.026734,
+            0.126248
+          ]
+        },
+        "6": {
+          "n_ventanas_stats": 5959,
+          "n_ventanas_normalizadas": 5959,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.731226,
+            -1.195838,
+            -0.894999,
+            -0.843493,
+            -0.877836,
+            -0.063758,
+            0.806552,
+            -0.545718
+          ],
+          "sd": [
+            9.296335,
+            20.86178,
+            9.446038,
+            9.749287,
+            12.051419,
+            0.070484,
+            0.077333,
+            0.131976
+          ]
+        },
+        "7": {
+          "n_ventanas_stats": 5716,
+          "n_ventanas_normalizadas": 5716,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.907147,
+            -1.065465,
+            -0.911735,
+            -0.822393,
+            -0.827003,
+            -0.107262,
+            0.913358,
+            -0.351177
+          ],
+          "sd": [
+            16.040771,
+            19.783703,
+            9.959207,
+            6.803615,
+            10.945359,
+            0.050679,
+            0.037189,
+            0.09505
+          ]
+        },
+        "8": {
+          "n_ventanas_stats": 5502,
+          "n_ventanas_normalizadas": 5502,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.882556,
+            -1.00553,
+            -0.909365,
+            -0.827649,
+            -0.822964,
+            -0.049566,
+            0.933634,
+            -0.290492
+          ],
+          "sd": [
+            9.527763,
+            17.993128,
+            6.285101,
+            3.473353,
+            6.164234,
+            0.066857,
+            0.034785,
+            0.136502
+          ]
+        },
+        "10": {
+          "n_ventanas_stats": 5517,
+          "n_ventanas_normalizadas": 5517,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.902311,
+            -0.964718,
+            -0.903612,
+            -0.814514,
+            -0.838295,
+            0.048746,
+            0.862651,
+            -0.11702
+          ],
+          "sd": [
+            15.174295,
+            16.105013,
+            7.045338,
+            4.09997,
+            8.697282,
+            0.137122,
+            0.018317,
+            0.09525
+          ]
+        },
+        "9": {
+          "n_ventanas_stats": 5244,
+          "n_ventanas_normalizadas": 5244,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.061346,
+            -1.520891,
+            -0.898246,
+            -0.828099,
+            -0.84058,
+            -0.071216,
+            0.898593,
+            -0.381472
+          ],
+          "sd": [
+            25.702404,
+            29.087824,
+            12.733063,
+            3.99712,
+            10.650168,
+            0.102152,
+            0.045431,
+            0.116165
+          ]
+        }
+      }
+    },
+    {
+      "modo": "sujeto",
+      "origen_estadisticas": "todas las ventanas de cada sujeto",
+      "usa_etiquetas_de_test": false,
+      "estadisticas_por_sujeto": {
+        "1": {
+          "n_ventanas_stats": 5366,
+          "n_ventanas_normalizadas": 5366,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.013739,
+            -1.081043,
+            -1.332049,
+            -0.827688,
+            -0.829906,
+            -0.02867,
+            0.772594,
+            -0.619593
+          ],
+          "sd": [
+            21.628986,
+            20.560854,
+            21.578753,
+            6.6746,
+            9.195283,
+            0.079046,
+            0.045381,
+            0.060384
+          ]
+        },
+        "2": {
+          "n_ventanas_stats": 5584,
+          "n_ventanas_normalizadas": 5584,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.921217,
+            -1.066229,
+            -0.875242,
+            -0.818916,
+            -0.829379,
+            -0.046115,
+            0.818195,
+            -0.542331
+          ],
+          "sd": [
+            17.408123,
+            17.33424,
+            13.33206,
+            4.960133,
+            7.60173,
+            0.065274,
+            0.055445,
+            0.110188
+          ]
+        },
+        "4": {
+          "n_ventanas_stats": 5323,
+          "n_ventanas_normalizadas": 5323,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.958069,
+            -0.965475,
+            -0.894899,
+            -0.815067,
+            -0.850319,
+            -0.094213,
+            0.928917,
+            -0.260261
+          ],
+          "sd": [
+            21.779312,
+            19.31772,
+            10.073372,
+            4.75702,
+            4.928419,
+            0.06523,
+            0.047533,
+            0.211651
+          ]
+        },
+        "5": {
+          "n_ventanas_stats": 5362,
+          "n_ventanas_normalizadas": 5362,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.872832,
+            -0.95698,
+            -0.890834,
+            -0.815102,
+            -0.837808,
+            0.052461,
+            1.037529,
+            -0.16571
+          ],
+          "sd": [
+            11.637177,
+            14.284411,
+            5.275087,
+            4.673463,
+            10.3747,
+            0.097817,
+            0.026734,
+            0.126248
+          ]
+        },
+        "6": {
+          "n_ventanas_stats": 5959,
+          "n_ventanas_normalizadas": 5959,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.731226,
+            -1.195838,
+            -0.894999,
+            -0.843493,
+            -0.877836,
+            -0.063758,
+            0.806552,
+            -0.545718
+          ],
+          "sd": [
+            9.296335,
+            20.86178,
+            9.446038,
+            9.749287,
+            12.051419,
+            0.070484,
+            0.077333,
+            0.131976
+          ]
+        },
+        "7": {
+          "n_ventanas_stats": 5716,
+          "n_ventanas_normalizadas": 5716,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.907147,
+            -1.065465,
+            -0.911735,
+            -0.822393,
+            -0.827003,
+            -0.107262,
+            0.913358,
+            -0.351177
+          ],
+          "sd": [
+            16.040771,
+            19.783703,
+            9.959207,
+            6.803615,
+            10.945359,
+            0.050679,
+            0.037189,
+            0.09505
+          ]
+        },
+        "8": {
+          "n_ventanas_stats": 5502,
+          "n_ventanas_normalizadas": 5502,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.882556,
+            -1.00553,
+            -0.909365,
+            -0.827649,
+            -0.822964,
+            -0.049566,
+            0.933634,
+            -0.290492
+          ],
+          "sd": [
+            9.527763,
+            17.993128,
+            6.285101,
+            3.473353,
+            6.164234,
+            0.066857,
+            0.034785,
+            0.136502
+          ]
+        },
+        "9": {
+          "n_ventanas_stats": 5244,
+          "n_ventanas_normalizadas": 5244,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.061346,
+            -1.520891,
+            -0.898246,
+            -0.828099,
+            -0.84058,
+            -0.071216,
+            0.898593,
+            -0.381472
+          ],
+          "sd": [
+            25.702404,
+            29.087824,
+            12.733063,
+            3.99712,
+            10.650168,
+            0.102152,
+            0.045431,
+            0.116165
+          ]
+        },
+        "10": {
+          "n_ventanas_stats": 5517,
+          "n_ventanas_normalizadas": 5517,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -0.902311,
+            -0.964718,
+            -0.903612,
+            -0.814514,
+            -0.838295,
+            0.048746,
+            0.862651,
+            -0.11702
+          ],
+          "sd": [
+            15.174295,
+            16.105013,
+            7.045338,
+            4.09997,
+            8.697282,
+            0.137122,
+            0.018317,
+            0.09525
+          ]
+        },
+        "3": {
+          "n_ventanas_stats": 4773,
+          "n_ventanas_normalizadas": 4773,
+          "fuente": "todas sus ventanas",
+          "mu": [
+            -1.136099,
+            -1.160565,
+            -0.910559,
+            -0.808517,
+            -1.098361,
+            -0.039783,
+            0.885961,
+            -0.352977
+          ],
+          "sd": [
+            29.222311,
+            28.513653,
+            14.667935,
+            7.225059,
+            19.877663,
+            0.095104,
+            0.090487,
+            0.23158
+          ]
+        }
+      }
+    }
+  ],
+  "archivo_predicciones": "predicciones_LOSO_sujeto.npz",
+  "metricas_por_sujeto": {
+    "1": {
+      "accuracy": 0.7732016399552739,
+      "f1_macro": 0.7743889777034517,
+      "n_ventanas": 5366,
+      "pliegues": [
+        6
+      ]
+    },
+    "2": {
+      "accuracy": 0.7362106017191977,
+      "f1_macro": 0.7401697535747983,
+      "n_ventanas": 5584,
+      "pliegues": [
+        3
+      ]
+    },
+    "3": {
+      "accuracy": 0.7494238424470983,
+      "f1_macro": 0.7422126609314288,
+      "n_ventanas": 4773,
+      "pliegues": [
+        10
+      ]
+    },
+    "4": {
+      "accuracy": 0.7792598158932933,
+      "f1_macro": 0.7804081156718954,
+      "n_ventanas": 5323,
+      "pliegues": [
+        8
+      ]
+    },
+    "5": {
+      "accuracy": 0.6719507646400597,
+      "f1_macro": 0.6069495100068624,
+      "n_ventanas": 5362,
+      "pliegues": [
+        7
+      ]
+    },
+    "6": {
+      "accuracy": 0.3962074173519047,
+      "f1_macro": 0.39556353764831825,
+      "n_ventanas": 5959,
+      "pliegues": [
+        1
+      ]
+    },
+    "7": {
+      "accuracy": 0.7788663400979706,
+      "f1_macro": 0.7878220910167402,
+      "n_ventanas": 5716,
+      "pliegues": [
+        2
+      ]
+    },
+    "8": {
+      "accuracy": 0.7535441657579062,
+      "f1_macro": 0.7452286744935905,
+      "n_ventanas": 5502,
+      "pliegues": [
+        5
+      ]
+    },
+    "9": {
+      "accuracy": 0.6781083142639207,
+      "f1_macro": 0.6751427946424875,
+      "n_ventanas": 5244,
+      "pliegues": [
+        9
+      ]
+    },
+    "10": {
+      "accuracy": 0.5031720137756027,
+      "f1_macro": 0.446301703593251,
+      "n_ventanas": 5517,
+      "pliegues": [
+        4
+      ]
+    }
+  }
+}

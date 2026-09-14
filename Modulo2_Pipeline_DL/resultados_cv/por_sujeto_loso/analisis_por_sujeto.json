@@ -1,0 +1,65 @@
+{
+  "etiqueta": "deja-un-sujeto-fuera",
+  "n_sujetos": 10,
+  "metricas": {
+    "acc": {
+      "media_sujeto": 68.19944915902228,
+      "media_rest": 64.38257123382024,
+      "diferencia_media": 3.816877925202035,
+      "wilcoxon_p": 0.232421875,
+      "t": 1.3138873909244824,
+      "t_p": 0.22138599709569182,
+      "d_z": 0.4154876744297409,
+      "sd_entre_sujetos_sujeto": 13.06124935680995,
+      "sd_entre_sujetos_rest": 6.760911491776242,
+      "cociente_sd_rest_sobre_sujeto": 0.5176313005808436,
+      "pitman_morgan_r": 0.7285133789318902,
+      "pitman_morgan_t": 3.0079591676744704,
+      "pitman_morgan_p": 0.01686589629408312,
+      "ic95_bca": [
+        0.3266589889878948,
+        1.6622016988482617
+      ],
+      "ic95_percentil": [
+        0.3172893112964678,
+        1.4715777386026536
+      ],
+      "ic95_bca_error": null
+    },
+    "f1": {
+      "media_sujeto": 66.94187819282823,
+      "media_rest": 62.316602790448414,
+      "diferencia_media": 4.625275402379822,
+      "wilcoxon_p": 0.275390625,
+      "t": 1.3788508259678347,
+      "t_p": 0.2012403592350652,
+      "d_z": 0.43603091636628016,
+      "sd_entre_sujetos_sujeto": 14.225236031995463,
+      "sd_entre_sujetos_rest": 8.25439163842745,
+      "cociente_sd_rest_sobre_sujeto": 0.5802639492140331,
+      "pitman_morgan_r": 0.6112916877881098,
+      "pitman_morgan_t": 2.1847134714753444,
+      "pitman_morgan_p": 0.06041689223406649,
+      "ic95_bca": [
+        0.3628753925649446,
+        1.8789808108315351
+      ],
+      "ic95_percentil": [
+        0.3419896263820222,
+        1.3972271348308072
+      ],
+      "ic95_bca_error": null
+    }
+  },
+  "decision": {
+    "metodo_intervalo": "BCa",
+    "ic95": [
+      0.3266589889878948,
+      1.6622016988482617
+    ],
+    "incluye_1": true,
+    "umbral": 1.15,
+    "lanzar_loso": false,
+    "lectura": "el intervalo incluye 1 CON HOLGURA (extremo superior 1.662 >= 1.15): no hay evidencia de diferencia de dispersion"
+  }
+}

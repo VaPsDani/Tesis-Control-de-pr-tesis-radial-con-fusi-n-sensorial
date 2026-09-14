@@ -1,0 +1,33 @@
+SUJETO FRENTE A SUJETO_REST, POR SUJETO (deja-un-sujeto-fuera, n = 10)
+==============================================================================
+
+1. TABLA POR SUJETO (%)
+   sujeto  pliegue  acc sujeto  acc rest     dif  F1 sujeto  F1 rest     dif
+        1      [6]       77.32     77.69   -0.37      77.44    77.91   -0.47
+        2      [3]       73.62     68.48   +5.14      74.02    70.01   +4.01
+        3     [10]       74.94     64.13  +10.81      74.22    61.38  +12.84
+        4      [8]       77.93     65.34  +12.59      78.04    59.07  +18.97
+        5      [7]       67.20     67.79   -0.60      60.69    66.32   -5.63
+        6      [1]       39.62     52.14  -12.52      39.56    48.50   -8.94
+        7      [2]       77.89     65.22  +12.67      78.78    65.11  +13.67
+        8      [5]       75.35     60.71  +14.65      74.52    58.01  +16.51
+        9      [9]       67.81     64.32   +3.49      67.51    62.67   +4.85
+       10      [4]       50.32     58.00   -7.69      44.63    54.18   -9.55
+
+2. DIFERENCIA DE MEDIAS (sujeto - sujeto_rest)
+   exactitud: sujeto 68.20, rest 64.38, diferencia +3.82  |  Wilcoxon p = 0.2324 (minimo 0.0020), t(9) = 1.31, p = 0.2214, d_z = +0.42
+   F1 macro: sujeto 66.94, rest 62.32, diferencia +4.63  |  Wilcoxon p = 0.2754 (minimo 0.0020), t(9) = 1.38, p = 0.2012, d_z = +0.44
+
+3. DESVIACION ENTRE SUJETOS (ddof = 1) - la cifra que decide
+   exactitud: sujeto 13.06, rest 6.76, cociente rest/sujeto 0.518
+      IC 95% BCa: [0.327, 1.662]   percentil: [0.317, 1.472]
+      Pitman-Morgan: r = +0.729, t(8) = +3.01, p = 0.0169
+   F1 macro: sujeto 14.23, rest 8.25, cociente rest/sujeto 0.580
+      IC 95% BCa: [0.363, 1.879]   percentil: [0.342, 1.397]
+      Pitman-Morgan: r = +0.611, t(8) = +2.18, p = 0.0604
+
+4. DECISION (regla acordada, intervalo BCa del cociente de exactitud)
+   IC 95% [0.327, 1.662] -> el intervalo incluye 1 CON HOLGURA (extremo superior 1.662 >= 1.15): no hay evidencia de diferencia de dispersion
+   lanzar_loso = False
+
+ADVERTENCIA: deja-un-sujeto-fuera: cada sujeto tiene su propio modelo, los 10 pares son independientes entre si.
