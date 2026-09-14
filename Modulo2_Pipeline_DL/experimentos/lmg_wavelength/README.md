@@ -7,6 +7,16 @@ por `.gitignore`); no declara licencia, así que no se redistribuye.
 **Toda validación cruzada agrupa por sujeto** (GroupKFold, k=5), nunca por
 ventana ni por repetición.
 
+> **Corrección de fuga en las cifras de la CNN.** Las primeras corridas de la
+> CNN pasaban el pliegue de test como `validation_data`: `EarlyStopping` (con
+> `restore_best_weights`) y `ReduceLROnPlateau` elegían la época mirando el
+> test, lo que es optimista. Todas las cifras de CNN de este documento son ya
+> las **corregidas**: la parada se decide con un sujeto de validación separado
+> del train (nunca del test) y después se reentrena con todo el train
+> reproduciendo las épocas y el calendario de LR elegidos. LDA, SVM y Random
+> Forest no tienen parada temprana y no cambian. La comparación antes/después
+> completa está en `resultados/fuga_cnn_antes_despues.txt`.
+
 ## Hechos que hubo que medir, porque el dataset no los declara
 
 | Hecho | Cómo se estableció |
@@ -87,22 +97,24 @@ una hipótesis a verificar con datos propios, no una conclusión.
 
 ### Etapa 2: CNN sobre las 6 mejores configuraciones
 
-| ventana | solapamiento efectivo | accuracy | F1 macro | AUC | F1 del LDA |
-|---|---|---|---|---|---|
-| **200 ms** | **62.5%** | **0.5023 ± 0.0488** | **0.4578** | 0.765 | 0.4096 |
-| 150 ms | 50.0% | 0.4863 ± 0.1046 | 0.4461 | 0.736 | 0.4007 |
-| 300 ms | 83.3% | 0.4548 ± 0.0173 | 0.4128 | 0.717 | 0.4101 |
-| 300 ms | 75.0% | 0.4528 ± 0.0703 | 0.3998 | 0.732 | 0.3991 |
-| 250 ms | 70.0% | 0.4565 ± 0.1016 | 0.3934 | 0.738 | 0.3987 |
-| 300 ms | 58.3% | 0.4398 ± 0.0604 | 0.3833 | 0.726 | 0.4135 |
+| ventana | solapamiento efectivo | accuracy | F1 macro | AUC | F1 del LDA | F1 CNN con fuga |
+|---|---|---|---|---|---|---|
+| **200 ms** | **62.5%** | **0.4665 ± 0.0498** | **0.4128** | 0.718 | 0.4096 | 0.4578 |
+| 300 ms | 75.0% | 0.4362 ± 0.0824 | 0.3832 | 0.711 | 0.3991 | 0.3998 |
+| 300 ms | 83.3% | 0.4075 ± 0.0862 | 0.3624 | 0.696 | 0.4101 | 0.4128 |
+| 250 ms | 70.0% | 0.4245 ± 0.1086 | 0.3595 | 0.707 | 0.3987 | 0.3934 |
+| 150 ms | 50.0% | 0.3934 ± 0.1131 | 0.3585 | 0.683 | 0.4007 | 0.4461 |
+| 300 ms | 58.3% | 0.3939 ± 0.0376 | 0.3242 | 0.656 | 0.4135 | 0.3833 |
 
-La mejor configuración es **200 ms con 62.5% de solapamiento**, que es
-justamente la ventana de producción del pipeline (200 ms), con un stride
+La mejor configuración sigue siendo **200 ms con 62.5% de solapamiento**, que
+es justamente la ventana de producción del pipeline (200 ms), con un stride
 efectivo de 72 ms.
 
-**La CNN no supera sistemáticamente al LDA:** promediando las seis celdas, F1
-0.4155 frente a 0.4053. Solo gana de forma apreciable en las ventanas cortas
-(150 ms: +0.045; 200 ms: +0.048); en las de 250 y 300 ms empata o pierde.
+**La CNN no supera al LDA:** promediando las seis celdas, F1 0.3668 frente a
+0.4053 (−0.039). Solo en 200 ms queda por encima, y por 0.003. Con fuga
+parecía ganar en 4 de las 6 celdas (F1 medio 0.4155); al quitarla, el F1 de la
+CNN baja en todas, 0.049 de media, y la ventaja aparente de las ventanas cortas
+desaparece.
 
 Dos limitaciones de esta etapa: las seis celdas se eligieron por su F1 con LDA,
 y **las seis resultaron ser de 41.6 Hz**, así que la CNN no se probó a 83.2 Hz;
@@ -135,22 +147,30 @@ traslada.
 
 | | green | ir | 250both | 125both |
 |---|---|---|---|---|
-| accuracy | 0.4745 | 0.4575 | 0.4938 | 0.4425 |
-| F1 macro | 0.3958 | 0.3864 | 0.4367 | 0.3940 |
+| accuracy | 0.4719 | 0.4032 | 0.4722 | 0.3984 |
+| F1 macro | 0.3887 | 0.3276 | 0.4116 | 0.3359 |
 
-- **ANOVA de medidas repetidas**: F(3,27) = 0.250, **p = 0.860**
-- **Friedman**: chi2 = 2.280, p = 0.516
-- **Verde vs IR**: t pareada p = 0.806, Wilcoxon p = 0.695, diferencia media
-  +0.017 a favor del verde
+- **ANOVA de medidas repetidas**: F(3,27) = 0.977, **p = 0.418**
+- **Friedman**: chi2 = 0.600, p = 0.896
+- **Verde vs IR**: t pareada p = 0.279, Wilcoxon p = 0.432, diferencia media
+  +0.069 a favor del verde
 
 Con los dos modelos, y con las dos métricas, el resultado es el mismo: **no hay
 efecto de la longitud de onda**. Que un LDA de 55 parámetros y una
 CNN-BiLSTM-Attention coincidan hace difícil atribuir el empate a falta de
 capacidad del clasificador.
 
-La ordenación cambia entre modelos (con LDA el mejor era `green`, con CNN
-`250both`), lo que es de esperar cuando las diferencias no son significativas:
-es ruido de muestreo, no una preferencia distinta de cada modelo.
+Con fuga, la CNN daba 0.4745 / 0.4575 / 0.4938 / 0.4425 (ANOVA p = 0.860). Al
+quitarla bajan sobre todo `ir` (−0.054) y `125both` (−0.044), y la diferencia
+verde−IR crece de +0.017 a +0.069, pero sigue lejos de la significación: la
+desviación entre sujetos de cada configuración es de 0.11 a 0.17. La CNN
+corregida y el LDA quedan empatados (CNN − LDA = −0.006 sobre los 40 pares
+sujeto × configuración, Wilcoxon p = 0.90).
+
+La ordenación cambia entre modelos (con LDA el mejor es `green`; con la CNN,
+`green` y `250both` empatan), lo que es de esperar cuando las diferencias no
+son significativas: es ruido de muestreo, no una preferencia distinta de cada
+modelo.
 
 ---
 
@@ -224,13 +244,19 @@ LDA, SVM (RBF), Random Forest y la CNN sobre la misma partición por sujeto, con
 | LDA | acc 0.4456 ± 0.1061 · F1 0.3982 | **acc 0.5005 ± 0.0704 · F1 0.4804** | 55 |
 | SVM | acc 0.4348 ± 0.0577 · F1 0.3929 | acc 0.4150 ± 0.0316 · F1 0.3889 | 104 342 |
 | Random Forest | **acc 0.5031 ± 0.0427 · F1 0.4472** | acc 0.4470 ± 0.0501 · F1 0.4133 | 1 410 264 |
-| CNN | acc 0.4299 ± 0.0937 · F1 0.3925 | acc 0.4826 ± 0.1147 · F1 0.4519 | — |
+| CNN | acc 0.4123 ± 0.0997 · F1 0.3830 | acc 0.4358 ± 0.0656 · F1 0.3985 | — |
+| *CNN con fuga (histórica)* | *acc 0.4299 ± 0.0937 · F1 0.3925* | *acc 0.4826 ± 0.1147 · F1 0.4519* | — |
 
 **La CNN no gana en ningún escenario.** Con 40 canales la mejor es Random
-Forest (0.503 vs 0.430 de la CNN); con 5 canales es el **LDA** (0.5005 vs
-0.4826), y además con **55 parámetros** frente al millón largo del bosque. El
-resultado es coherente con 1.a: la ventaja de la CNN sobre el LDA en el barrido
-de ventanas era de 0.01 de F1.
+Forest (0.503 vs 0.412 de la CNN); con 5 canales es el **LDA** (0.5005 vs
+0.4358), y además con **55 parámetros** frente al millón largo del bosque.
+
+Quitar la fuga no cambia la conclusión, la refuerza. Por sujeto (Wilcoxon
+pareado, n = 10), CNN − LDA pasa de −0.015 a −0.033 en exactitud con 40 canales
+(p = 0.38) y de −0.019 a **−0.065 con 5 canales (p = 0.020)**: con el mejor
+subconjunto, el LDA supera a la CNN de forma nominalmente significativa (en F1,
+−0.068, p = 0.065). Es coherente con 1.a, donde la CNN corregida queda 0.039 de
+F1 por debajo del LDA.
 
 Cada modelo cambia de signo al reducir canales: LDA y CNN **mejoran** al pasar
 de 40 a 5, mientras que SVM y Random Forest empeoran. Es la misma maldición de
@@ -253,6 +279,13 @@ python analisis_canales.py --reusar
 python analisis_longitud_onda.py --modelo lda
 python analisis_clasicos.py --seed 42
 python analisis_ventana.py --etapa cnn --top 6 --seed 42
+# CNN sin fuga (validación interna + reentreno); se puede repartir en procesos
+python analisis_ventana.py --etapa cnn --top 6 --celdas 0 1 2 --seed 42
+python analisis_ventana.py --etapa cnn --top 6 --celdas 3 4 5 --seed 42
+python analisis_longitud_onda.py --modelo cnn --configs green --sufijo _corregido   # idem ir, 250both, 125both
+python analisis_longitud_onda.py --modelo cnn --sufijo _corregido --solo_estadistica
+python analisis_clasicos.py --modelos CNN --sufijo _cnn_corregido --seed 42
+python comparativa_fuga_cnn.py
 ```
 
 Salidas en `resultados/`. El detector de fases (`Modulo2_Pipeline_DL/fases.py`)

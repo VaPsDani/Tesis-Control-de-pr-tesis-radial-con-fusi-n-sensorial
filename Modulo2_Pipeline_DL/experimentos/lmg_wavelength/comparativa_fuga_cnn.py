@@ -31,7 +31,10 @@ def existe(*rutas):
 
 
 def celda(df):
-    return list(zip(df.fs_hz.round(1), df.ventana_ms.astype(int), df.solap_efectivo.round(3)))
+    # Clave de texto: con tuplas como indice, .loc[tupla, col] se lee como
+    # indexacion multinivel y falla.
+    return [f"({a:.1f}, {b:d}, {c:.3f})" for a, b, c in
+            zip(df.fs_hz, df.ventana_ms.astype(int), df.solap_efectivo)]
 
 
 def veredicto(dif_media, p, contexto):
