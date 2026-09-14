@@ -63,6 +63,41 @@ Nuestro protocolo corrige (1) contrabalanceando el orden y mostrando el gesto
 solo al empezar el bloque. Por eso **el contraste que vale es el del piloto**,
 todavía sin grabar.
 
+### Con la CNN sí aparece el efecto sobre la dinámica
+
+Mismos datos, mismo conjunto de test, CNN-BiLSTM-Attention. La CNN se entrena
+**sin fuga**: la época de parada y el calendario de LR se eligen con un sujeto
+de validación separado del train, nunca con el test, y después se reentrena con
+todo el train. No hay corrida anterior con fuga que corregir: esta es la
+primera de la CNN.
+
+| variante | accuracy | F1 macro | acc dinámica | acc meseta | acc Rest | reacción→Rest |
+|---|---|---|---|---|---|---|
+| solo_meseta | 0.5655 | 0.3945 | 0.1304 | 0.2435 | 0.9258 | 0.9586 |
+| dinamica_meseta | 0.5674 | 0.4126 | **0.2751** | 0.2790 | 0.8867 | 0.8547 |
+| todo_con_reaccion | 0.5638 | 0.4116 | 0.1650 | 0.2672 | 0.8957 | 0.8765 |
+
+Wilcoxon pareado por sujeto (n = 10) contra `dinamica_meseta`:
+
+| contraste | accuracy | acc dinámica |
+|---|---|---|
+| − solo_meseta | +0.002, p = 0.92 | **+0.161, p = 0.012** |
+| − todo_con_reaccion | +0.003, p = 1.00 | +0.093, p = 0.11 |
+
+- **Incluir la transición duplica la exactitud en la dinámica** (0.13 → 0.28,
+  la única variante por encima del 0.20 de azar) sin coste en la global. Es el
+  resultado de Chen et al. sobre sEMG. La p = 0.012 es una de cuatro pruebas;
+  con Bonferroni queda en 0.047, al límite.
+- **El LDA no lo ve** (0.161 → 0.162). Un clasificador lineal sobre
+  características de ventana no parece aprovechar la forma temporal de la
+  transición; la CNN sí. Por eso la tabla del LDA no basta para descartar el
+  efecto.
+- **La CNN no supera al LDA en global** (0.567 frente a 0.585 con
+  `dinamica_meseta`) y reconoce peor la meseta (0.28 frente a 0.33), pero
+  clasifica mucho mejor la reacción como Rest (0.85–0.96 frente a 0.59).
+- La razón (1) sigue en pie: la anticipación y el orden fijo contaminan las
+  fases, así que esto es una indicación para el piloto, no el resultado.
+
 ## Pendiente
 
 `ablacion_fases.py --csv <sesiones del piloto>` en cuanto existan datos. Sobre
@@ -74,6 +109,7 @@ definidas.
 ```bash
 python ablacion_fases.py --csv ../../captura/sesiones/*.csv
 python ablacion_fases.py --lmg_publico --config ir --data ~/data/lmg_wavelength_dataset
+python ablacion_fases.py --lmg_publico --config ir --modelo cnn --seed 42 --data ~/data/lmg_wavelength_dataset
 ```
 
 Salidas en `resultados/<fuente>_<modelo>/`: `ablacion_global.csv`,

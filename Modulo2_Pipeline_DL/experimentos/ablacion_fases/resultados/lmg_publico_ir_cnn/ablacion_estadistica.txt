@@ -1,0 +1,21 @@
+Ablacion de fases - lmg_publico_ir, cnn, GroupKFold por sujeto
+Ventana 200 ms, stride 20 ms, fs 83.2 Hz
+
+         variante  accuracy  f1_macro  acc_dinamica  acc_meseta  acc_rest  reaccion_como_rest
+      solo_meseta    0.5655    0.3945        0.1304      0.2435    0.9258              0.9586
+  dinamica_meseta    0.5674    0.4126        0.2751      0.2790    0.8867              0.8547
+todo_con_reaccion    0.5638    0.4116        0.1650      0.2672    0.8957              0.8765
+
+variante   dinamica_meseta  solo_meseta  todo_con_reaccion
+clase                                                     
+Rest                0.8867       0.9258             0.8957
+Pinch               0.1065       0.2198             0.1565
+Tripod              0.1834       0.1372             0.2278
+Power               0.3286       0.3069             0.3290
+Extension           0.4939       0.2959             0.3408
+
+Wilcoxon pareado por grupo contra dinamica_meseta (n = 10; p minimo alcanzable = 0.0020):
+  accuracy      dinamica_meseta - solo_meseta: media +0.0017  p = 0.9219
+  acc_dinamica  dinamica_meseta - solo_meseta: media +0.1612  p = 0.0117
+  accuracy      dinamica_meseta - todo_con_reaccion: media +0.0032  p = 1.0000
+  acc_dinamica  dinamica_meseta - todo_con_reaccion: media +0.0934  p = 0.1055
