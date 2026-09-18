@@ -59,14 +59,14 @@ float OpticaLMG::leerCanal(uint8_t i) {
 #if TRAMA_OSCURA_HABILITADA
     // D: solo luz ambiental. El asentamiento cubre la cola del LED que
     // estaba encendido en la lectura anterior.
-    delayMicroseconds(ASENTAMIENTO_LED_US);
+    delayMicroseconds(LED_SETTLE_US);
     const float D = _adc.leerActual();
 
     // L: ambiental + LED propio. Se toma inmediatamente despues de D para
     // acortar dt todo lo que el ADC permite (ver optica_lmg.h: aun asi no
     // basta para cancelar el parpadeo de 120 Hz).
     _encender(i);
-    delayMicroseconds(ASENTAMIENTO_LED_US);
+    delayMicroseconds(LED_SETTLE_US);
     const float L = _adc.leerActual();
     _apagar(i);
 
@@ -74,7 +74,7 @@ float OpticaLMG::leerCanal(uint8_t i) {
     return L - D;
 #else
     _encender(i);
-    delayMicroseconds(ASENTAMIENTO_LED_US);
+    delayMicroseconds(LED_SETTLE_US);
     const float L = _adc.leerActual();
     _apagar(i);
     return L;

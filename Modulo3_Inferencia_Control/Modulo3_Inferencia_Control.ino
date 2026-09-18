@@ -208,7 +208,7 @@ void autotestTemporal() {
     const float periodo = INTERVALO_MUESTRA_MS * 1000.0f;
     const uint8_t convLMG = NUM_LMG * (TRAMA_OSCURA_HABILITADA ? 2 : 1);
     const float estimado =
-        convLMG * (ADC_CONVERSION_US + ADC_OVERHEAD_I2C_US + ASENTAMIENTO_LED_US)
+        convLMG * (ADC_CONVERSION_US + ADC_OVERHEAD_I2C_US + LED_SETTLE_US)
         + NUM_LMG * ASENTAMIENTO_MUX_US
         + (ADC_CONVERSION_US + ADC_OVERHEAD_I2C_US + ASENTAMIENTO_MUX_US)
         + 400.0f;

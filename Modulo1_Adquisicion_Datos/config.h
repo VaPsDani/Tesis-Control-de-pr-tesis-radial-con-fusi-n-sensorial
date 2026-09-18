@@ -5,7 +5,7 @@
  * PINOUT:
  *   I2C-1: SDA=GPIO21, SCL=GPIO22  → ADS1115 (0x48), MPU6050 (0x68)
  *   MUX:   S0=GPIO32, S1=GPIO33, S2=GPIO25, S3=GPIO26, EN=GND
- *   LED LMG: GPIO 16, 17, 18, 19, 23 (PWM, via transistor)
+ *   LED LMG: GPIO 13, 14, 27, 16, 17 (PWM, 100 ohm en serie al LED)
  *   Serial: 921600 baud
  */
 
@@ -72,14 +72,16 @@
 #endif
 
 // ======================== LED DE LOS MODULOS LMG (Tarea 3.a) ========================
-// Un pin por LED: se enciende solo el del canal que se lee. Cada pin
-// comanda un transistor, no el LED directamente. Validos en el WROOM 32;
-// en un WROVER, 16 y 17 son de la PSRAM. CONFIRMAR CONTRA EL PCB.
-#define PIN_LED_LMG_1   16
-#define PIN_LED_LMG_2   17
-#define PIN_LED_LMG_3   18
-#define PIN_LED_LMG_4   19
-#define PIN_LED_LMG_5   23
+// Un pin por LED: se enciende solo el del canal que se lee. Ataque
+// directo con 100 ohm en serie (~20 mA con el LED IR 1206 de 940 nm,
+// Vf ~1.3 V), nunca los cinco a la vez. GPIO de la nota de diseno
+// (claude/nota-diseno-modulos-lmg.md). Validos en el WROOM 32; en un
+// WROVER, 16 y 17 son de la PSRAM. CONFIRMAR CONTRA EL PCB.
+#define PIN_LED_LMG_1   13
+#define PIN_LED_LMG_2   14
+#define PIN_LED_LMG_3   27
+#define PIN_LED_LMG_4   16
+#define PIN_LED_LMG_5   17
 
 #define LED_PWM_FREQ_HZ   100000     // >> 14 kHz de ancho de banda del OPT101
 #define LED_PWM_BITS      9          // 100 kHz x 2^9 <= 80 MHz
@@ -89,10 +91,12 @@
 // L - D. Ligada al ADS1015: con el ADS1115 el ciclo no cabe y el residuo
 // del parpadeo de 120 Hz tras restar seria del 113%.
 #define TRAMA_OSCURA_HABILITADA  (ADC_MODELO == ADC_ADS1015)
-#define ASENTAMIENTO_LED_US      200
+// 300 us por la nota de diseno; el OPT101 responde en ~80 us. Ver la
+// nota del presupuesto en Modulo3_Inferencia_Control/config.h.
+#define LED_SETTLE_US            300
 
 // ======================== AUTOCALIBRACION DE GANANCIA (Tarea 3.d) ========================
-#define FONDO_ESCALA_UTIL_MV       3700.0f
+#define FONDO_ESCALA_UTIL_MV       2000.0f
 #define AUTOCAL_OBJETIVO_FRAC      0.35f
 #define AUTOCAL_LIMITE_FRAC        0.95f
 #define AUTOCAL_UMBRAL_DISPERSION  1.5f

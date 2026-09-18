@@ -6,11 +6,11 @@ a la aplicación de captura del Módulo 2 (`Modulo2_Pipeline_DL/captura/`).
 
 ## Lectura óptica
 
-- **Un LED a la vez.** Cada módulo LMG tiene su propio pin PWM (GPIO 16, 17, 18,
-  19, 23; confirmar contra el PCB, cada pin gobierna un transistor). Solo se
-  enciende el LED del canal que se está leyendo, lo que elimina el crosstalk
-  óptico entre módulos vecinos.
-- **Trama oscura** (`v = L − D`, con 200 µs de asentamiento). Cancela la
+- **Un LED a la vez.** Cada módulo LMG tiene su propio pin PWM (GPIO 13, 14, 27,
+  16, 17; confirmar contra el PCB, ataque directo con 100 Ω en serie, según
+  `claude/nota-diseno-modulos-lmg.md`). Solo se enciende el LED del canal que se
+  está leyendo, lo que elimina el crosstalk óptico entre módulos vecinos.
+- **Trama oscura** (`v = L − D`, con 300 µs de asentamiento). Cancela la
   componente continua de la luz ambiental. **No** cancela el parpadeo de 120 Hz
   de las lámparas: D y L quedan separadas por una conversión completa del ADC. La
   trama oscura va ligada al ADS1015; con el ADS1115 el ciclo no cabe en 10 ms.

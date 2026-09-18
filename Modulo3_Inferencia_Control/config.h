@@ -17,6 +17,8 @@
  *   MPU6050: 0x68   (IMU)
  *   PCA9685: 0x40   (Driver Servos)
  *
+ * LED LMG: GPIO 13, 14, 27, 16, 17 (PWM, 100 ohm en serie al LED)
+ *
  * MUX CD74HC4067 (compartido LMG + FSR):
  *   S0=32, S1=33, S2=25, S3=26, EN=GND
  *   Canales 0-4:   LMG 1..5
@@ -105,19 +107,21 @@
 // Un pin por LED para encender solo el del canal que se lee y eliminar el
 // crosstalk optico entre modulos vecinos.
 //
-// GPIO elegidos: no son pines de arranque (0, 2, 5, 12, 15), no son de
-// la flash (6-11) ni solo de entrada (34-39), y todos admiten LEDC.
+// GPIO de la nota de diseno (claude/nota-diseno-modulos-lmg.md, PCB de
+// los modulos SMD). No son pines de arranque (0, 2, 5, 12, 15), no son
+// de la flash (6-11) ni solo de entrada (34-39), y todos admiten LEDC.
 // Validos en el WROOM 32; en un WROVER, 16 y 17 son de la PSRAM.
 // CONFIRMAR CONTRA EL PCB antes del bring-up.
 //
-// HARDWARE: un GPIO del ESP32 no debe entregar la corriente de un LED IR
-// (decenas de mA). Cada pin comanda un transistor (NPN o MOSFET canal N
-// en lado bajo) que conmuta el LED.
-#define PIN_LED_LMG_1   16
-#define PIN_LED_LMG_2   17
-#define PIN_LED_LMG_3   18
-#define PIN_LED_LMG_4   19
-#define PIN_LED_LMG_5   23
+// HARDWARE: ataque directo desde el GPIO con 100 ohm en serie. Con el
+// LED IR 1206 de 940 nm (Vf ~1.3 V) son ~20 mA, dentro de lo que
+// entrega un pin del ESP32. Solo se enciende un LED a la vez, asi que
+// los 20 mA nunca se multiplican por cinco.
+#define PIN_LED_LMG_1   13
+#define PIN_LED_LMG_2   14
+#define PIN_LED_LMG_3   27
+#define PIN_LED_LMG_4   16
+#define PIN_LED_LMG_5   17
 
 // PWM para regular la corriente de cada LED (autocalibracion). 100 kHz
 // queda muy por encima de los 14 kHz de ancho de banda del OPT101, que lo
@@ -138,14 +142,18 @@
 // Mientras siga soldado el ADS1115 se lee solo L, un LED a la vez.
 #define TRAMA_OSCURA_HABILITADA  (ADC_MODELO == ADC_ADS1015)
 // Asentamiento del OPT101 con su realimentacion interna de 1 MOhm:
-// ~80 us; 200 con margen.
-#define ASENTAMIENTO_LED_US      200
+// ~80 us. La nota de diseno fija 300 us. Son 600 us por ciclo mas que
+// los 200 anteriores (5 canales + 1 trama oscura), y el presupuesto de
+// abajo esta calculado con 300. Si hay que recuperar esos 600 us, este
+// es el primer sitio donde mirar: 200 sigue dando 2.5 veces el tiempo
+// de respuesta del fotodiodo.
+#define LED_SETTLE_US            300
 
 // ======================== AUTOCALIBRACION DE GANANCIA (Tarea 3.d) ========================
 // Fondo de escala UTIL: el menor entre el del ADC (4096 mV a GAIN_ONE) y
 // la excursion maxima del OPT101, que con 5 V de alimentacion satura
 // hacia Vs - 1.3 V = 3.7 V. Si el OPT101 va a 3.3 V, bajar a ~2000.
-#define FONDO_ESCALA_UTIL_MV       3700.0f
+#define FONDO_ESCALA_UTIL_MV       2000.0f
 #define AUTOCAL_OBJETIVO_FRAC      0.35f    // reposo en el 35% del FS
 #define AUTOCAL_LIMITE_FRAC        0.95f    // el gesto maximo no pasa del 95%
 // Si max/min del reposo entre canales es menor que esto a corriente
