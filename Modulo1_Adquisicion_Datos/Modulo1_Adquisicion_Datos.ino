@@ -143,11 +143,24 @@ void autotestTemporal() {
     }
 }
 
+// Version del firmware y ajustes que alteran la senal. La app de captura
+// lo guarda en el JSON de la sesion, de modo que meses despues se sabe
+// con que firmware se grabo cada CSV.
+void emitirVersion() {
+    Serial.printf("[FW] version=%s modulo=1 adc=%s trama_oscura=%d "
+                  "led_settle_us=%d fs_hz=%d\n",
+                  FIRMWARE_VERSION,
+                  ADC_MODELO == ADC_ADS1015 ? "ADS1015" : "ADS1115",
+                  TRAMA_OSCURA_HABILITADA ? 1 : 0,
+                  LED_SETTLE_US, 1000 / INTERVALO_MS);
+}
+
 void setup() {
     Serial.begin(BAUDIOS);
     Wire.begin(PIN_SDA, PIN_SCL);
     Wire.setClock(I2C_FREQ);
 
+    emitirVersion();
     Serial.println("[INIT] Inicializando MUX + ADC...");
     if (!muxAds.begin()) {
         Serial.println("[ERROR] ADC no detectado");
@@ -184,7 +197,9 @@ void loop() {
         char c = Serial.read();
         if (c == 'L') {
             // Antes de la primera muestra, para que la PC tenga la
-            // ganancia y el reposo de la sesion aunque se aborte.
+            // version, la ganancia y el reposo de la sesion aunque se
+            // aborte a los dos minutos.
+            emitirVersion();
             emitirOptica();
             adquiriendo = true;
             contadorMuestras = 0;
@@ -216,6 +231,7 @@ void loop() {
         } else if (c == 'T') {
             autotestTemporal();
         } else if (c == 'K') {
+            emitirVersion();
             emitirOptica();
         }
     }

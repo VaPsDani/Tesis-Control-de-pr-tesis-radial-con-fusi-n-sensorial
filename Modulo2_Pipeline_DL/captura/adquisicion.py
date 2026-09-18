@@ -59,18 +59,29 @@ from typing import List, Optional
 CAMPOS_FIRMWARE = ["timestamp_ms", "v1", "v2", "v3", "v4", "v5",
                    "ax", "ay", "az", "gx", "gy", "gz"]
 
-# Esquema completo del CSV: los del firmware mas los del protocolo.
-CAMPOS_CSV = (["subject_id", "repetition_id"] + CAMPOS_FIRMWARE
-              + ["label", "bloque_tipo", "en_margen", "es_calibracion"])
-# Orden final pedido: subject, repetition, timestamp, senales, protocolo.
+# Esquema del CSV. Los nombres de las primeras 18 columnas NO se cambian:
+# los leen preprocesamiento.py, anotar_fases.py y verificar_piloto.py.
+# Las columnas nuevas se ANADEN al final, que es donde no rompen nada.
+#
+# OJO CON LA PALABRA FASE: aqui bloque_tipo es calibracion, preparacion,
+# contraccion o reposo. La columna fase de fases.py es otra cosa, reposo,
+# dinamica, meseta o reaccion, y se calcula despues sobre el CSV cerrado.
 CAMPOS_CSV = ["subject_id", "repetition_id", "timestamp_ms",
               "v1", "v2", "v3", "v4", "v5",
               "ax", "ay", "az", "gx", "gy", "gz",
-              "label", "bloque_tipo", "en_margen", "es_calibracion"]
+              "label", "bloque_tipo", "en_margen", "es_calibracion",
+              # Anadidas para la sesion guiada:
+              "id_participante",    # anonimo, S01, S02, ...
+              "bloque_postura",     # estatico o dinamico
+              "posicion_brazo",     # vacia en el bloque estatico
+              "ts_pc_ms",           # reloj de la PC, epoch en ms
+              "descartada"]         # 1 si el operador anulo la repeticion
 
-BAUDIOS = 921600
-PERIODO_MS = 10
-HUECO_MAX_MS = 3 * PERIODO_MS
+from config_captura import (BAUDIOS_DEFECTO, FLUSH_CADA_N,  # noqa: E402
+                            GRACIA_ARRANQUE_S, HUECO_MAX_MS, PERIODO_MS,
+                            TIMEOUT_SIN_DATOS_S)
+
+BAUDIOS = BAUDIOS_DEFECTO      # se conserva el nombre anterior
 
 
 @dataclass
@@ -78,6 +89,11 @@ class Muestra:
     t_esp32: int
     valores: List[float]        # v1..v5, ax, ay, az, gx, gy, gz (11)
     t_pc: float                 # time.monotonic() a la llegada
+    # Reloj de pared de la PC, en ms desde epoch. El espaciado entre
+    # muestras se toma SIEMPRE del reloj del ESP32, que es el bueno. Este
+    # solo sirve para cruzar la sesion con hechos externos, como una nota
+    # del operador o la hora de una incidencia.
+    ts_pc_ms: int = 0
 
 
 @dataclass
@@ -118,6 +134,14 @@ class LectorSerie(threading.Thread):
         self._ventana_tasa: List[float] = []
         self.marcadores: List[tuple] = []      # (t_esp32, indice_bloque)
         self._marcador_pendiente: Optional[int] = None
+
+        # Caida del puerto. El hilo no decide nada: deja constancia y la
+        # sesion, que es quien sabe lo que hay en pantalla, pausa y avisa.
+        self.fallo: Optional[str] = None
+        self.t_ultimo_dato: float = time.monotonic()
+        # Lineas de arranque del firmware, para el JSON de la sesion.
+        self.banner: List[str] = []
+        self.version_firmware: Optional[str] = None
         # Lineas [OPTICA_*] del firmware: config del ADC, duty de cada LED
         # y reposo por canal en mV (S-barra-r del indice de rendimiento).
         self.optica: dict = {}
@@ -160,7 +184,11 @@ class LectorSerie(threading.Thread):
         while not self._parar.is_set():
             try:
                 linea = self._ser.readline()
-            except Exception:
+            except Exception as e:
+                # Cable desconectado, adaptador retirado o puerto tomado
+                # por otro programa. Se registra y se sale del bucle: la
+                # sesion lo detecta en su siguiente tick.
+                self.fallo = f"{type(e).__name__}: {e}"
                 break
             if not linea:
                 continue
@@ -183,7 +211,8 @@ class LectorSerie(threading.Thread):
             if self._marcador_pendiente is not None:
                 self.marcadores.append((t_esp32, self._marcador_pendiente))
                 self._marcador_pendiente = None
-            self._encolar(Muestra(t_esp32, valores, time.monotonic()))
+            self._encolar(Muestra(t_esp32, valores, time.monotonic(),
+                                  int(time.time() * 1000)))
             n += 1
 
     def _procesar(self, texto: str):
@@ -215,8 +244,21 @@ class LectorSerie(threading.Thread):
                     pass
             return
 
+        if texto.startswith("[FW]"):
+            # Version del firmware, si la emite. Formato: [FW] version=...
+            for par in texto[4:].split():
+                if par.startswith("version="):
+                    self.version_firmware = par.split("=", 1)[1]
+            self.banner.append(texto)
+            return
+
         if texto.startswith("["):
-            return                       # mensajes informativos del firmware
+            # Mensajes informativos del firmware: [INIT], [OK], [READY],
+            # [AUTOTEST]. Se guardan para el JSON, acotados, porque el
+            # autotest del ciclo es parte del estado del equipo ese dia.
+            if len(self.banner) < 40:
+                self.banner.append(texto)
+            return
 
         partes = texto.split(",")
         if len(partes) != len(CAMPOS_FIRMWARE):
@@ -229,7 +271,8 @@ class LectorSerie(threading.Thread):
             self.stats.lineas_malformadas += 1
             return
 
-        self._encolar(Muestra(t_esp32, valores, time.monotonic()))
+        self._encolar(Muestra(t_esp32, valores, time.monotonic(),
+                              int(time.time() * 1000)))
 
     def _encolar(self, m: Muestra):
         # Deteccion de huecos con el reloj del ESP32. Un salto mayor a 3
@@ -245,6 +288,7 @@ class LectorSerie(threading.Thread):
 
         self.stats.total += 1
         self.stats.ultimo_lmg = m.valores[:5]
+        self.t_ultimo_dato = m.t_pc
 
         ahora = m.t_pc
         self._ventana_tasa.append(ahora)
@@ -257,6 +301,41 @@ class LectorSerie(threading.Thread):
         except queue.Full:
             self.stats.lineas_malformadas += 1
         self.stats.backlog = self.cola.qsize()
+
+    def caido(self) -> Optional[str]:
+        """
+        Motivo por el que el enlace se considera caido, o None.
+
+        Dos sintomas: una excepcion al leer, que es el caso del cable
+        desconectado, y el silencio prolongado, que es el del ESP32
+        reiniciado o el adaptador colgado. El segundo hace falta porque
+        readline() con timeout devuelve vacio sin lanzar nada.
+
+        GRACIA DE ARRANQUE: el ESP32 se reinicia al abrirse el puerto y
+        tarda en responder, asi que mientras no haya llegado la primera
+        muestra se concede un plazo mas largo. Sin esto, cada sesion
+        empezaria con un falso aviso de enlace caido.
+        """
+        if self.fallo:
+            return self.fallo
+        if not self.simulado and not self.is_alive():
+            return "el hilo lector termino"
+        callado = time.monotonic() - self.t_ultimo_dato
+        limite = (TIMEOUT_SIN_DATOS_S if self.stats.total
+                  else GRACIA_ARRANQUE_S)
+        if callado > limite:
+            return f"sin muestras desde hace {callado:.1f} s"
+        return None
+
+    def reanudado(self):
+        """
+        Reinicia el reloj de silencio al reanudar una pausa.
+
+        Durante la pausa se envia 'S' y el firmware deja de emitir, asi
+        que al volver el contador viene con toda la pausa acumulada y
+        dispararia un falso aviso.
+        """
+        self.t_ultimo_dato = time.monotonic()
 
     def bloque_de(self, t_esp32: int) -> Optional[int]:
         """
@@ -281,11 +360,14 @@ class EscritorCSV:
     un CSV truncado en una fila completa y no a medias.
     """
 
-    FLUSH_CADA_N = 100
+    FLUSH_CADA_N = FLUSH_CADA_N
 
-    def __init__(self, ruta: str, subject_id: int):
+    def __init__(self, ruta: str, subject_id: int,
+                 id_participante: str = "", bloque_postura: str = ""):
         self.ruta = ruta
         self.subject_id = subject_id
+        self.id_participante = id_participante
+        self.bloque_postura = bloque_postura
         self._f = None
         self._w = None
         self._n = 0
@@ -313,6 +395,11 @@ class EscritorCSV:
             bloque.tipo,
             bloque.en_margen(bloque.t_inicio_ms + t_rel_ms),
             bloque.es_calibracion,
+            self.id_participante,
+            self.bloque_postura,
+            bloque.posicion_brazo,
+            m.ts_pc_ms,
+            0,          # descartada: se marca al cerrar, si hubo descartes
         ]
         self._w.writerow(fila)
         self.filas_escritas += 1
@@ -338,3 +425,59 @@ class EscritorCSV:
             os.fsync(self._f.fileno())
             self._f.close()
             self._f = None
+
+
+def marcar_descartadas(ruta: str, descartadas) -> int:
+    """
+    Pone descartada = 1 en las filas de las repeticiones anuladas.
+
+    POR QUE AL CERRAR Y NO EN CALIENTE:
+      Cuando el operador descarta una repeticion, sus filas ya estan en
+      disco. Reescribir el CSV mientras se captura seria arriesgar la
+      sesion entera por una anotacion. Aqui se hace una sola pasada sobre
+      el archivo ya cerrado, a un temporal, y se reemplaza al final. Si
+      algo falla, el CSV original queda intacto y la lista de descartes
+      sigue estando en el JSON de la sesion, que es la fuente de verdad.
+
+    Args:
+        descartadas: iterable de pares (repetition_id, label).
+
+    Returns:
+        Numero de filas marcadas.
+    """
+    objetivo = {(int(r), int(l)) for r, l in descartadas}
+    if not objetivo or not os.path.exists(ruta):
+        return 0
+
+    tmp = ruta + ".tmp"
+    marcadas = 0
+    with open(ruta, "r", newline="", encoding="utf-8") as fin, \
+            open(tmp, "w", newline="", encoding="utf-8") as fout:
+        lector = csv.reader(fin)
+        escritor = csv.writer(fout)
+        cabecera = next(lector)
+        escritor.writerow(cabecera)
+        i_rep = cabecera.index("repetition_id")
+        i_lab = cabecera.index("label")
+        i_des = cabecera.index("descartada")
+        i_tipo = cabecera.index("bloque_tipo")
+        for fila in lector:
+            try:
+                clave = (int(fila[i_rep]), int(fila[i_lab]))
+            except (ValueError, IndexError):
+                escritor.writerow(fila)
+                continue
+            # Solo la preparacion y la contraccion de ese gesto. El
+            # reposo que sigue lleva label 0 y comparte repetition_id con
+            # los otros tres gestos de la repeticion, asi que no se puede
+            # identificar por clave, y ademas sigue siendo reposo valido:
+            # que el participante se equivocara de gesto no invalida el
+            # reposo posterior.
+            if clave in objetivo and fila[i_tipo] in ("preparacion",
+                                                      "contraccion"):
+                fila[i_des] = "1"
+                marcadas += 1
+            escritor.writerow(fila)
+
+    os.replace(tmp, ruta)
+    return marcadas

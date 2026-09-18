@@ -12,6 +12,14 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+// ======================== VERSION ========================
+// La emite el firmware al arrancar como [FW] version=..., y la app de
+// captura la guarda en el JSON de cada sesion. Sin esto, una sesion
+// grabada no dice con que firmware se tomo, y eso es justo lo que hace
+// falta cuando dos sesiones no se parecen. SUBIRLA al cambiar algo que
+// altere la senal: pines, asentamiento, trama oscura o ADC.
+#define FIRMWARE_VERSION  "M1-2026.09.18"
+
 // ======================== SERIAL ========================
 // 921600 y no 115200. Con 12 campos por linea (~122 bytes) a 100 Hz
 // hacen falta 12200 B/s, y 115200 baudios 8N1 solo dan 11520 B/s: el
