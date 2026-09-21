@@ -77,7 +77,8 @@ def verificar_fronteras(df, window=20, stride=2):
               if c in df.columns]
     cambio = np.zeros(len(df), dtype=bool)
     for c in claves:
-        cambio |= df[c].ne(df[c].shift()).values
+        col = df[c].fillna("")      # NaN nunca es igual a si mismo
+        cambio |= col.ne(col.shift()).values
     dt = df["timestamp_ms"].diff().values
     cambio |= np.nan_to_num(dt, nan=0.0) > 3 * PERIODO_MS
     seg = np.cumsum(cambio)

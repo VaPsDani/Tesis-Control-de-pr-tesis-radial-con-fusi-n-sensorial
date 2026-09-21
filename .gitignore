@@ -63,3 +63,7 @@ Modulo2_Pipeline_DL/sesiones/
 # grandes y no nos pertenecen (lmg_wavelength_dataset no declara
 # licencia). Descargar con las instrucciones de cada experimento.
 data/
+
+# Sesiones sinteticas del experimento de ablacion: se regeneran con
+# --simulado y no son datos reales.
+Modulo2_Pipeline_DL/experimentos/ablacion_imu/resultados/sesiones_sinteticas/

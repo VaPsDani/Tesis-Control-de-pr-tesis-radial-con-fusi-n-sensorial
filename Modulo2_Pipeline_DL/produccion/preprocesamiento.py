@@ -265,7 +265,11 @@ class SlidingWindowPreprocessor:
         if claves:
             cambio = np.zeros(len(df), dtype=bool)
             for c in claves:
-                cambio |= df[c].ne(df[c].shift()).values
+                # fillna antes de comparar: condicion_postural viene
+                # vacia en la calibracion y NaN nunca es igual a si
+                # mismo, asi que sin esto cada fila seria un segmento.
+                col = df[c].fillna("")
+                cambio |= col.ne(col.shift()).values
             if "timestamp_ms" in df.columns:
                 dt = df["timestamp_ms"].diff().values
                 periodo = 1000.0 / self.sampling_rate_hz
