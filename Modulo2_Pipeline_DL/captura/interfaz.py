@@ -30,8 +30,9 @@ import os
 import tkinter as tk
 from tkinter import filedialog, ttk
 
-from config_captura import (BAUDIOS_DEFECTO, BLOQUE_DINAMICO, BLOQUE_ESTATICO,
-                            BLOQUES_POSTURA, COLOR_CALIBRACION, COLOR_CONTRACCION,
+from config_captura import (BAUDIOS_DEFECTO, CONDICION_DINAMICA,
+                            CONDICION_ESTATICA, TEXTO_CONDICION,
+                            COLOR_CALIBRACION, COLOR_CONTRACCION,
                             COLOR_FIN, COLOR_PAUSA, COLOR_PREPARACION,
                             COLOR_RAMPA, COLOR_REPOSO, COLOR_TEXTO, COLORES_LMG,
                             DIR_IMAGENES, DIR_IMAGENES_ALT, DIR_SALIDA_DEFECTO,
@@ -39,7 +40,8 @@ from config_captura import (BAUDIOS_DEFECTO, BLOQUE_DINAMICO, BLOQUE_ESTATICO,
                             FUENTE_INSTRUCCION, FUENTE_PIE, FUENTE_POSICION,
                             LADO_IMAGEN, PUERTO_DEFECTO, RAMPA_CONTRACCION_MS,
                             SONIDO_HABILITADO, SONIDO_HZ, SONIDO_MS,
-                            TEXTO_MOVIMIENTO_LENTO, TEXTO_POSICION)
+                            POSICIONES_BRAZO, TEXTO_MOVIMIENTO_LENTO,
+                            TEXTO_POSICION)
 from protocolo import (TIPO_CALIBRACION, TIPO_CONTRACCION, TIPO_PREPARACION,
                        TIPO_REPOSO, NOMBRES_GESTOS)
 
@@ -112,11 +114,29 @@ class VentanaParticipante(tk.Toplevel):
             bg=COLOR_REPOSO, fg=COLOR_TEXTO)
         self._gesto.pack(pady=4)
 
-        # Posicion del brazo. Solo aparece en el bloque dinamico.
+        # Condicion de la repeticion, en texto.
         self._posicion = tk.Label(
             self, text="", font=FUENTE_POSICION,
             bg=COLOR_REPOSO, fg=COLOR_TEXTO)
         self._posicion.pack(pady=2)
+
+        # Indicador de posicion del brazo: tres casillas con su nombre,
+        # de las que se ilumina la que toca. Va con nombre y no solo con
+        # color, porque el color no puede ser la unica senal, y con un
+        # tono en cada cambio, para que el participante no tenga que
+        # mirar la pantalla mientras mueve el brazo.
+        self._marco_pos = tk.Frame(self, bg=COLOR_REPOSO)
+        self._marco_pos.pack(pady=4)
+        self._casillas = []
+        for i, pos in enumerate(POSICIONES_BRAZO):
+            c = tk.Label(self._marco_pos, text=TEXTO_POSICION.get(pos, pos),
+                         font=("Helvetica", 20, "bold"), width=22, pady=10,
+                         bg=COLOR_REPOSO, fg=COLOR_TEXTO,
+                         highlightbackground=COLOR_TEXTO, highlightthickness=2)
+            c.grid(row=0, column=i, padx=6)
+            self._casillas.append((pos, c))
+        self._pos_actual = None
+        self._marco_pos.pack_forget()       # oculto salvo en dinamicas
 
         # Hueco para el pictograma del gesto. Las imagenes van en
         # gui_captura/assets/<Gesto>.png; si no existen, se muestra el
@@ -182,7 +202,7 @@ class VentanaParticipante(tk.Toplevel):
     def _pintar(self, color: str):
         self.configure(bg=color)
         for w in (self._fase, self._instruccion, self._gesto, self._posicion,
-                  self._cuenta, self._rampa, self._rampa_txt,
+                  self._marco_pos, self._cuenta, self._rampa, self._rampa_txt,
                   self._progreso_txt, self._marco_img, self._img):
             w.configure(bg=color)
 
@@ -198,9 +218,39 @@ class VentanaParticipante(tk.Toplevel):
         self._rampa.coords(self._rampa_relleno, 2, 2, 2 + frac * 896, 24)
         self._rampa_txt.config(text="Suba la fuerza poco a poco, sin golpe")
 
+    def _actualizar_posicion(self, bloque, transcurrido_ms: float):
+        """
+        Ilumina la casilla de la posicion que toca y suena al cambiar.
+
+        Se llama en cada refresco, asi que el cambio de casilla ocurre en
+        el mismo instante en el que la posicion cambia en el CSV: las dos
+        cosas salen de bloque.posicion_en().
+        """
+        if bloque.tipo != TIPO_CONTRACCION or not bloque.orden_posiciones:
+            if self._pos_actual is not None:
+                self._marco_pos.pack_forget()
+                self._pos_actual = None
+            return
+
+        if not self._marco_pos.winfo_ismapped():
+            self._marco_pos.pack(after=self._posicion, pady=4)
+
+        actual = bloque.posicion_en(bloque.t_inicio_ms + transcurrido_ms)
+        for pos, casilla in self._casillas:
+            activa = pos == actual
+            casilla.configure(
+                bg=COLOR_RAMPA if activa else color_de(bloque.tipo),
+                fg="#000000" if activa else COLOR_TEXTO,
+                text=("> " if activa else "  ")
+                     + TEXTO_POSICION.get(pos, pos)
+                     + (" <" if activa else "  "))
+        if actual != self._pos_actual:
+            if self._pos_actual is not None:
+                sonar("posicion")
+            self._pos_actual = actual
+
     def actualizar(self, bloque, restante_s: float, frac: float,
-                   idx: int, total: int, transcurrido_ms: float = 0.0,
-                   bloque_postura: str = ""):
+                   idx: int, total: int, transcurrido_ms: float = 0.0):
         self._pintar(color_de(bloque.tipo))
         self._fase.config(text=TEXTO_FASE.get(bloque.tipo, bloque.tipo.upper()))
 
@@ -218,13 +268,20 @@ class VentanaParticipante(tk.Toplevel):
             self._instruccion.config(text="Ejecute y mantenga")
             self._gesto.config(text=bloque.nombre_gesto.upper())
 
-        # Posicion del brazo, solo en el bloque dinamico.
-        if bloque_postura == BLOQUE_DINAMICO and bloque.posicion_brazo:
-            self._posicion.config(
-                text=f"{TEXTO_POSICION.get(bloque.posicion_brazo, bloque.posicion_brazo)}"
-                     f"\n{TEXTO_MOVIMIENTO_LENTO}")
+        # Condicion de la repeticion. Se anuncia ya en la preparacion,
+        # para que el participante sepa si va a tener que moverse antes de
+        # empezar a contraer.
+        if bloque.condicion_postural == CONDICION_DINAMICA:
+            texto = TEXTO_CONDICION[CONDICION_DINAMICA]
+            if bloque.tipo in (TIPO_PREPARACION, TIPO_CONTRACCION):
+                texto += f"\n{TEXTO_MOVIMIENTO_LENTO}"
+            self._posicion.config(text=texto)
+        elif bloque.condicion_postural == CONDICION_ESTATICA:
+            self._posicion.config(text=TEXTO_CONDICION[CONDICION_ESTATICA])
         else:
             self._posicion.config(text="")
+
+        self._actualizar_posicion(bloque, transcurrido_ms)
 
         # La imagen acompana desde la preparacion, que es cuando sirve
         # para reconocer el gesto que viene.
@@ -432,7 +489,6 @@ class VentanaOperador(tk.Tk):
         self.var_id_participante = tk.StringVar(value="S01")
         self.var_puerto = tk.StringVar(value=PUERTO_DEFECTO)
         self.var_baudios = tk.StringVar(value=str(BAUDIOS_DEFECTO))
-        self.var_postura = tk.StringVar(value=BLOQUE_ESTATICO)
         self.var_salida = tk.StringVar(value=os.path.abspath(DIR_SALIDA_DEFECTO))
 
         ttk.Label(f, text="subject_id").grid(row=0, column=0, sticky="w", padx=4)
@@ -448,9 +504,8 @@ class VentanaOperador(tk.Tk):
         ttk.Entry(f, textvariable=self.var_puerto, width=8).grid(row=1, column=1)
         ttk.Label(f, text="baudios").grid(row=1, column=2, sticky="w", padx=4)
         ttk.Entry(f, textvariable=self.var_baudios, width=8).grid(row=1, column=3)
-        ttk.Label(f, text="bloque").grid(row=1, column=4, sticky="w", padx=4)
-        ttk.Combobox(f, textvariable=self.var_postura, values=BLOQUES_POSTURA,
-                     width=10, state="readonly").grid(row=1, column=5, padx=4)
+        # La condicion postural ya no se elige aqui: cada repeticion
+        # lleva la suya, 3 estaticas y 3 dinamicas por gesto.
 
         ttk.Label(f, text="carpeta").grid(row=2, column=0, sticky="w", padx=4)
         ttk.Entry(f, textvariable=self.var_salida,
@@ -539,7 +594,6 @@ class VentanaOperador(tk.Tk):
     def metadatos(self) -> dict:
         d = {k: v.get() for k, v in self.vars_meta.items()}
         d["id_participante"] = self.var_id_participante.get().strip()
-        d["bloque_postura"] = self.var_postura.get()
         d["observaciones"] = self.txt_obs.get("1.0", "end").strip()
         return d
 

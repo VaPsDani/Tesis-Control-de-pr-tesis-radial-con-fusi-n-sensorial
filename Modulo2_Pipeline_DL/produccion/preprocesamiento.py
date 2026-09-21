@@ -29,10 +29,18 @@ ETIQUETADO:
     3 = Power
     4 = Finger_Extension
 
-ESQUEMA DEL CSV DE CAPTURA (18 columnas):
+ESQUEMA DEL CSV DE CAPTURA:
   subject_id, repetition_id, timestamp_ms, v1..v5,
-  ax, ay, az, gx, gy, gz, label, bloque_tipo, en_margen, es_calibracion,
-  fase
+  ax, ay, az, gx, gy, gz, label, bloque_tipo, condicion_postural,
+  en_margen, es_calibracion, fase
+
+  condicion_postural es estatica o dinamica, POR REPETICION: de las 6
+  repeticiones de cada gesto, 3 se hacen con el brazo quieto y 3
+  moviendolo. Es el factor B del experimento de ablacion de la IMU y
+  NUNCA entra al vector del modelo, solo selecciona filas.
+
+  La captura anade ademas id_participante, posicion_brazo, ts_pc_ms y
+  descartada, que tampoco alimentan al modelo.
 
   fase la anade anotar_fases.py al cerrar la sesion (reaccion, dinamica,
   meseta, relajacion, reposo, recorte). Por defecto se entrena con
@@ -80,8 +88,13 @@ COLUMNAS_NO_MODELO = ["gx", "gy", "gz"]
 # Columnas de protocolo que anade el script de captura.
 COLUMNAS_METADATOS = [
     "subject_id", "repetition_id", "timestamp_ms",
-    "label", "bloque_tipo", "en_margen", "es_calibracion",
+    "label", "bloque_tipo", "condicion_postural", "en_margen",
+    "es_calibracion",
 ]
+
+# Valores validos de condicion_postural. Vacio en la calibracion, que no
+# pertenece a ninguna de las dos condiciones.
+CONDICIONES_POSTURALES = ("estatica", "dinamica")
 
 NUM_CANALES_MODELO = len(COLUMNAS_MODELO)   # 8
 
@@ -247,7 +260,7 @@ class SlidingWindowPreprocessor:
         # cualquiera de las claves de bloque, o cuando el timestamp da un
         # salto mayor a 3 periodos de muestreo.
         claves = [c for c in ("subject_id", "repetition_id", "label",
-                              "bloque_tipo")
+                              "bloque_tipo", "condicion_postural")
                   if c in df.columns]
         if claves:
             cambio = np.zeros(len(df), dtype=bool)

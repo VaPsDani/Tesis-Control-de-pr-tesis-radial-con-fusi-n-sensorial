@@ -71,9 +71,10 @@ CAMPOS_CSV = ["subject_id", "repetition_id", "timestamp_ms",
               "ax", "ay", "az", "gx", "gy", "gz",
               "label", "bloque_tipo", "en_margen", "es_calibracion",
               # Anadidas para la sesion guiada:
+              "condicion_postural", # estatica o dinamica, POR REPETICION
               "id_participante",    # anonimo, S01, S02, ...
-              "bloque_postura",     # estatico o dinamico
-              "posicion_brazo",     # vacia en el bloque estatico
+              "posicion_brazo",     # posicion pedida en ese instante,
+                                    # vacia salvo en contracciones dinamicas
               "ts_pc_ms",           # reloj de la PC, epoch en ms
               "descartada"]         # 1 si el operador anulo la repeticion
 
@@ -363,11 +364,10 @@ class EscritorCSV:
     FLUSH_CADA_N = FLUSH_CADA_N
 
     def __init__(self, ruta: str, subject_id: int,
-                 id_participante: str = "", bloque_postura: str = ""):
+                 id_participante: str = ""):
         self.ruta = ruta
         self.subject_id = subject_id
         self.id_participante = id_participante
-        self.bloque_postura = bloque_postura
         self._f = None
         self._w = None
         self._n = 0
@@ -395,9 +395,9 @@ class EscritorCSV:
             bloque.tipo,
             bloque.en_margen(bloque.t_inicio_ms + t_rel_ms),
             bloque.es_calibracion,
+            bloque.condicion_postural,
             self.id_participante,
-            self.bloque_postura,
-            bloque.posicion_brazo,
+            bloque.posicion_en(bloque.t_inicio_ms + t_rel_ms),
             m.ts_pc_ms,
             0,          # descartada: se marca al cerrar, si hubo descartes
         ]

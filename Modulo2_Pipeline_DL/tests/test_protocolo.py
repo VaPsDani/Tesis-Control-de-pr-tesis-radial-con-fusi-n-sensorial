@@ -65,24 +65,58 @@ def test_la_preparacion_queda_entera_en_margen():
     assert prep.segundos_utiles == 0
 
 
-def test_en_el_bloque_estatico_no_hay_posicion_de_brazo():
-    bloques = p.construir_sesion(1, bloque_postura=p.BLOQUE_ESTATICO)
-    assert all(b.posicion_brazo == p.POSICION_NINGUNA for b in bloques)
-
-
-def test_en_el_dinamico_cada_gesto_pasa_por_las_tres_posiciones():
-    bloques = p.construir_sesion(1, bloque_postura=p.BLOQUE_DINAMICO)
+def test_cada_gesto_tiene_tres_estaticas_y_tres_dinamicas():
+    bloques = p.construir_sesion(1)
     contracciones = [b for b in bloques if b.tipo == p.TIPO_CONTRACCION]
-    tabla = collections.Counter((b.label, b.posicion_brazo)
+    tabla = collections.Counter((b.label, b.condicion_postural)
                                 for b in contracciones)
     for gesto in p.GESTOS_ACTIVOS:
-        cuentas = [tabla[(gesto, pos)] for pos in p.POSICIONES_BRAZO]
-        assert len(set(cuentas)) == 1, "las posiciones deben repartirse igual"
+        for cond in p.CONDICIONES:
+            assert tabla[(gesto, cond)] == p.REPETICIONES_POR_CONDICION
 
 
-def test_postura_desconocida_falla():
-    with pytest.raises(ValueError):
-        p.construir_sesion(1, bloque_postura="de_lado")
+def test_la_calibracion_no_pertenece_a_ninguna_condicion():
+    calib = next(b for b in p.construir_sesion(1)
+                 if b.tipo == p.TIPO_CALIBRACION)
+    assert calib.condicion_postural == p.CONDICION_NINGUNA
+
+
+def test_las_tres_fases_de_una_repeticion_comparten_condicion():
+    bloques = [b for b in p.construir_sesion(2)
+               if b.tipo != p.TIPO_CALIBRACION]
+    for i in range(0, len(bloques), 3):
+        prep, contr, reposo = bloques[i:i + 3]
+        assert prep.condicion_postural == contr.condicion_postural
+        assert reposo.condicion_postural == contr.condicion_postural
+
+
+def test_solo_las_dinamicas_recorren_posiciones():
+    for b in p.construir_sesion(1):
+        if b.tipo == p.TIPO_CONTRACCION and b.condicion_postural == p.CONDICION_DINAMICA:
+            assert len(b.orden_posiciones) == len(p.POSICIONES_BRAZO)
+            assert set(b.orden_posiciones) == set(p.POSICIONES_BRAZO)
+        else:
+            assert b.orden_posiciones == ()
+
+
+def test_la_posicion_avanza_en_tres_tramos_iguales():
+    contr = next(b for b in p.construir_sesion(1)
+                 if b.tipo == p.TIPO_CONTRACCION
+                 and b.condicion_postural == p.CONDICION_DINAMICA)
+    tramo = contr.duracion_ms / 3
+    for i, pos in enumerate(contr.orden_posiciones):
+        medio = contr.t_inicio_ms + int(tramo * i + tramo / 2)
+        assert contr.posicion_en(medio) == pos
+    # Una muestra que cae justo despues del final nominal conserva la
+    # ultima posicion, en vez de dejar un hueco sin significado.
+    assert contr.posicion_en(contr.t_fin_ms) == contr.orden_posiciones[-1]
+
+
+def test_una_contraccion_estatica_no_pide_posiciones():
+    contr = next(b for b in p.construir_sesion(1)
+                 if b.tipo == p.TIPO_CONTRACCION
+                 and b.condicion_postural == p.CONDICION_ESTATICA)
+    assert contr.posicion_en(contr.t_inicio_ms + 100) == p.POSICION_NINGUNA
 
 
 def test_los_margenes_tienen_que_caber_en_su_bloque(monkeypatch):

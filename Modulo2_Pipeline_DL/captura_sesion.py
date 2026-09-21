@@ -5,7 +5,7 @@ Protesis transradial - Captura con voluntarios
 
 USO:
   python captura_sesion.py --puerto COM3
-  python captura_sesion.py --puerto COM3 --postura dinamico
+  python captura_sesion.py --puerto COM3 --participante S02
   python captura_sesion.py --simulado          (sin hardware)
 
   Todo lo que se pasa por linea de comandos se puede cambiar tambien en
@@ -15,9 +15,13 @@ REQUISITOS:
   pyserial. Tkinter viene con la biblioteca estandar de Python.
 
 PROTOCOLO DE LA SESION (ver captura/protocolo.py):
-  15 s de calibracion en reposo + 6 repeticiones x 4 gestos. Cada gesto
+  15 s de calibracion en reposo mas 6 repeticiones x 4 gestos. Cada gesto
   son tres fases seguidas: preparacion de 3 s, contraccion de 10 s y
   reposo de 8 s. 8.7 min de grabacion.
+
+  De las 6 repeticiones de cada gesto, 3 son ESTATICAS y 3 DINAMICAS, y
+  las dos condiciones conviven en la misma sesion. En las dinamicas el
+  participante recorre tres posiciones del brazo durante la contraccion.
 
   El orden de los gestos esta CONTRABALANCEADO con semilla derivada del
   subject_id, para que el arrastre fisiologico entre gestos consecutivos
@@ -36,8 +40,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "captura"))
 
-from config_captura import (BAUDIOS_DEFECTO, BLOQUE_ESTATICO, BLOQUES_POSTURA,
-                            DIR_SALIDA_DEFECTO, PUERTO_DEFECTO)
+from config_captura import (BAUDIOS_DEFECTO, DIR_SALIDA_DEFECTO,
+                            PUERTO_DEFECTO)
 from sesion import Sesion
 
 
@@ -52,8 +56,6 @@ def main():
                    help="Directorio de sesiones")
     p.add_argument("--participante", type=str, default="S01",
                    help="Id anonimo del participante")
-    p.add_argument("--postura", choices=BLOQUES_POSTURA,
-                   default=BLOQUE_ESTATICO, help="Bloque de postura")
     args = p.parse_args()
 
     app = Sesion(dir_salida=args.salida)
@@ -61,7 +63,6 @@ def main():
     app.op.var_baudios.set(str(args.baudios))
     app.op.var_simulado.set(args.simulado)
     app.op.var_id_participante.set(args.participante)
-    app.op.var_postura.set(args.postura)
     app.run()
 
 

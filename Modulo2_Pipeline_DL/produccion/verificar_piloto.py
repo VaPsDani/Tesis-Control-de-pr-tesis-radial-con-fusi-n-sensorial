@@ -54,6 +54,7 @@ import numpy as np
 import pandas as pd
 
 from preprocesamiento import (COLUMNAS_MODELO, COLUMNAS_NO_MODELO,
+                              CONDICIONES_POSTURALES,
                               SlidingWindowPreprocessor)
 
 NOMBRES = ["Rest", "Pinch", "Tripod", "Power", "Finger_Ext"]
@@ -71,7 +72,9 @@ def verificar_fronteras(df, window=20, stride=2):
     Cuenta ventanas que cruzan cada tipo de frontera, replicando la
     segmentacion de preprocesamiento.py. Debe dar CERO en todas.
     """
-    claves = ["subject_id", "repetition_id", "label", "bloque_tipo"]
+    claves = [c for c in ("subject_id", "repetition_id", "label",
+                          "bloque_tipo", "condicion_postural")
+              if c in df.columns]
     cambio = np.zeros(len(df), dtype=bool)
     for c in claves:
         cambio |= df[c].ne(df[c].shift()).values
@@ -105,6 +108,61 @@ def verificar_fronteras(df, window=20, stride=2):
                 cont["bloque_tipo"] += 1
 
     return cont, total, int(seg.max() + 1)
+
+
+def verificar_condicion_postural(df, informe) -> list:
+    """
+    Comprueba la columna condicion_postural, que es el factor B del
+    experimento de ablacion de la IMU.
+
+    Lo que tiene que cumplirse:
+      - la columna existe y solo toma los valores previstos,
+      - la calibracion no pertenece a ninguna condicion,
+      - cada gesto recibe el mismo numero de repeticiones de cada
+        condicion. Si un gesto sale con 5 estaticas y 1 dinamica, la
+        condicion queda confundida con el gesto y el 2x2 deja de ser
+        comparable.
+    """
+    problemas = []
+    if "condicion_postural" not in df.columns:
+        print("  condicion_postural       : AUSENTE")
+        problemas.append("Falta la columna condicion_postural: el CSV es de "
+                         "una version anterior del protocolo.")
+        informe["condicion_postural"] = None
+        return problemas
+
+    valores = set(df["condicion_postural"].fillna("").unique().tolist())
+    validas = set(CONDICIONES_POSTURALES) | {""}
+    raras = valores - validas
+    if raras:
+        problemas.append(f"Valores desconocidos en condicion_postural: {raras}")
+
+    calib = df[df.get("es_calibracion", 0) == 1]
+    if len(calib) and set(calib["condicion_postural"].fillna("")) != {""}:
+        problemas.append("El bloque de calibracion tiene condicion postural, "
+                         "y no deberia pertenecer a ninguna.")
+
+    contr = df[df["bloque_tipo"] == "contraccion"]
+    reparto = {}
+    for (etiqueta, cond), grupo in contr.groupby(["label", "condicion_postural"]):
+        reparto[(int(etiqueta), cond)] = int(
+            grupo["repetition_id"].nunique())
+
+    print("  Repeticiones por gesto y condicion:")
+    for etiqueta in sorted({k[0] for k in reparto}):
+        cuentas = {c: reparto.get((etiqueta, c), 0)
+                   for c in CONDICIONES_POSTURALES}
+        nombre = NOMBRES[etiqueta] if etiqueta < len(NOMBRES) else etiqueta
+        print(f"    {nombre:<12} " + "  ".join(f"{c} {n}"
+                                               for c, n in cuentas.items()))
+        if len(set(cuentas.values())) != 1:
+            problemas.append(f"El gesto {nombre} no esta equilibrado entre "
+                             f"condiciones: {cuentas}")
+
+    informe["condicion_postural"] = {
+        f"{NOMBRES[k[0]] if k[0] < len(NOMBRES) else k[0]}|{k[1]}": v
+        for k, v in reparto.items()}
+    return problemas
 
 
 def main():
@@ -142,6 +200,7 @@ def main():
                          f"a 921600 baudios")
 
     _seccion("2. PROTOCOLO")
+    problemas += verificar_condicion_postural(df_raw, informe)
     reposo = df_raw[df_raw["bloque_tipo"] == "reposo"]
     reps_reposo = sorted(reposo["repetition_id"].unique().tolist())
     hereda = 0 not in reps_reposo

@@ -84,7 +84,6 @@ En la ventana del operador, rellene:
 | `subject_id` | Número entero, 1, 2, 3. Es la semilla del contrabalanceo |
 | `id anonimo` | S01, S02. Es lo que va al CSV, nunca el nombre |
 | `puerto` y `baudios` | Los baudios ya vienen en 921600, que es el del firmware |
-| `bloque` | `estatico` o `dinamico` |
 | `carpeta` | Dónde se guardan el CSV y el JSON |
 | Datos del participante | Edad, sexo, mano dominante, circunferencia del antebrazo y posición del brazalete en cm |
 
@@ -118,8 +117,18 @@ Antes de pulsar Iniciar, explique:
   dar un golpe.
 - En **DESCANSE** relaje la mano del todo.
 - Si se equivoca de gesto, que lo diga y siga. No hay que disimular.
-- En el bloque dinámico, además del gesto, la pantalla pide una posición del
-  brazo. Muévase lento y continuo, sin sacudidas.
+
+Explique además las dos clases de repetición, porque van mezcladas en la misma
+sesión y la pantalla avisa de cuál toca ya en la fase de preparación.
+
+| La pantalla dice | Qué tiene que hacer |
+|---|---|
+| **BRAZO QUIETO** | Mantener el gesto sin mover el brazo, en una postura cómoda |
+| **BRAZO EN MOVIMIENTO** | Mantener el gesto mientras recorre las tres posiciones que se iluminan abajo, una cada 3.3 s, pasando de una a otra sin parar y sin soltar el gesto |
+
+En las repeticiones con movimiento suena un tono agudo en cada cambio de
+posición, así que no hace falta mirar la pantalla mientras se mueve el brazo.
+De las 6 repeticiones de cada gesto, 3 son quietas y 3 con movimiento.
 
 ### 4. Durante la sesión
 
@@ -164,15 +173,25 @@ Anote en observaciones cualquier incidencia antes de cerrar la ventana.
 | Columnas | Origen |
 |---|---|
 | `timestamp_ms`, `v1` a `v5`, `ax`, `ay`, `az`, `gx`, `gy`, `gz` | Firmware, 12 campos |
-| `subject_id`, `repetition_id`, `label`, `bloque_tipo`, `en_margen`, `es_calibracion` | Protocolo |
-| `id_participante`, `bloque_postura`, `posicion_brazo`, `ts_pc_ms`, `descartada` | Sesión guiada |
+| `subject_id`, `repetition_id`, `label`, `bloque_tipo`, `condicion_postural`, `en_margen`, `es_calibracion` | Protocolo |
+| `id_participante`, `posicion_brazo`, `ts_pc_ms`, `descartada` | Sesión guiada |
 | `fase` | La añade `anotar_fases.py` al cerrar |
 
+**`condicion_postural`** vale `estatica` o `dinamica` y va **por repetición**,
+no por sesión. Es el factor B del experimento de ablación de la IMU. Queda
+vacía en la calibración, que no pertenece a ninguna de las dos.
+
+**`posicion_brazo`** dice qué posición se estaba pidiendo **en ese instante**,
+así que dentro de una misma contracción dinámica cambia dos veces. Queda vacía
+en las repeticiones quietas. Sirve para comprobar después si los errores se
+concentran en los cambios de posición.
+
 El giroscopio se graba aunque el modelo no lo use. Sus bytes ya viajan en la
-misma lectura I2C, así que no cuesta nada guardarlo, y puede hacer falta en el
-bloque dinámico. El descarte a los 8 canales ocurre en `preprocesamiento.py`,
-nunca en la captura. Una sesión no se repite, y recuperar un canal después
-costaría volver a grabar con los diez voluntarios.
+misma lectura I2C, así que no cuesta nada guardarlo, y es justo donde puede
+hacer falta en las repeticiones con movimiento. El descarte a los 8 canales
+ocurre en `preprocesamiento.py`, nunca en la captura. Una sesión no se repite,
+y recuperar un canal después costaría volver a grabar con los diez
+voluntarios.
 
 **Ojo con la palabra fase.** En `bloque_tipo` las fases son calibración,
 preparación, contracción y reposo. La columna `fase` de `fases.py` es otra
@@ -198,9 +217,16 @@ número parecido de veces. La semilla es el `subject_id`, así que la sesión es
 reproducible y cada sujeto recibe un orden distinto. La secuencia usada queda
 guardada en el JSON.
 
-En el bloque dinámico las tres posiciones del brazo rotan por gesto, de modo
-que cada gesto pasa dos veces por cada posición. Así la posición no queda
-confundida con el gesto ni con la fatiga.
+**Las dos condiciones posturales van en la misma sesión**, 3 repeticiones
+quietas y 3 con movimiento por gesto, repartidas con semilla derivada del
+`subject_id`. Comparten sujeto, colocación del brazalete y calibración, que es
+lo que hace pareada la comparación entre ellas. Si fueran dos sesiones
+distintas, la diferencia entre condiciones vendría mezclada con la de montaje.
+
+En las repeticiones con movimiento, las tres posiciones se recorren dentro de
+la contracción, 3.3 s cada una, y el orden de partida rota entre repeticiones
+para que ninguna posición caiga siempre en el primer tramo, que es el que
+pierde su primer segundo por el margen de entrada.
 
 **El margen de entrada de 1000 ms no se reduce.** Como el orden está
 contrabalanceado, el participante no puede anticipar el gesto, y elegir entre

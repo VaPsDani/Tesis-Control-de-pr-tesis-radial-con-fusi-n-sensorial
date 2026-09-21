@@ -5,12 +5,24 @@ Protesis transradial - Captura con voluntarios
 
 ESTRUCTURA DE LA SESION:
   1. Un bloque de CALIBRACION de 15 s de reposo contiguo, fuera de la
-     rotacion. Es reposo BASAL, antes de cualquier contraccion.
+     rotacion. Es reposo BASAL, antes de cualquier contraccion, y es la
+     referencia con la que se normaliza a ese sujeto.
   2. 6 repeticiones. Cada repeticion presenta los 4 gestos activos una
      vez, en orden contrabalanceado.
   3. Cada gesto = PREPARACION (3 s) + CONTRACCION (10 s) + REPOSO (8 s).
 
   Total: 15 + 4*6*(3+10+8) = 519 s = 8.7 min de grabacion.
+
+CONDICION POSTURAL, POR REPETICION Y NO POR SESION:
+  De las 6 repeticiones de cada gesto, 3 son ESTATICAS, con el brazo
+  quieto, y 3 DINAMICAS, recorriendo tres posiciones del brazo durante la
+  contraccion sin soltar el gesto.
+
+  Las dos condiciones conviven en la misma sesion a proposito: comparten
+  sujeto, colocacion del brazalete y bloque de calibracion, asi que la
+  comparacion entre ellas es pareada y no arrastra las diferencias de
+  montaje que tendrian dos sesiones distintas. Es el factor B del
+  experimento experimentos/ablacion_imu.
 
   RATIO DE CLASES CON ESTOS TIEMPOS:
     Con contraccion de 10 s quedan 8.5 s utiles por repeticion, o sea
@@ -92,14 +104,15 @@ GESTOS_ACTIVOS = [1, 2, 3, 4]          # Pinch, Tripod, Power, Finger_Ext
 # Los numeros viven en config_captura.py, que es el unico archivo que se
 # edita para cambiar el protocolo. Aqui solo se reexportan para no
 # romper a quien ya importaba de protocolo.
-from config_captura import (BLOQUE_DINAMICO, BLOQUE_ESTATICO,  # noqa: E402
-                            RAMPA_CONTRACCION_MS,
-                            BLOQUES_POSTURA, DUR_CALIBRACION_MS,
-                            DUR_CONTRACCION_MS, DUR_PREPARACION_MS,
-                            DUR_REPOSO_MS, MARGEN_CALIBRACION,
-                            MARGEN_CONTRACCION, MARGEN_PREPARACION,
-                            MARGEN_REPOSO, N_REPETICIONES, POSICION_NINGUNA,
-                            POSICIONES_BRAZO)
+from config_captura import (CONDICION_DINAMICA, CONDICION_ESTATICA,  # noqa: E402
+                            CONDICION_NINGUNA, CONDICIONES,
+                            DUR_CALIBRACION_MS, DUR_CONTRACCION_MS,
+                            DUR_PREPARACION_MS, DUR_REPOSO_MS,
+                            MARGEN_CALIBRACION, MARGEN_CONTRACCION,
+                            MARGEN_PREPARACION, MARGEN_REPOSO, N_REPETICIONES,
+                            POSICION_NINGUNA, POSICIONES_BRAZO,
+                            RAMPA_CONTRACCION_MS, REPETICIONES_POR_CONDICION,
+                            TRAMO_POSICION_MINIMO_MS)
 
 TIPO_CALIBRACION = "calibracion"
 TIPO_PREPARACION = "preparacion"
@@ -118,9 +131,34 @@ class Bloque:
     margen_inicial_ms: int
     margen_final_ms: int
     es_calibracion: int = 0
-    # Posicion del brazo pedida en ese bloque. Vacia en el bloque
-    # estatico, donde el brazo no cambia de sitio.
-    posicion_brazo: str = POSICION_NINGUNA
+    # Condicion postural de la repeticion: estatica o dinamica. Vacia en
+    # el bloque de calibracion, que no pertenece a ninguna.
+    condicion_postural: str = CONDICION_NINGUNA
+    # Orden en que se recorren las tres posiciones del brazo, solo en las
+    # repeticiones dinamicas. Vacio en las estaticas.
+    orden_posiciones: tuple = ()
+
+    def posicion_en(self, t_ms: int) -> str:
+        """
+        Posicion del brazo pedida en el instante absoluto t_ms.
+
+        En una repeticion dinamica la contraccion se reparte en tres
+        tramos iguales, uno por posicion, y el participante pasa de una a
+        otra sin soltar el gesto. Devolver la posicion instante a instante
+        es lo que permite escribirla en el CSV y estudiar despues si el
+        error de clasificacion se concentra en los cambios de posicion.
+        """
+        if not self.orden_posiciones or self.tipo != TIPO_CONTRACCION:
+            return POSICION_NINGUNA
+        # Se recorta a los limites del bloque en vez de devolver vacio:
+        # una muestra puede caer unos milisegundos despues del final
+        # nominal y seguir perteneciendo a este bloque, porque la etiqueta
+        # se asigna por el reloj del ESP32 relativo al marcador. Dejarla
+        # sin posicion crearia huecos en la columna sin significado.
+        rel = min(max(t_ms - self.t_inicio_ms, 0), self.duracion_ms - 1)
+        tramo = self.duracion_ms / len(self.orden_posiciones)
+        return self.orden_posiciones[min(int(rel / tramo),
+                                         len(self.orden_posiciones) - 1)]
 
     @property
     def t_fin_ms(self) -> int:
@@ -175,6 +213,17 @@ def validar_tiempos():
             f"La rampa de {RAMPA_CONTRACCION_MS} ms excede el margen de "
             f"entrada de la contraccion ({MARGEN_CONTRACCION[0]} ms), asi que "
             f"la subida de fuerza entraria como dato util.")
+
+    # Las tres posiciones de una repeticion dinamica se reparten la
+    # contraccion. Con tramos muy cortos el participante no llega a
+    # colocarse y lo que se graba es transicion pura.
+    tramo = DUR_CONTRACCION_MS / len(POSICIONES_BRAZO)
+    if tramo < TRAMO_POSICION_MINIMO_MS:
+        raise ValueError(
+            f"Con una contraccion de {DUR_CONTRACCION_MS} ms, cada una de las "
+            f"{len(POSICIONES_BRAZO)} posiciones dura {tramo:.0f} ms, por "
+            f"debajo del minimo de {TRAMO_POSICION_MINIMO_MS} ms. Alargue la "
+            f"contraccion o reduzca el numero de posiciones.")
 
 
 # ============================================================
@@ -252,35 +301,57 @@ def generar_secuencia_gestos(subject_id: int,
 # ============================================================
 # CONSTRUCCION DE LA SESION
 # ============================================================
-def posicion_de(ocurrencia_del_gesto: int, bloque_postura: str) -> str:
+def asignar_condiciones(subject_id: int, secuencia: List[int]) -> List[str]:
     """
-    Posicion del brazo de una contraccion del bloque dinamico.
+    Reparte las repeticiones de cada gesto entre estatica y dinamica.
 
-    En el bloque estatico no hay posicion.
+    POR QUE POR GESTO Y NO A LO LARGO DE LA SESION:
+      Cada gesto tiene que recibir el mismo numero de repeticiones de
+      cada condicion, 3 y 3. Repartiendo solo por el orden global, un
+      gesto podria acabar con 5 estaticas y 1 dinamica, y la condicion
+      quedaria confundida con el gesto, que es justo el efecto que el
+      experimento de ablacion quiere medir.
 
-    POR QUE SE ROTA POR GESTO Y NO POR ORDEN DE SESION:
-      Rotando por el orden de la sesion, las posiciones quedan
-      equilibradas EN TOTAL pero no por gesto: con la secuencia del
-      sujeto 1, Pinch no caia nunca en "abajo al costado" y Finger_Ext
-      nunca al frente. La posicion quedaria confundida con el gesto, que
-      es justo lo que el bloque dinamico quiere separar.
-
-      Contando las apariciones de CADA gesto, las 6 repeticiones de cada
-      uno se reparten 2, 2 y 2 entre las tres posiciones, y cada celda
-      de la tabla gesto por posicion queda con el mismo n.
-
-    Args:
-        ocurrencia_del_gesto: cuantas veces ha aparecido ya ese gesto,
-            empezando en 0.
+      Dentro de cada gesto el orden se sortea con semilla derivada del
+      subject_id: la sesion es reproducible, cada sujeto recibe un orden
+      distinto y la condicion no cae siempre en el mismo tramo de la
+      sesion, donde la fatiga es distinta.
     """
-    if bloque_postura != BLOQUE_DINAMICO:
-        return POSICION_NINGUNA
-    return POSICIONES_BRAZO[ocurrencia_del_gesto % len(POSICIONES_BRAZO)]
+    rng = np.random.RandomState(subject_id + 7919)
+    pendientes = {}
+    for gesto in sorted(set(secuencia)):
+        bolsa = ([CONDICION_ESTATICA] * REPETICIONES_POR_CONDICION
+                 + [CONDICION_DINAMICA] * REPETICIONES_POR_CONDICION)
+        rng.shuffle(bolsa)
+        pendientes[gesto] = list(bolsa)
+
+    salida = []
+    for gesto in secuencia:
+        if pendientes[gesto]:
+            salida.append(pendientes[gesto].pop())
+        else:
+            # Mas repeticiones que condiciones preparadas: se alterna en
+            # vez de fallar. Solo ocurre si se sube N_REPETICIONES sin
+            # tocar REPETICIONES_POR_CONDICION.
+            salida.append(CONDICIONES[len(salida) % len(CONDICIONES)])
+    return salida
+
+
+def orden_posiciones_de(ocurrencia_dinamica: int) -> tuple:
+    """
+    Orden en que se recorren las tres posiciones dentro de una
+    contraccion dinamica.
+
+    Rota con cada repeticion dinamica del gesto, de modo que ninguna
+    posicion cae siempre en el primer tramo, que es el que pierde su
+    primer segundo por el margen de entrada.
+    """
+    k = ocurrencia_dinamica % len(POSICIONES_BRAZO)
+    return tuple(POSICIONES_BRAZO[k:] + POSICIONES_BRAZO[:k])
 
 
 def construir_sesion(subject_id: int,
-                     n_repeticiones: int = N_REPETICIONES,
-                     bloque_postura: str = BLOQUE_ESTATICO) -> List[Bloque]:
+                     n_repeticiones: int = N_REPETICIONES) -> List[Bloque]:
     """
     Construye la lista completa de bloques con su linea temporal.
 
@@ -289,12 +360,15 @@ def construir_sesion(subject_id: int,
     bloque de contraccion al que acompanan, nunca uno propio: asi
     cualquier esquema de agrupamiento reparte el reposo de forma
     proporcional en vez de dejarlo entero en un pliegue.
+
+    Las dos condiciones posturales conviven en la MISMA sesion, con 3
+    repeticiones de cada una por gesto. Comparten sujeto, colocacion del
+    brazalete y calibracion, que es lo que hace pareada la comparacion.
     """
     validar_tiempos()
-    if bloque_postura not in BLOQUES_POSTURA:
-        raise ValueError(f"bloque_postura debe ser uno de {BLOQUES_POSTURA}")
 
     secuencia = generar_secuencia_gestos(subject_id, n_repeticiones)
+    condiciones = asignar_condiciones(subject_id, secuencia)
     bloques: List[Bloque] = []
     t = 0
 
@@ -308,21 +382,25 @@ def construir_sesion(subject_id: int,
     ))
     t += DUR_CALIBRACION_MS
 
-    vistas = {g: 0 for g in set(secuencia)}
-    for i, gesto in enumerate(secuencia):
+    dinamicas_vistas = {g: 0 for g in set(secuencia)}
+    for i, (gesto, condicion) in enumerate(zip(secuencia, condiciones)):
         rep_id = i // len(GESTOS_ACTIVOS) + 1
-        posicion = posicion_de(vistas[gesto], bloque_postura)
-        vistas[gesto] += 1
+        if condicion == CONDICION_DINAMICA:
+            orden = orden_posiciones_de(dinamicas_vistas[gesto])
+            dinamicas_vistas[gesto] += 1
+        else:
+            orden = ()
 
-        # Preparacion: se anuncia el gesto que viene. Entera en margen,
-        # asi que no entra al entrenamiento por descuido. Lleva el label
-        # del gesto anunciado para poder estudiar la anticipacion.
+        # Preparacion: se anuncia el gesto que viene y, si toca, que la
+        # repeticion es con el brazo en movimiento. Entera en margen, asi
+        # que no entra al entrenamiento por descuido. Lleva el label del
+        # gesto anunciado para poder estudiar la anticipacion.
         bloques.append(Bloque(
             tipo=TIPO_PREPARACION, label=gesto, repetition_id=rep_id,
             t_inicio_ms=t, duracion_ms=DUR_PREPARACION_MS,
             margen_inicial_ms=MARGEN_PREPARACION[0],
             margen_final_ms=MARGEN_PREPARACION[1],
-            posicion_brazo=posicion,
+            condicion_postural=condicion,
         ))
         t += DUR_PREPARACION_MS
 
@@ -331,18 +409,19 @@ def construir_sesion(subject_id: int,
             t_inicio_ms=t, duracion_ms=DUR_CONTRACCION_MS,
             margen_inicial_ms=MARGEN_CONTRACCION[0],
             margen_final_ms=MARGEN_CONTRACCION[1],
-            posicion_brazo=posicion,
+            condicion_postural=condicion, orden_posiciones=orden,
         ))
         t += DUR_CONTRACCION_MS
 
         # Reposo posterior: hereda el repetition_id de la contraccion que
-        # acaba de terminar.
+        # acaba de terminar. El brazo vuelve a quedarse quieto, asi que
+        # conserva la condicion de la repeticion solo como etiqueta.
         bloques.append(Bloque(
             tipo=TIPO_REPOSO, label=LABEL_REST, repetition_id=rep_id,
             t_inicio_ms=t, duracion_ms=DUR_REPOSO_MS,
             margen_inicial_ms=MARGEN_REPOSO[0],
             margen_final_ms=MARGEN_REPOSO[1],
-            posicion_brazo=posicion,
+            condicion_postural=condicion,
         ))
         t += DUR_REPOSO_MS
 
@@ -364,6 +443,16 @@ def resumen_sesion(bloques: List[Bloque]) -> dict:
     total = sum(utiles.values())
     dur_total = max(b.t_fin_ms for b in bloques) / 1000.0
 
+    # Reparto por condicion postural: las dos celdas del factor B tienen
+    # que quedar con el mismo n, o el contraste no seria pareado.
+    por_condicion = {c: 0.0 for c in CONDICIONES}
+    contracciones = {c: 0 for c in CONDICIONES}
+    for b in bloques:
+        if b.condicion_postural in por_condicion:
+            por_condicion[b.condicion_postural] += b.segundos_utiles
+            if b.tipo == TIPO_CONTRACCION:
+                contracciones[b.condicion_postural] += 1
+
     return {
         "segundos_utiles": {k: round(v, 1) for k, v in utiles.items()},
         "porcentaje": {k: round(100 * v / total, 1) if total else 0.0
@@ -372,17 +461,20 @@ def resumen_sesion(bloques: List[Bloque]) -> dict:
         "duracion_total_s": round(dur_total, 1),
         "n_bloques": len(bloques),
         "ventanas_estimadas": int(total * 50),   # stride 20 ms
+        "segundos_utiles_por_condicion": {k: round(v, 1)
+                                          for k, v in por_condicion.items()},
+        "contracciones_por_condicion": contracciones,
     }
 
 
 if __name__ == "__main__":
-    import sys
-    postura = sys.argv[1] if len(sys.argv) > 1 else BLOQUE_ESTATICO
+    import collections
     for sid in (1, 2, 3):
-        bloques = construir_sesion(sid, bloque_postura=postura)
-        secuencia = [b.label for b in bloques if b.tipo == TIPO_CONTRACCION]
+        bloques = construir_sesion(sid)
+        contracciones = [b for b in bloques if b.tipo == TIPO_CONTRACCION]
+        secuencia = [b.label for b in contracciones]
         r = resumen_sesion(bloques)
-        print(f"\n=== Sujeto {sid} ({postura}) ===")
+        print(f"\n=== Sujeto {sid} ===")
         print(f"  Orden: {secuencia}")
         print(f"  Desbalance de transiciones: "
               f"{_desbalance(secuencia, GESTOS_ACTIVOS)}")
@@ -391,3 +483,12 @@ if __name__ == "__main__":
         print(f"  Segundos utiles: {r['segundos_utiles']}")
         print(f"  Ratio Rest:activa = {r['ratio_rest_vs_activa']}:1")
         print(f"  Ventanas estimadas: {r['ventanas_estimadas']}")
+        print(f"  Contracciones por condicion: "
+              f"{r['contracciones_por_condicion']}")
+        tabla = collections.Counter((NOMBRES_GESTOS[b.label],
+                                     b.condicion_postural)
+                                    for b in contracciones)
+        for g in GESTOS_ACTIVOS:
+            n = NOMBRES_GESTOS[g]
+            print(f"    {n:<12}"
+                  + "  ".join(f"{c} {tabla[(n, c)]}" for c in CONDICIONES))

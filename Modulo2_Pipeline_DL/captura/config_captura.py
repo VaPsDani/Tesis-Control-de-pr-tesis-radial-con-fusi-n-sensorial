@@ -66,6 +66,10 @@ MARGEN_CALIBRACION = (1000, 500)
 # quedando en el CSV por si luego interesa estudiar la anticipacion.
 MARGEN_PREPARACION = (DUR_PREPARACION_MS, 0)
 
+# Tramo minimo por posicion en una repeticion dinamica. Con 10 s de
+# contraccion y tres posiciones son 3333 ms por posicion, holgado.
+TRAMO_POSICION_MINIMO_MS = 2000
+
 # Rampa de fuerza al inicio de la contraccion. La guia visual pide subir
 # la fuerza de forma gradual durante este tiempo, que cae entero dentro
 # del margen de entrada, asi que la rampa no contamina el dato util.
@@ -74,15 +78,29 @@ RAMPA_CONTRACCION_MS = 1000
 N_REPETICIONES = 6
 
 # ============================================================
-# BLOQUE DE POSTURA
+# CONDICION POSTURAL
 # ============================================================
-BLOQUE_ESTATICO = "estatico"
-BLOQUE_DINAMICO = "dinamico"
-BLOQUES_POSTURA = [BLOQUE_ESTATICO, BLOQUE_DINAMICO]
+# Ya no es una propiedad de la sesion entera sino de CADA REPETICION: de
+# las 6 repeticiones de cada gesto, 3 son estaticas y 3 dinamicas. Asi
+# las dos condiciones comparten sujeto, colocacion del brazalete y
+# sesion, que es lo que permite compararlas de forma pareada.
+CONDICION_ESTATICA = "estatica"
+CONDICION_DINAMICA = "dinamica"
+CONDICIONES = [CONDICION_ESTATICA, CONDICION_DINAMICA]
+CONDICION_NINGUNA = ""          # calibracion
 
-# Posiciones del brazo del bloque dinamico. Rotan entre repeticiones, de
-# modo que cada posicion recibe el mismo numero de contracciones y de
-# gestos, y la posicion no queda confundida con la fatiga.
+REPETICIONES_POR_CONDICION = 3
+
+TEXTO_CONDICION = {
+    CONDICION_ESTATICA: "BRAZO QUIETO",
+    CONDICION_DINAMICA: "BRAZO EN MOVIMIENTO",
+}
+
+# Posiciones del brazo de la condicion dinamica. En una repeticion
+# dinamica el participante recorre LAS TRES durante los 10 s de
+# contraccion, o sea 3.3 s por posicion, manteniendo el gesto todo el
+# tiempo. El orden de partida rota entre repeticiones para que ninguna
+# posicion caiga siempre al principio.
 POSICION_NINGUNA = ""
 POSICIONES_BRAZO = [
     "abajo_al_costado",
@@ -90,11 +108,11 @@ POSICIONES_BRAZO = [
     "arriba_sobre_el_hombro",
 ]
 TEXTO_POSICION = {
-    "abajo_al_costado": "BRAZO ABAJO, AL COSTADO",
-    "al_frente_codo_90": "BRAZO AL FRENTE, CODO A 90 GRADOS",
-    "arriba_sobre_el_hombro": "BRAZO ARRIBA, SOBRE EL HOMBRO",
+    "abajo_al_costado": "ABAJO, AL COSTADO",
+    "al_frente_codo_90": "AL FRENTE, CODO A 90",
+    "arriba_sobre_el_hombro": "ARRIBA, SOBRE EL HOMBRO",
 }
-TEXTO_MOVIMIENTO_LENTO = "Mueva el brazo lento y continuo"
+TEXTO_MOVIMIENTO_LENTO = "Pase de una posicion a otra sin parar y sin soltar el gesto"
 
 # ============================================================
 # SALIDA
@@ -150,4 +168,9 @@ SONIDO_HZ = {
     "contraccion": 880,
     "reposo": 330,
     "aviso": 220,
+    # Cambio de posicion del brazo dentro de una repeticion dinamica.
+    # Suena distinto del cambio de fase a proposito: avisa sin obligar a
+    # mirar la pantalla, que es justo lo que no se puede hacer mientras
+    # se mueve el brazo.
+    "posicion": 1200,
 }

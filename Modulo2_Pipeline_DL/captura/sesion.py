@@ -61,7 +61,6 @@ class Sesion:
         self.escritor = None
         self.subject_id = None
         self.id_participante = ""
-        self.bloque_postura = ""
         self.ruta_csv = None
         self.ruta_json = None
 
@@ -144,26 +143,23 @@ class Sesion:
         if not self.id_participante:
             self.op.log("ERROR: falta el id anonimo del participante (S01).")
             return
-        self.bloque_postura = self.op.var_postura.get()
         self.dir_salida = self.op.var_salida.get() or DIR_SALIDA_DEFECTO
 
-        self.bloques = construir_sesion(self.subject_id,
-                                        bloque_postura=self.bloque_postura)
+        self.bloques = construir_sesion(self.subject_id)
         r = resumen_sesion(self.bloques)
         self.op.log(f"Sesion del sujeto {self.subject_id} "
-                    f"({self.id_participante}, bloque {self.bloque_postura}): "
+                    f"({self.id_participante}): "
                     f"{r['n_bloques']} bloques, {r['duracion_total_s']:.0f} s")
         self.op.log(f"Ratio Rest:activa = {r['ratio_rest_vs_activa']}:1, "
                     f"~{r['ventanas_estimadas']} ventanas")
 
         marca = datetime.now().strftime("%Y%m%d_%H%M%S")
-        base = f"s{self.subject_id:02d}_{self.bloque_postura}_{marca}"
+        base = f"s{self.subject_id:02d}_{marca}"
         self.ruta_csv = os.path.join(self.dir_salida, f"{base}.csv")
         self.ruta_json = os.path.join(self.dir_salida, f"{base}.json")
 
         self.escritor = EscritorCSV(self.ruta_csv, self.subject_id,
-                                    id_participante=self.id_participante,
-                                    bloque_postura=self.bloque_postura)
+                                    id_participante=self.id_participante)
         try:
             self.escritor.abrir()
         except FileExistsError as e:
@@ -241,8 +237,7 @@ class Sesion:
             total_ms = self.bloques[-1].t_fin_ms
             self.part.actualizar(bloque, restante, t_ms / total_ms,
                                  self.idx, len(self.bloques),
-                                 transcurrido_ms=t_ms - bloque.t_inicio_ms,
-                                 bloque_postura=self.bloque_postura)
+                                 transcurrido_ms=t_ms - bloque.t_inicio_ms)
             self.op.lbl_bloque.config(
                 text=f"{bloque.tipo} · {bloque.nombre_gesto} · "
                      f"rep {bloque.repetition_id} · {restante:.1f} s")
@@ -454,7 +449,6 @@ class Sesion:
         meta = {
             "subject_id": self.subject_id,
             "id_participante": self.id_participante,
-            "bloque_postura": self.bloque_postura,
             "fecha": datetime.now().isoformat(timespec="seconds"),
             "hora_inicio": datetime.now().isoformat(timespec="seconds"),
             "duracion_s": round(duracion_s, 1),
@@ -471,7 +465,9 @@ class Sesion:
             },
             "orden_gestos_efectivo": secuencia,
             "orden_gestos_nombres": [NOMBRES_GESTOS[g] for g in secuencia],
-            "posiciones_brazo": [b.posicion_brazo for b in contracciones],
+            "condiciones_posturales": [b.condicion_postural for b in contracciones],
+            "orden_posiciones": ["|".join(b.orden_posiciones)
+                                 for b in contracciones],
             "semilla_contrabalanceo": self.subject_id,
             "repeticiones_descartadas": [
                 {"repeticion": r, "label": l, "gesto": NOMBRES_GESTOS[l]}
