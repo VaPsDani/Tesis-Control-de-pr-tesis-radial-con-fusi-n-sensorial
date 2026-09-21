@@ -1,7 +1,12 @@
 """
-normalizacion.py - Estandarizacion z-score por canal para la ruta EMG
-=====================================================================
-Protesis transradial - Validacion con dataset NinaPro DB5
+normalizacion.py - Estandarizacion z-score por canal
+====================================================
+Protesis transradial - Codigo compartido por los experimentos
+
+Las cifras de esta cabecera se midieron sobre NinaPro DB5, que es el
+dataset con el que se valido el pipeline antes de tener datos propios.
+El mecanismo es el mismo para el brazalete: lo que varia entre sujetos
+es la escala de cada canal.
 
 MOTIVACION:
   La amplitud del sEMG varia mucho de una persona a otra: colocacion del

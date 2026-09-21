@@ -58,9 +58,9 @@ ESQUEMA DEL CSV DE CAPTURA:
 
   El cuarto canal de IMU de la version anterior (qw, la magnitud
   saturada del acelerometro) se elimino: era una funcion determinista de
-  ax, ay, az. Con 8 canales el vector tiene la misma forma que la rama
-  EMG sobre NinaPro DB5 (5 sEMG + 3 ACC), lo que hace directa la
-  comparacion entre ramas.
+  ax, ay, az. Con 8 canales el vector tiene la misma forma con la que se
+  valido el pipeline sobre NinaPro DB5 (5 sEMG + 3 ACC), asi que el mismo
+  codigo sirve para las dos entradas.
 
 ESTRUCTURA DE SALIDA:
   X: (num_ventanas, window_size, num_features)  → (N, 20, 8)

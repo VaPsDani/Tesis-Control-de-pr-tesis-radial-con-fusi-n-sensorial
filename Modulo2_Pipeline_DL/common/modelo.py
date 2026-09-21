@@ -6,8 +6,9 @@ Protesis transradial - Fusion sensorial y Deep Learning
 ARQUITECTURA:
   Entrada: (window_size=20, num_features=8) → 20 pasos temporales × 8 canales
            - 5 canales LMG (fotodiodos OPT101) + 3 del acelerometro
-           - Misma forma que la rama EMG (5 sEMG + 3 ACC), lo que hace
-             directa la comparacion entre ambas
+           - Es la forma con la que se valido el pipeline sobre NinaPro
+             DB5 (5 sEMG + 3 ACC), asi que el mismo codigo sirve para
+             las dos entradas sin tocar la arquitectura
 
   Capa 1 (Conv1D):  Filtros=64, kernel=3, activacion=ReLU
     → Extrae patrones espaciales entre canales de sensores LMG+ACC
@@ -180,7 +181,7 @@ def compilar_modelo(
             0.0 (default) reproduce exactamente la ruta LMG del hardware
             fisico. La ruta de validacion sobre NinaPro DB5
             (entrenamiento_cv.py) pasa 0.1, que es el valor con el que se
-            obtuvo la linea base de 82.98%; cambiarlo romperia la
+            obtuvo la referencia SI2 de 82.98%; cambiarlo romperia la
             comparabilidad entre esquemas de particion.
     """
     modelo.compile(

@@ -184,7 +184,7 @@ def main():
 
     resultados = {}
 
-    # Esquema de la linea base, solo como referencia de contraste
+    # Esquema de la referencia SI2, solo como referencia de contraste
     resultados["repeticion_groupkfold"] = analizar_esquema(
         X, y_int, grupos_rep, sujetos, "repeticion", args.folds, False
     )

@@ -43,7 +43,7 @@ POR QUE EL REPOSO HEREDA EL repetition_id:
   En NinaPro DB5, todo el reposo compartia repetition = 0. Al agrupar por
   repeticion, el reposo entero caia en un unico pliegue: uno de los cinco
   quedo con 50.7% de Rest en test frente a ~8% en los demas, lo que
-  inflo la desviacion estandar de la linea base.
+  inflo la desviacion estandar de la referencia SI2.
 
   Aqui el reposo NUNCA recibe un repetition_id propio: hereda el de la
   contraccion que acaba de terminar, igual que la preparacion hereda el

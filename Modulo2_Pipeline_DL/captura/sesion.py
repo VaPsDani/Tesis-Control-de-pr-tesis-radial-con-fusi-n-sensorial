@@ -432,9 +432,9 @@ class Sesion:
     # ---------- metadatos ----------
     def guardar_metadatos(self, abortada: bool):
         """
-        JSON por sesion. En la linea base EMG dos pliegues rindieron peor
-        que el resto sin que pudieramos explicar por que, porque el
-        dataset publico no trae estos datos. Con el nuestro si.
+        JSON por sesion. En la validacion sobre NinaPro DB5 dos pliegues
+        rindieron peor que el resto sin que pudieramos explicar por que,
+        porque el dataset publico no trae estos datos. Con el nuestro si.
         """
         if not self.ruta_json:
             return

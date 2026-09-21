@@ -8,7 +8,7 @@ agrupamiento sea el unico grado de libertad entre corridas comparables.
 
 ESQUEMAS DISPONIBLES:
 
-  'repeticion'  (linea base, tag si2-groupkfold-repeticion)
+  'repeticion'  (referencia SI2, tag si2-groupkfold-repeticion)
       Agrupa por el campo 'repetition' del .mat (1..6), COLAPSADO entre
       sujetos y ejercicios: la repeticion 3 del sujeto 1 y la del sujeto 7
       caen en el mismo grupo. Ningun sujeto queda fuera del entrenamiento,

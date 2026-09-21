@@ -122,8 +122,9 @@
 // Canales de IMU que entran AL MODELO: solo el acelerometro.
 // El cuarto canal anterior (qw = |a|/2 saturado) era una funcion
 // determinista de los otros tres y se elimino. Con 3, el vector queda
-// en 8 canales, la misma forma que la linea base sobre NinaPro DB5
-// (5 sEMG + 3 ACC).
+// en 8 canales, la misma forma con la que se valido el pipeline sobre
+// NinaPro DB5 (5 sEMG + 3 ACC), asi que el mismo codigo sirve para las
+// dos entradas.
 #define NUM_IMU         3           // ax, ay, az
 #define TOTAL_FEATURES  (NUM_LMG + NUM_IMU)   // 8
 
@@ -141,7 +142,8 @@
 // convierten en un error de compilacion.
 static_assert(TOTAL_FEATURES == 8,
               "TOTAL_FEATURES debe ser 8 (5 LMG + 3 ACC), la misma forma que "
-              "la linea base sobre NinaPro DB5 y que NUM_FEATURES del Modulo 3.");
+              "la validacion preliminar sobre NinaPro DB5 y que NUM_FEATURES "
+              "del Modulo 3.");
 static_assert(TOTAL_CSV == 11,
               "El CSV guarda 11 senales (5 LMG + 6 ejes de IMU) mas el "
               "timestamp. El giroscopio se guarda aunque el modelo no lo use; "

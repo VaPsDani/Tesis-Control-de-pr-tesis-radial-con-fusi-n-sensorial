@@ -236,7 +236,7 @@ def ventanear(sesiones: List[dict], sujetos: List[int], w: int, stride: int,
     Un segmento es un tramo contiguo de filas incluidas con la misma
     clase. Tras filtrar fases las filas dejan de ser contiguas, y deslizar
     la ventana a traves del hueco mezclaria dos regimenes: es el mismo
-    defecto que se cuantifico en la linea base EMG (6.27% de ventanas).
+    defecto que se cuantifico sobre NinaPro DB5 (6.27% de ventanas).
 
     Returns:
         F: (N, 2C) media y desviacion por canal (modelos clasicos)

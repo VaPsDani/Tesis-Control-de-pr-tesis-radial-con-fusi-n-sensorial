@@ -1,23 +1,38 @@
 """
-entrenamiento_cv.py - Validacion cruzada por grupos sobre NinaPro DB5
-======================================================================
-Protesis transradial - Validacion con dataset publico multimodal
+validar_pipeline.py - Validacion algoritmica del pipeline sobre NinaPro DB5
+===========================================================================
+Protesis transradial - Validacion preliminar con un dataset publico
 
-ALCANCE:
-  Ruta de VALIDACION del pipeline (senales sEMG de NinaPro DB5, entrada
-  (40, 8)). La ruta de PRODUCCION sobre el hardware fisico (senales LMG,
-  entrada (20, 8)) vive en 'entrenamiento.py' y no se ve afectada por
-  este archivo. Ambas comparten la arquitectura de 'modelo.py'.
+QUE ES Y QUE NO ES:
+  Es una VALIDACION DEL CODIGO: comprueba que la arquitectura, la
+  particion, la normalizacion y el bucle de entrenamiento hacen lo que
+  dicen, usando un dataset publico con 10 sujetos, antes de tener datos
+  propios con los que probarlo.
+
+  NO es una comparacion entre LMG y sEMG. Esa comparacion tendria
+  confusores irresolubles (otros sujetos, otra instrumentacion, otro
+  protocolo, otra frecuencia) y ademas ya esta hecha correctamente por
+  Shahmohammadi et al., con grabacion simultanea de ambas modalidades
+  sobre los mismos participantes. La comparacion central de este trabajo
+  es la ablacion de la IMU sobre datos propios
+  (experimentos/ablacion_imu).
+
+  Que las senales sean sEMG es circunstancial: la entrada es (40, 8), la
+  misma forma que los 8 canales del brazalete propio, y por eso el mismo
+  pipeline sirve para las dos. La ruta de produccion sobre el hardware
+  fisico (entrada (20, 8)) vive en produccion/entrenar_modelo.py y no se
+  ve afectada por este archivo.
 
 FLUJO:
-  1. Cargar y preprocesar NinaPro DB5 (preprocesamiento_ninapro.py)
+  1. Cargar y preprocesar NinaPro DB5 (cargar_ninapro.py)
   2. Autotest del verificador de fuga entre sujetos
-  3. Particion por grupos: repeticion (linea base) o sujeto (particion.py)
+  3. Particion por grupos: repeticion o sujeto (common/validacion.py)
   4. Entrenar CNN-BiLSTM-Attention en cada pliegue
-  5. Exportar metricas por pliegue, agregadas y comparadas con la linea base
+  5. Exportar metricas por pliegue, agregadas y comparadas con la
+     referencia transcrita del informe SI2
 
 ESQUEMAS DE AGRUPAMIENTO:
-  --agrupamiento repeticion : linea base SI2 (intra-sujeto), 82.98% +/- 2.85%
+  --agrupamiento repeticion : referencia SI2 (intra-sujeto), 82.98% +/- 2.85%
   --agrupamiento sujeto     : inter-sujeto, 2 sujetos completos por pliegue
 
   Todo lo demas (arquitectura, hiperparametros, preprocesamiento, ventana,
@@ -25,8 +40,8 @@ ESQUEMAS DE AGRUPAMIENTO:
   criterio de agrupamiento es el unico grado de libertad.
 
 USO:
-  python entrenamiento_cv.py --mat ./NinaPro_DB5/ --agrupamiento sujeto
-  python entrenamiento_cv.py --mat ./NinaPro_DB5/ --agrupamiento repeticion
+  python validar_pipeline.py --mat ~/data/NinaPro_DB5 --agrupamiento sujeto
+  python validar_pipeline.py --mat ~/data/NinaPro_DB5 --agrupamiento repeticion
 """
 
 # Rutas del Modulo 2 tras la reorganizacion: common/ tiene el codigo
@@ -86,15 +101,18 @@ warnings.filterwarnings("ignore")
 RESULTADOS_DIR = "resultados_cv"
 
 # LABEL_SMOOTHING vive ahora en common/entrenamiento.py, que es el unico
-# sitio donde se entrena. Cambiarlo rompe la comparabilidad con la linea
-# base de 82.98%.
+# sitio donde se entrena. Cambiarlo rompe la comparabilidad con la cifra
+# de referencia de 82.98%.
 
 # ------------------------------------------------------------
-# LINEA BASE SI2 - GroupKFold agrupado por REPETICION
+# REFERENCIA SI2 - GroupKFold agrupado por REPETICION
+# Cifras del informe previo del curso SI2, que se conservan para poder
+# comparar contra ellas. Es una referencia interna del propio pipeline,
+# no una comparacion entre modalidades de sensor.
 # Transcrita de resultados_preliminares/metricas.txt en el commit
 # af6a26a, preservado bajo el tag 'si2-groupkfold-repeticion'.
 # ------------------------------------------------------------
-LINEA_BASE_SI2 = {
+REFERENCIA_SI2 = {
     "esquema": "GroupKFold k=5 agrupado por repeticion",
     "origen": "tag si2-groupkfold-repeticion (commit af6a26a), "
               "resultados_preliminares/metricas.txt",
@@ -231,7 +249,7 @@ def construir_reporte(args, etiqueta, descripciones, metricas_por_fold,
         "matriz_confusion_conteos": cm_total.astype(int).tolist(),
         "matriz_confusion_normalizada": np.round(cm_norm, 4).tolist(),
         "clases": NOMBRES_GESTOS,
-        "linea_base_si2": LINEA_BASE_SI2,
+        "referencia_si2": REFERENCIA_SI2,
     }
     return reporte
 
@@ -241,7 +259,7 @@ def texto_reporte(reporte: dict) -> str:
     L = []
     esq = reporte["esquema"]
     ag = reporte["agregado"]
-    base = reporte["linea_base_si2"]
+    base = reporte["referencia_si2"]
 
     L.append("=" * 78)
     L.append("REPORTE DE METRICAS - VALIDACION CRUZADA")
@@ -328,8 +346,8 @@ def texto_reporte(reporte: dict) -> str:
 
     # --- Comparativa ---
     L.append("=" * 78)
-    L.append("COMPARATIVA CONTRA LA LINEA BASE (agrupamiento por repeticion)")
-    L.append(f"Fuente linea base: {base['origen']}")
+    L.append("COMPARATIVA CONTRA LA REFERENCIA SI2 (agrupamiento por repeticion)")
+    L.append(f"Fuente de la referencia: {base['origen']}")
     L.append("=" * 78)
     L.append("")
     L.append(f"  {'Metrica':<22}{'por REPETICION':>18}{'por SUJETO':>18}"

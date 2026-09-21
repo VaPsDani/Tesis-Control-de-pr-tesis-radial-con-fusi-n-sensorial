@@ -94,7 +94,7 @@ def resumir(ruta: str) -> dict:
     ag = r.get("agregado", {})
     por_clase = r.get("por_clase_global", {})
 
-    # La linea base SI2 transcrita guarda el F1 macro en 'agregado'; las
+    # La referencia SI2 transcrita guarda el F1 macro en "agregado"; las
     # corridas propias lo calculan por pliegue.
     f1_macro = ag.get("f1_macro_media", ag.get("f1_macro"))
 
@@ -169,10 +169,10 @@ def construir_tabla(resumenes: list) -> str:
                  f"{fmt(s['auc_media'], 10)}{fmt(s['loss_media'], 10)}")
     L.append("")
     L.append("  CUIDADO con la columna 'F1 macro': en las corridas propias es la")
-    L.append("  MEDIA DE LOS F1 MACRO POR PLIEGUE, mientras que en la linea base")
+    L.append("  MEDIA DE LOS F1 MACRO POR PLIEGUE, mientras que en la referencia")
     L.append("  SI2 transcrita es el F1 macro de las predicciones AGRUPADAS de")
     L.append("  los 5 pliegues. Son estadisticos distintos y no se comparan")
-    L.append("  entre si. Para comparar contra la linea base use la tabla de F1")
+    L.append("  entre si. Para comparar contra la referencia SI2 use la tabla de F1")
     L.append("  por clase, que en todas las corridas se calcula sobre las")
     L.append("  predicciones agrupadas.")
     L.append("")

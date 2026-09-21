@@ -1,7 +1,7 @@
 """
 analizar_fronteras.py - Cuantifica las ventanas que cruzan discontinuidades
 ===========================================================================
-Protesis transradial - Auditoria de la linea base sobre NinaPro DB5
+Protesis transradial - Auditoria de la validacion preliminar sobre NinaPro DB5
 
 MOTIVO:
   Al preparar la ruta LMG se detecto que deslizar la ventana sobre un
@@ -11,7 +11,7 @@ MOTIVO:
   cuyo restimulus no esta en el mapeo del ejercicio, y el ventaneo
   posterior corre sobre el array ya compactado.
 
-  Este script CUANTIFICA cuantas de las ventanas de la linea base estan
+  Este script CUANTIFICA cuantas de las ventanas de la referencia SI2 estan
   afectadas. No corrige nada y no reejecuta ningun entrenamiento: los
   resultados publicados en resultados_cv/ se conservan tal cual. El
   numero sirve para declarar la limitacion en la discusion con una cifra
@@ -23,7 +23,7 @@ TIPOS DE FRONTERA:
              las filas intermedias. Es la mas grave: la senal tiene un
              salto fisico en mitad de la ventana.
   repeticion La ventana abarca mas de un valor de 'repetition'. Importa
-             porque el esquema de la linea base agrupaba justamente por
+             porque el esquema de la referencia SI2 agrupaba justamente por
              repeticion: una ventana asi pertenece a dos grupos a la vez.
   etiqueta   La ventana abarca mas de una clase. El voto mayoritario le
              asigna una sola, asi que parte de su contenido contradice
@@ -165,7 +165,7 @@ def main():
 
     n_antes = len(banderas)
 
-    # Aplicar EL MISMO submuestreo que la linea base. Se pasa el vector
+    # Aplicar EL MISMO submuestreo que la referencia SI2. Se pasa el vector
     # de banderas por el hueco de 'grupos' para que reciba exactamente el
     # mismo indexado (misma semilla, misma secuencia de RNG) que
     # recibieron X, y y los grupos en la corrida original. X se sustituye
@@ -184,7 +184,7 @@ def main():
     cualquiera = hueco | rep | lab
 
     print("\n" + "=" * 72)
-    print("VENTANAS QUE CRUZAN DISCONTINUIDADES - LINEA BASE NinaPro DB5")
+    print("VENTANAS QUE CRUZAN DISCONTINUIDADES - REFERENCIA SI2 SOBRE NinaPro DB5")
     print("=" * 72)
     print(f"  Ventanas antes del submuestreo de Rest : {n_antes}")
     print(f"  Ventanas del dataset final             : {n}")
@@ -222,7 +222,7 @@ def main():
               f"{d['repeticion']:>13}")
 
     resultado = {
-        "_nota": "Auditoria de la linea base. NO corrige nada ni reejecuta "
+        "_nota": "Auditoria de la referencia SI2. NO corrige nada ni reejecuta "
                  "entrenamientos; los resultados de resultados_cv/ se "
                  "conservan. El numero se declara como limitacion.",
         "n_ventanas_antes_submuestreo": int(n_antes),

@@ -32,8 +32,8 @@ from sklearn.metrics import f1_score
 
 from modelo import construir_modelo, compilar_modelo
 
-# Suavizado de etiquetas de la linea base. Cambiarlo rompe la
-# comparabilidad entre corridas.
+# Suavizado de etiquetas con el que se obtuvo la referencia SI2.
+# Cambiarlo rompe la comparabilidad entre corridas.
 LABEL_SMOOTHING = 0.1
 
 
@@ -46,7 +46,7 @@ def augmentar_muestra(X, y):
     """
     Data augmentation ligero sobre cada ventana de entrenamiento.
 
-    Identico a la linea base: ruido gaussiano, escalado global y
+    Identico a la referencia SI2: ruido gaussiano, escalado global y
     desplazamiento temporal de +/- 1 muestra. Se aplica solo al conjunto
     de entrenamiento, nunca al de validacion.
     """
