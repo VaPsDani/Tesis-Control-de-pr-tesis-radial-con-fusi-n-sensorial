@@ -30,6 +30,19 @@ COMPARACION:
   brazalete de 5 modulos.
 """
 
+# Rutas del Modulo 2 tras la reorganizacion: common/ tiene el codigo
+# compartido por todos los experimentos y produccion/ el pipeline del
+# modelo que se despliega.
+import os as _os
+import sys as _sys
+_M2 = _os.path.abspath(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                     "..", ".."))
+for _d in (_M2, _os.path.join(_M2, "common"), _os.path.join(_M2, "produccion"),
+           _os.path.join(_M2, "experimentos", "validacion_preliminar_emg")):
+    if _d not in _sys.path:
+        _sys.path.insert(0, _d)
+
+
 import argparse
 import json
 import os
@@ -123,7 +136,7 @@ def main():
             for k, (tr, te) in enumerate(pliegues):
                 t0 = time.time()
                 if nombre == "CNN":
-                    from entrenamiento_cv import entrenar_con_validacion_interna
+                    from entrenamiento import entrenar_con_validacion_interna
                     Y = np.eye(NUM_CLASES, dtype=np.float32)[y]
                     # Validacion interna + reentreno: los callbacks nunca
                     # ven el test.

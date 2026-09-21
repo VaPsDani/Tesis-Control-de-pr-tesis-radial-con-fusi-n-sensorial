@@ -47,6 +47,19 @@ Uso:
   python perfil_entrenamiento.py --solo_analizar resultados_cv/perfil
 """
 
+# Rutas del Modulo 2 tras la reorganizacion: common/ tiene el codigo
+# compartido por todos los experimentos y produccion/ el pipeline del
+# modelo que se despliega.
+import os as _os
+import sys as _sys
+_M2 = _os.path.abspath(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                     ".."))
+for _d in (_M2, _os.path.join(_M2, "common"), _os.path.join(_M2, "produccion"),
+           _os.path.join(_M2, "experimentos", "validacion_preliminar_emg")):
+    if _d not in _sys.path:
+        _sys.path.insert(0, _d)
+
+
 import argparse
 import json
 import multiprocessing as mp
@@ -138,11 +151,12 @@ def muestreador_cpu(pid, ruta, parar, periodo=0.5):
 # ============================================================
 def perfilar(args, fases):
     import tensorflow as tf
-    from entrenamiento_cv import (LABEL_SMOOTHING, augmentar_muestra,
-                                  cargar_dataset, fijar_semilla)
+    from entrenamiento import (LABEL_SMOOTHING, augmentar_muestra,
+                               fijar_semilla)
+    from validar_pipeline import cargar_dataset
     from modelo import compilar_modelo, construir_modelo
     from normalizacion import normalizar
-    from particion import generar_particiones
+    from validacion import generar_particiones
 
     @contextmanager
     def fase(nombre, **extra):

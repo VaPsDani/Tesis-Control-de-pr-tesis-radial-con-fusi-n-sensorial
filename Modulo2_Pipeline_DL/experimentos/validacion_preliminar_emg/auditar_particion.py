@@ -17,18 +17,31 @@ USO:
   python analizar_particion.py --mat ./NinaPro_DB5/ --cache cache.npz
 """
 
+# Rutas del Modulo 2 tras la reorganizacion: common/ tiene el codigo
+# compartido por todos los experimentos y produccion/ el pipeline del
+# modelo que se despliega.
+import os as _os
+import sys as _sys
+_M2 = _os.path.abspath(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                     "..", ".."))
+for _d in (_M2, _os.path.join(_M2, "common"), _os.path.join(_M2, "produccion"),
+           _os.path.join(_M2, "experimentos", "validacion_preliminar_emg")):
+    if _d not in _sys.path:
+        _sys.path.insert(0, _d)
+
+
 import argparse
 import json
 import os
 
 import numpy as np
 
-from preprocesamiento_ninapro import (
+from cargar_ninapro import (
     cargar_procesar_dataset,
     NOMBRES_GESTOS,
     NUM_CLASES,
 )
-from particion import (
+from validacion import (
     autotest_verificador,
     describir_pliegue,
     formatear_pliegue,

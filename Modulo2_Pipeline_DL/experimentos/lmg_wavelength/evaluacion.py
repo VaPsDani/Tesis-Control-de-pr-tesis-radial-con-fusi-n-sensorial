@@ -5,6 +5,19 @@ Todas las validaciones cruzadas agrupan por SUJETO (GroupKFold k=5), con
 la verificacion dura de no fuga de particion.py.
 """
 
+# Rutas del Modulo 2 tras la reorganizacion: common/ tiene el codigo
+# compartido por todos los experimentos y produccion/ el pipeline del
+# modelo que se despliega.
+import os as _os
+import sys as _sys
+_M2 = _os.path.abspath(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                     "..", ".."))
+for _d in (_M2, _os.path.join(_M2, "common"), _os.path.join(_M2, "produccion"),
+           _os.path.join(_M2, "experimentos", "validacion_preliminar_emg")):
+    if _d not in _sys.path:
+        _sys.path.insert(0, _d)
+
+
 import os
 import sys
 
@@ -13,7 +26,7 @@ import numpy as np
 AQUI = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, AQUI)
 from datos import NUM_CLASES  # noqa: E402
-from particion import generar_particiones  # noqa: E402
+from validacion import generar_particiones  # noqa: E402
 
 from sklearn.metrics import accuracy_score, f1_score  # noqa: E402
 

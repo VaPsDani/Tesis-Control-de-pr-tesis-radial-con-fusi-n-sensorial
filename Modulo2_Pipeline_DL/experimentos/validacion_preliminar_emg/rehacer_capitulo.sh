@@ -17,7 +17,7 @@ source "$HOME/env-tesis.sh"
 # toda la VRAM al arrancar y el segundo proceso se queda sin memoria.
 export TF_FORCE_GPU_ALLOW_GROWTH=true
 
-CODE=/mnt/c/Users/danie/OneDrive/Documents/GitHub/Tesis-Control-de-pr-tesis-radial-con-fusi-n-sensorial/.claude/worktrees/groupkfold-subject-validation-9509f7/Modulo2_Pipeline_DL
+CODE=/mnt/c/Users/danie/OneDrive/Documents/GitHub/Tesis-Control-de-pr-tesis-radial-con-fusi-n-sensorial/.claude/worktrees/groupkfold-subject-validation-9509f7/Modulo2_Pipeline_DL/experimentos/validacion_preliminar_emg
 OUT="$CODE/resultados_cv/rehecho_val_interna"
 LOGS="$HOME/rehacer_logs"
 PARALELO=4
@@ -36,7 +36,7 @@ correr() {
   etiqueta=$1; shift
   cd "$CODE"
   echo "### INICIO $etiqueta $(date +%H:%M:%S)"
-  "$HOME/venv-tesis/bin/python" -u entrenamiento_cv.py \
+  "$HOME/venv-tesis/bin/python" -u validar_pipeline.py \
     --mat "$HOME/data/NinaPro_DB5" "$@" \
     --validacion interna --reentrenar \
     --early_stopping_start 10 --folds 5 --epochs 100 --batch_size 32 --lr 1e-3 \

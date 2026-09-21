@@ -11,6 +11,19 @@ batch 32, mismos callbacks no hacen falta aqui), calienta, espera una senal
 comun y cronometra el mismo numero de pasos. Lanzar con concurrencia_gpu.sh.
 """
 
+# Rutas del Modulo 2 tras la reorganizacion: common/ tiene el codigo
+# compartido por todos los experimentos y produccion/ el pipeline del
+# modelo que se despliega.
+import os as _os
+import sys as _sys
+_M2 = _os.path.abspath(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                     ".."))
+for _d in (_M2, _os.path.join(_M2, "common"), _os.path.join(_M2, "produccion"),
+           _os.path.join(_M2, "experimentos", "validacion_preliminar_emg")):
+    if _d not in _sys.path:
+        _sys.path.insert(0, _d)
+
+
 import os
 import sys
 import time
@@ -20,8 +33,9 @@ import numpy as np
 os.environ.setdefault("TF_FORCE_GPU_ALLOW_GROWTH", "true")
 import tensorflow as tf  # noqa: E402
 
-from entrenamiento_cv import (LABEL_SMOOTHING, augmentar_muestra,  # noqa: E402
-                              cargar_dataset, fijar_semilla)
+from entrenamiento import (LABEL_SMOOTHING, augmentar_muestra,  # noqa: E402
+                           fijar_semilla)
+from validar_pipeline import cargar_dataset  # noqa: E402
 from modelo import compilar_modelo, construir_modelo  # noqa: E402
 
 bandera, pasos, idx = sys.argv[1], int(sys.argv[2]), sys.argv[3]

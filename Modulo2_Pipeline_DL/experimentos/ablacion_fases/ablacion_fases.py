@@ -48,6 +48,19 @@ Uso:
   python ablacion_fases.py --lmg_publico --config ir --data ~/data/lmg_wavelength_dataset
 """
 
+# Rutas del Modulo 2 tras la reorganizacion: common/ tiene el codigo
+# compartido por todos los experimentos y produccion/ el pipeline del
+# modelo que se despliega.
+import os as _os
+import sys as _sys
+_M2 = _os.path.abspath(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                     "..", ".."))
+for _d in (_M2, _os.path.join(_M2, "common"), _os.path.join(_M2, "produccion"),
+           _os.path.join(_M2, "experimentos", "validacion_preliminar_emg")):
+    if _d not in _sys.path:
+        _sys.path.insert(0, _d)
+
+
 import argparse
 import json
 import os
@@ -177,7 +190,7 @@ def ajustar_predecir(args, F, X, y, tr, te, pliegue, rng, grupos=None):
     if args.modelo == "lda":
         m = LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto")
         return m.fit(F[tr], y[tr]).predict(F[te])
-    from entrenamiento_cv import entrenar_con_validacion_interna   # importa TensorFlow
+    from entrenamiento import entrenar_con_validacion_interna   # importa TensorFlow
     Y = np.eye(NUM_CLASES, dtype=np.float32)[y]
     # Validacion interna + reentreno: los callbacks vigilan un grupo separado
     # del train de ESTA variante, nunca el test. Con la misma semilla y el

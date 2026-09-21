@@ -38,6 +38,19 @@ USO:
   python analisis_ventana.py --etapa cnn --top 6
 """
 
+# Rutas del Modulo 2 tras la reorganizacion: common/ tiene el codigo
+# compartido por todos los experimentos y produccion/ el pipeline del
+# modelo que se despliega.
+import os as _os
+import sys as _sys
+_M2 = _os.path.abspath(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                     "..", ".."))
+for _d in (_M2, _os.path.join(_M2, "common"), _os.path.join(_M2, "produccion"),
+           _os.path.join(_M2, "experimentos", "validacion_preliminar_emg")):
+    if _d not in _sys.path:
+        _sys.path.insert(0, _d)
+
+
 import argparse
 import json
 import os
@@ -52,7 +65,7 @@ sys.path.insert(0, AQUI)
 from datos import (FS_NATIVA, NOMBRES, NUM_CLASES, RUTA_DATASET_DEFECTO,  # noqa
                    parametros_ventana, preparar_config, submuestrear_rest,
                    ventanear)
-from particion import autotest_verificador, generar_particiones  # noqa
+from validacion import autotest_verificador, generar_particiones  # noqa
 
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.metrics import accuracy_score, f1_score
@@ -175,7 +188,7 @@ def etapa_lda_igual_n(args):
 
 def etapa_cnn(args):
     """CNN sobre las mejores configuraciones efectivas del LDA."""
-    from entrenamiento_cv import entrenar_con_validacion_interna   # importa TensorFlow
+    from entrenamiento import entrenar_con_validacion_interna   # importa TensorFlow
 
     ruta_lda = os.path.join(args.output, "ventana_lda.csv")
     if not os.path.exists(ruta_lda):

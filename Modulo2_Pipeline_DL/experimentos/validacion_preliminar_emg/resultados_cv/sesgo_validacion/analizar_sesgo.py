@@ -2,7 +2,7 @@ import glob, json, os
 import numpy as np
 from scipy.stats import ttest_rel, wilcoxon
 
-D = "/mnt/c/Users/danie/OneDrive/Documents/GitHub/Tesis-Control-de-pr-tesis-radial-con-fusi-n-sensorial/.claude/worktrees/groupkfold-subject-validation-9509f7/Modulo2_Pipeline_DL/resultados_cv"
+D = "/mnt/c/Users/danie/OneDrive/Documents/GitHub/Tesis-Control-de-pr-tesis-radial-con-fusi-n-sensorial/.claude/worktrees/groupkfold-subject-validation-9509f7/Modulo2_Pipeline_DL/experimentos/validacion_preliminar_emg/resultados_cv"
 
 
 def cargar(ruta):

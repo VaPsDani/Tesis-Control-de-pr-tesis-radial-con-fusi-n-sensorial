@@ -1,0 +1,1 @@
+ANALISIS 1.d - clasicos vs CNN (Wilcoxon pareado por sujeto)

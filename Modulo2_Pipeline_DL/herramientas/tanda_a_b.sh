@@ -22,6 +22,7 @@ source "$HOME/env-tesis.sh"
 export TF_FORCE_GPU_ALLOW_GROWTH=true
 
 M2=/mnt/c/Users/danie/OneDrive/Documents/GitHub/Tesis-Control-de-pr-tesis-radial-con-fusi-n-sensorial/.claude/worktrees/groupkfold-subject-validation-9509f7/Modulo2_Pipeline_DL
+EMG=$M2/experimentos/validacion_preliminar_emg
 L=$M2/experimentos/lmg_wavelength
 PY="$HOME/venv-tesis/bin/python"
 T="$HOME/tanda"
@@ -29,9 +30,9 @@ YO="$T/tanda_a_b.sh"
 COLA=$T/cola; CORR=$T/corriendo; HECHO=$T/hecho; LOGS=$T/logs; MARCAS=$T/marcas
 UMBRAL_RAM_MB=${UMBRAL_RAM_MB:-3000}
 ESPERA_ENTRE_ARRANQUES=${ESPERA_ENTRE_ARRANQUES:-120}
-OUT_A=$M2/resultados_cv/por_sujeto
-OUT_LOSO=$M2/resultados_cv/por_sujeto_loso
-REF=$M2/resultados_cv/rehecho_val_interna
+OUT_A=$EMG/resultados_cv/por_sujeto
+OUT_LOSO=$EMG/resultados_cv/por_sujeto_loso
+REF=$EMG/resultados_cv/rehecho_val_interna
 D="--data $HOME/data/lmg_wavelength_dataset --cache $HOME/cache_lmg"
 # Identico a la corrida cc872da (rehacer_capitulo.sh) salvo agrupamiento y folds.
 ECV="--mat $HOME/data/NinaPro_DB5 --agrupamiento sujeto --validacion interna --reentrenar --early_stopping_start 10 --epochs 100 --batch_size 32 --lr 1e-3 --seed 42 --cache $HOME/cache_ninapro.npz"
@@ -43,7 +44,7 @@ encolar() {           # prioridad nombre comando...
   local prio=$1 nombre=$2; shift 2
   local f="${prio}_${nombre}.job"
   [ -e "$HECHO/$f" ] || [ -e "$CORR/$f" ] || [ -e "$COLA/$f" ] && return 0
-  printf '%s\n' "set -o pipefail" "cd $M2" "$*" > "$COLA/$f"
+  printf '%s\n' "set -o pipefail" "cd $EMG" "$*" > "$COLA/$f"
 }
 
 # ------------------------------------------------------------------ ganchos
@@ -51,15 +52,15 @@ if [ "${1:-}" = "--gancho-A" ]; then
   touch "$MARCAS/A_$2"
   if [ -e "$MARCAS/A_sujeto" ] && [ -e "$MARCAS/A_sujeto_rest" ] && mkdir "$MARCAS/A_analizado" 2>/dev/null; then
     log "ANALISIS por sujeto (5 pliegues)"
-    "$PY" -u "$M2/analisis_por_sujeto.py" \
+    "$PY" -u "$EMG/analisis_por_sujeto.py" \
       --sujeto "$OUT_A/predicciones_A_sujeto.npz" --rest "$OUT_A/predicciones_A_sujeto_rest.npz" \
       --salida "$OUT_A" --etiqueta "5 pliegues" \
       --ref_sujeto "$REF/metricas_sujeto_norm-sujeto.json" --ref_rest "$REF/metricas_sujeto_norm-sujeto_rest.json" \
       > "$LOGS/analisis_A.log" 2>&1 || { log "FALLO analisis A (ver logs/analisis_A.log)"; exit 1; }
     log "$(grep -E '^   IC 95%' "$LOGS/analisis_A.log" | head -1 | sed 's/^ *//')"
     if grep -q '"lanzar_loso": true' "$OUT_A/analisis_por_sujeto.json"; then
-      encolar 00a LOSO_sujeto "$PY -u entrenamiento_cv.py $ECV --normalizacion sujeto --folds 10 --etiqueta LOSO_sujeto --output_dir $OUT_LOSO && bash $YO --gancho-LOSO sujeto"
-      encolar 00b LOSO_sujeto_rest "$PY -u entrenamiento_cv.py $ECV --normalizacion sujeto_rest --folds 10 --etiqueta LOSO_sujeto_rest --output_dir $OUT_LOSO && bash $YO --gancho-LOSO sujeto_rest"
+      encolar 00a LOSO_sujeto "$PY -u $EMG/validar_pipeline.py $ECV --normalizacion sujeto --folds 10 --etiqueta LOSO_sujeto --output_dir $OUT_LOSO && bash $YO --gancho-LOSO sujeto"
+      encolar 00b LOSO_sujeto_rest "$PY -u $EMG/validar_pipeline.py $ECV --normalizacion sujeto_rest --folds 10 --etiqueta LOSO_sujeto_rest --output_dir $OUT_LOSO && bash $YO --gancho-LOSO sujeto_rest"
       log "DECISION: el intervalo incluye 1 por poco -> deja-un-sujeto-fuera ENCOLADO"
     else
       log "DECISION: no hace falta deja-un-sujeto-fuera"
@@ -70,7 +71,7 @@ fi
 if [ "${1:-}" = "--gancho-LOSO" ]; then
   touch "$MARCAS/LOSO_$2"
   if [ -e "$MARCAS/LOSO_sujeto" ] && [ -e "$MARCAS/LOSO_sujeto_rest" ] && mkdir "$MARCAS/LOSO_analizado" 2>/dev/null; then
-    "$PY" -u "$M2/analisis_por_sujeto.py" \
+    "$PY" -u "$EMG/analisis_por_sujeto.py" \
       --sujeto "$OUT_LOSO/predicciones_LOSO_sujeto.npz" --rest "$OUT_LOSO/predicciones_LOSO_sujeto_rest.npz" \
       --salida "$OUT_LOSO" --etiqueta "deja-un-sujeto-fuera" > "$LOGS/analisis_LOSO.log" 2>&1 \
       && log "ANALISIS LOSO: $(grep -E '^   IC 95%' "$LOGS/analisis_LOSO.log" | head -1 | sed 's/^ *//')" \
@@ -113,8 +114,8 @@ for f in "$CORR"/*.job; do [ -e "$f" ] && mv "$f" "$COLA/"; done
 log "TANDA con $P trabajadores, RAM libre $(awk '/MemAvailable/ {print int($2 / 1024)}' /proc/meminfo) MB"
 
 # A: por sujeto, primero
-encolar 10 A_sujeto      "$PY -u entrenamiento_cv.py $ECV --normalizacion sujeto --folds 5 --etiqueta A_sujeto --output_dir $OUT_A && bash $YO --gancho-A sujeto"
-encolar 11 A_sujeto_rest "$PY -u entrenamiento_cv.py $ECV --normalizacion sujeto_rest --folds 5 --etiqueta A_sujeto_rest --output_dir $OUT_A && bash $YO --gancho-A sujeto_rest"
+encolar 10 A_sujeto      "$PY -u $EMG/validar_pipeline.py $ECV --normalizacion sujeto --folds 5 --etiqueta A_sujeto --output_dir $OUT_A && bash $YO --gancho-A sujeto"
+encolar 11 A_sujeto_rest "$PY -u $EMG/validar_pipeline.py $ECV --normalizacion sujeto_rest --folds 5 --etiqueta A_sujeto_rest --output_dir $OUT_A && bash $YO --gancho-A sujeto_rest"
 # B: 1.b repartida por configuracion (era la etapa mas larga)
 prio=20
 for c in green ir 250both 125both; do

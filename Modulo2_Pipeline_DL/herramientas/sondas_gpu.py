@@ -23,6 +23,19 @@ Todas las medidas sincronizan con el host en cada iteracion (.numpy()),
 igual que train_on_batch, para que el tiempo incluya la ejecucion en GPU.
 """
 
+# Rutas del Modulo 2 tras la reorganizacion: common/ tiene el codigo
+# compartido por todos los experimentos y produccion/ el pipeline del
+# modelo que se despliega.
+import os as _os
+import sys as _sys
+_M2 = _os.path.abspath(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                     ".."))
+for _d in (_M2, _os.path.join(_M2, "common"), _os.path.join(_M2, "produccion"),
+           _os.path.join(_M2, "experimentos", "validacion_preliminar_emg")):
+    if _d not in _sys.path:
+        _sys.path.insert(0, _d)
+
+
 import argparse
 import json
 import os
@@ -33,7 +46,8 @@ import tensorflow as tf
 from tensorflow.keras import Model, layers
 from tensorflow.keras.regularizers import l2
 
-from entrenamiento_cv import LABEL_SMOOTHING, cargar_dataset
+from entrenamiento import LABEL_SMOOTHING
+from validar_pipeline import cargar_dataset
 from modelo import MecanismoAtencion, construir_modelo
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
