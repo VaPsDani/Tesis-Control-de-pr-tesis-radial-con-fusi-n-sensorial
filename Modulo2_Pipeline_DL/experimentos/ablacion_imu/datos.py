@@ -38,6 +38,9 @@ import pandas as pd
 
 from preprocesamiento import COLUMNAS_MODELO, CONDICIONES_POSTURALES
 
+# Niveles del factor B, tal como se escriben en el CSV.
+CONDICION_ESTATICA, CONDICION_DINAMICA = CONDICIONES_POSTURALES
+
 # Columnas opticas y de acelerometro dentro de COLUMNAS_MODELO.
 CANALES_LMG = ["v1", "v2", "v3", "v4", "v5"]
 CANALES_IMU = ["ax", "ay", "az"]

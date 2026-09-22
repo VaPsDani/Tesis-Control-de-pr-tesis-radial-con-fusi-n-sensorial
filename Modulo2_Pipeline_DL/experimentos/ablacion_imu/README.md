@@ -27,16 +27,38 @@ ventanas, el mismo submuestreo de Rest, la misma partición y la misma semilla.
 y falla si algo que debería ser idéntico difiere. Se comprueba en vez de
 confiar, porque este es el tipo de fallo que no da ningún síntoma.
 
-## Cómo se entrena
+## Cómo se entrena, y tres preguntas distintas
 
-Por defecto, **una vez por nivel del factor A**, con las dos condiciones
-mezcladas en el entrenamiento, que es como se usaría una prótesis real. Después
-se mide por separado sobre las repeticiones estáticas y sobre las dinámicas.
+| `--entrenamiento` | Qué ve el modelo | Qué pregunta responde |
+|---|---|---|
+| `mixto`, por defecto | Las dos condiciones mezcladas | Cuánto aporta la IMU en cada condición |
+| `por_condicion` | Solo la condición que se evalúa | Cuánto rinde un modelo especializado por postura |
+| `estatica_a_dinamica` | **Solo repeticiones estáticas** | Cuánto se cae al enfrentarse a una postura que nunca vio |
 
-Así las dos celdas de una misma fila comparten pesos, y la diferencia entre
-ellas viene de la condición y no de haber entrenado con la mitad de los datos.
-Con `--entrenamiento por_condicion` se hace lo contrario, que responde a otra
-pregunta: la de un modelo especializado por postura.
+Con `mixto`, las dos celdas de una misma fila comparten pesos, así que la
+diferencia entre ellas viene de la condición y no de haber entrenado con la
+mitad de los datos.
+
+### La prueba de generalización entre posturas
+
+`--entrenamiento estatica_a_dinamica` entrena solo con las repeticiones
+estáticas y evalúa sobre las dos condiciones de los sujetos de test. La celda
+dinámica es entonces **terreno desconocido**: ni ese sujeto ni esa postura
+estuvieron en el entrenamiento. La distancia con la celda estática, medida
+sobre los mismos sujetos, es la caída por cambio de postura.
+
+**Es la prueba directa de que la IMU compensa el efecto de posición.** Si lo
+hace, la caída tiene que ser menor en `lmg_imu` que en `solo_lmg`. Ni `mixto`
+ni `por_condicion` la cubren: el primero ya entrenó con repeticiones dinámicas
+y el segundo nunca sale de su condición.
+
+Se reporta la caída en puntos absolutos y en porcentaje del valor estático,
+porque con exactitudes de partida distintas entre composiciones la absoluta
+sola engaña, y la diferencia de caídas con su contraste pareado por sujeto.
+
+**Las cifras absolutas de un modo no se comparan con las de otro**, porque
+`estatica_a_dinamica` entrena con la mitad de los datos. Lo comparable es
+siempre la distancia dentro de una misma corrida.
 
 | Decisión | Valor |
 |---|---|
@@ -68,6 +90,12 @@ pliegue comparten modelo:
 | Efecto principal de B | dinámica frente a estática |
 | Aporte de la IMU en cada condición | por separado, quieto y en movimiento |
 | **Interacción** | si el aporte de la IMU es mayor con el brazo en movimiento |
+| **Caída entre posturas** | cuánto pierde cada composición al evaluar en dinámica, con la diferencia de caídas entre las dos |
+
+La diferencia de caídas coincide numéricamente con la interacción, con el signo
+cambiado. Se reporta aparte porque con `estatica_a_dinamica` significa otra
+cosa: allí es cuánto aporta la IMU en cada condición, y aquí cuánto aguanta
+cada composición una postura que nunca vio.
 
 **La interacción es la cifra que responde a la pregunta.** Si la IMU sirve
 sobre todo para compensar el movimiento del brazo, su aporte tiene que ser
@@ -91,8 +119,14 @@ publicables.**
 ```bash
 python ablacion_imu.py --simulado --n_sujetos_sim 10
 python ablacion_imu.py --sesiones "../../sesiones/*.csv"
+python ablacion_imu.py --sesiones "../../sesiones/*.csv" \
+    --entrenamiento estatica_a_dinamica --output resultados_generalizacion
 python estadistica.py --csv resultados/ablacion_imu_por_sujeto.csv
 ```
+
+Conviene correr las dos: `mixto` para el 2×2 y `estatica_a_dinamica` para la
+generalización, cada una en su carpeta de salida, porque el CSV por sujeto
+lleva el modo en una columna pero los archivos se sobrescriben.
 
 | Archivo | Qué hace |
 |---|---|

@@ -133,6 +133,72 @@ def analizar(df: pd.DataFrame, metrica: str) -> dict:
     return salida
 
 
+def analizar_caida(df: pd.DataFrame, metrica: str) -> dict:
+    """
+    Caida al pasar de evaluar en estatica a evaluar en dinamica.
+
+    Con --entrenamiento estatica_a_dinamica el modelo solo vio el brazo
+    quieto, asi que la celda dinamica es generalizacion pura y esta caida
+    mide el efecto de cambiar de postura. La pregunta es si la IMU lo
+    compensa: entonces la caida tiene que ser MENOR en lmg_imu.
+
+    La diferencia de caidas coincide numericamente con la interaccion del
+    2x2, con el signo cambiado. Se reporta aparte porque con este
+    entrenamiento significa otra cosa: alli es cuanto aporta la IMU en
+    cada condicion, y aqui cuanto aguanta cada composicion un cambio de
+    postura que nunca vio.
+    """
+    ancha = tabla_ancha(df, metrica)
+    caidas, resumen = {}, {}
+    for a in COMPOSICIONES:
+        est = ancha[(a, "estatica")].values
+        din = ancha[(a, "dinamica")].values
+        caidas[a] = est - din
+        with np.errstate(divide="ignore", invalid="ignore"):
+            rel = np.where(est > 0, (est - din) / est, np.nan)
+        resumen[a] = {
+            "media_estatica": float(est.mean()),
+            "media_dinamica": float(din.mean()),
+            "caida_absoluta": float((est - din).mean()),
+            "caida_relativa": float(np.nanmean(rel)),
+            "contraste_contra_cero": contraste(
+                est - din, f"caida de {a}"),
+        }
+
+    salida = {"metrica": metrica, "n_sujetos": len(ancha), "por_composicion": resumen}
+    if len(COMPOSICIONES) == 2:
+        a, b = COMPOSICIONES            # solo_lmg, lmg_imu
+        salida["diferencia_de_caidas"] = contraste(
+            caidas[a] - caidas[b], f"caida({a}) - caida({b})")
+        salida["lectura"] = (
+            f"positivo significa que {b} aguanta mejor el cambio de postura")
+    return salida
+
+
+def texto_caida(res: dict) -> str:
+    L = []
+    w = L.append
+    w(f"CAIDA ENTRE POSTURAS - {res['metrica'].upper()} "
+      f"(n = {res['n_sujetos']} sujetos)")
+    w("=" * 74)
+    w(f"   {'':<10}{'estatica':>11}{'dinamica':>11}{'caida':>10}{'relativa':>11}"
+      f"{'Wilcoxon p':>13}")
+    for a in COMPOSICIONES:
+        r = res["por_composicion"][a]
+        w(f"   {a:<10}{r['media_estatica']:11.4f}{r['media_dinamica']:11.4f}"
+          f"{r['caida_absoluta']:+10.4f}{100 * r['caida_relativa']:10.1f}%"
+          f"{r['contraste_contra_cero']['wilcoxon_p']:13.4f}")
+    if "diferencia_de_caidas" in res:
+        d = res["diferencia_de_caidas"]
+        w("")
+        w(f"   {d['etiqueta']}: {d['media']:+.4f}  "
+          f"Wilcoxon p = {d['wilcoxon_p']:.4f}  "
+          f"t({d['n']-1}) = {d['t']:+.2f}, p = {d['t_p']:.4f}  "
+          f"d_z = {d['d_z']:+.2f}")
+        w(f"   {res['lectura']}")
+    return "\n".join(L)
+
+
 def texto(res: dict) -> str:
     L = []
     w = L.append
@@ -190,8 +256,22 @@ def main():
             print(f"[AVISO] El CSV no tiene la columna {metrica}, se omite.")
             continue
         res = analizar(df, metrica)
+        caida = analizar_caida(df, metrica)
+        res["caida_entre_posturas"] = caida
         todo[metrica] = res
         bloques.append(texto(res))
+        bloques.append(texto_caida(caida))
+
+    modos = sorted(df["entrenamiento"].unique()) if "entrenamiento" in df else []
+    if modos:
+        bloques.append(
+            "MODO DE ENTRENAMIENTO DE ESTA CORRIDA: " + ", ".join(modos)
+            + ("\n   La caida entre posturas mide GENERALIZACION: el modelo "
+               "solo vio\n   repeticiones estaticas."
+               if "estatica_a_dinamica" in modos else
+               "\n   La caida entre posturas NO mide generalizacion: el "
+               "modelo tambien vio\n   repeticiones dinamicas en el "
+               "entrenamiento."))
 
     informe = "\n\n".join(bloques)
     print("\n" + informe)
