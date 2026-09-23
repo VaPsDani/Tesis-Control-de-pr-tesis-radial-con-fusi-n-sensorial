@@ -31,26 +31,42 @@ confiar, porque este es el tipo de fallo que no da ningún síntoma.
 
 | `--entrenamiento` | Qué ve el modelo | Qué pregunta responde |
 |---|---|---|
-| `mixto`, por defecto | Las dos condiciones mezcladas | Cuánto aporta la IMU en cada condición |
+| **`mixto`, por defecto** | Las dos condiciones mezcladas | **Cuánto aporta la IMU, y si aporta más bajo variación postural. Es la prueba principal** |
 | `por_condicion` | Solo la condición que se evalúa | Cuánto rinde un modelo especializado por postura |
-| `estatica_a_dinamica` | **Solo repeticiones estáticas** | Cuánto se cae al enfrentarse a una postura que nunca vio |
+| `estatica_a_dinamica` | Solo repeticiones estáticas | Qué ocurre cuando el entrenamiento no incluye variación postural |
 
-Con `mixto`, las dos celdas de una misma fila comparten pesos, así que la
-diferencia entre ellas viene de la condición y no de haber entrenado con la
-mitad de los datos.
+**La prueba principal del aporte inercial es `mixto`, y la cifra que responde
+es su interacción.** Ahí las dos celdas de una misma fila comparten pesos, así
+que la diferencia entre ellas viene de la condición y no de haber entrenado con
+la mitad de los datos.
 
-### La prueba de generalización entre posturas
+### Qué ocurre cuando el entrenamiento no incluye variación postural
 
 `--entrenamiento estatica_a_dinamica` entrena solo con las repeticiones
-estáticas y evalúa sobre las dos condiciones de los sujetos de test. La celda
-dinámica es entonces **terreno desconocido**: ni ese sujeto ni esa postura
-estuvieron en el entrenamiento. La distancia con la celda estática, medida
-sobre los mismos sujetos, es la caída por cambio de postura.
+estáticas y evalúa sobre las dos condiciones de los sujetos de test. La
+distancia entre las dos celdas es la caída por cambio de postura.
 
-**Es la prueba directa de que la IMU compensa el efecto de posición.** Si lo
-hace, la caída tiene que ser menor en `lmg_imu` que en `solo_lmg`. Ni `mixto`
-ni `por_condicion` la cubren: el primero ya entrenó con repeticiones dinámicas
-y el segundo nunca sale de su condición.
+**Este modo está sesgado contra la IMU, y hay que decirlo al leer sus cifras.**
+En la condición estática el brazo está fijo, así que el acelerómetro lee casi
+siempre el mismo vector de gravedad: los valores de la condición dinámica caen
+fuera de la distribución de entrenamiento **por la física del protocolo**, no
+por azar ni por un defecto del modelo. Además, entrenando solo con el brazo
+quieto el modelo nunca ve la relación entre postura y señal óptica, que es
+justo lo que tendría que aprender para compensarla.
+
+De ahí la lectura correcta:
+
+| Si sale | Lo que significa | Lo que NO significa |
+|---|---|---|
+| `lmg_imu` cae más que `solo_lmg` | Que la fusión inercial **necesita variación postural en los datos de entrenamiento** | Que la IMU no compense la postura |
+| `lmg_imu` cae menos | Que la IMU aporta robustez incluso sin haber visto la postura en entrenamiento | |
+
+El reporte de este modo incluye una **comprobación del rango del acelerómetro
+en entrenamiento frente al de test**, canal por canal y sobre los valores ya
+normalizados, que son los que entran al modelo. Si los de test caen fuera, lo
+declara explícitamente como desplazamiento de distribución, con la fracción de
+muestras fuera del rango y fuera del intervalo p1 a p99, y la separación de
+medias en desviaciones del entrenamiento.
 
 Se reporta la caída en puntos absolutos y en porcentaje del valor estático,
 porque con exactitudes de partida distintas entre composiciones la absoluta
@@ -94,12 +110,14 @@ pliegue comparten modelo:
 
 La diferencia de caídas coincide numéricamente con la interacción, con el signo
 cambiado. Se reporta aparte porque con `estatica_a_dinamica` significa otra
-cosa: allí es cuánto aporta la IMU en cada condición, y aquí cuánto aguanta
-cada composición una postura que nunca vio.
+cosa: en `mixto` es cuánto aporta la IMU en cada condición, y allí cuánto
+aguanta cada composición una postura que no estuvo en su entrenamiento.
 
-**La interacción es la cifra que responde a la pregunta.** Si la IMU sirve
-sobre todo para compensar el movimiento del brazo, su aporte tiene que ser
-mayor en la condición dinámica.
+**En una corrida en modo `mixto`, la interacción es la cifra que responde a la
+pregunta.** Si la IMU sirve sobre todo para compensar el movimiento del brazo,
+su aporte tiene que ser mayor en la condición dinámica. Con entrenamiento solo
+estático la misma aritmética no dice eso, y el informe lo advierte según el
+modo que registre el CSV.
 
 Se reportan ANOVA de medidas repetidas 2×2, Wilcoxon pareado y t pareada con
 su tamaño de efecto. Con 10 sujetos el p mínimo alcanzable por Wilcoxon es
@@ -138,7 +156,7 @@ lleva el modo en una columna pero los archivos se sobrescriben.
 
 | Archivo | Contenido |
 |---|---|
-| `resultados/ablacion_imu.json` | Configuración verificada, métricas por celda, por pliegue y por sujeto |
+| `resultados/ablacion_imu.json` | Configuración verificada, métricas por celda, por pliegue y por sujeto, caída entre posturas y el rango del acelerómetro en `rango_acelerometro_train_vs_test` |
 | `resultados/ablacion_imu_por_sujeto.csv` | Una fila por celda y sujeto, que es la entrada de la estadística |
 | `resultados/predicciones.npz` | Probabilidades por ventana, con sujeto, condición y repetición |
 | `resultados/estadistica.txt` y `.json` | Contrastes |

@@ -11,9 +11,14 @@ QUE SE CONTRASTA:
                            menos
                            (lmg_imu - solo_lmg) en estatica
 
-  La interaccion es la pregunta que de verdad importa: si la IMU sirve
-  sobre todo cuando el brazo se mueve, el aporte tiene que ser MAYOR en
-  la condicion dinamica que en la estatica.
+  La interaccion, SOBRE UNA CORRIDA EN MODO MIXTO, es la prueba
+  principal del aporte inercial: si la IMU sirve sobre todo cuando el
+  brazo se mueve, su aporte tiene que ser MAYOR en la condicion dinamica
+  que en la estatica.
+
+  Con --entrenamiento estatica_a_dinamica la misma aritmetica significa
+  otra cosa, porque el modelo nunca vio variacion postural. Ver
+  analizar_caida().
 
 POR SUJETO, NO POR PLIEGUE:
   Con 10 sujetos y k=5, contrastar por pliegue deja n = 5 y ademas los
@@ -138,15 +143,22 @@ def analizar_caida(df: pd.DataFrame, metrica: str) -> dict:
     Caida al pasar de evaluar en estatica a evaluar en dinamica.
 
     Con --entrenamiento estatica_a_dinamica el modelo solo vio el brazo
-    quieto, asi que la celda dinamica es generalizacion pura y esta caida
-    mide el efecto de cambiar de postura. La pregunta es si la IMU lo
-    compensa: entonces la caida tiene que ser MENOR en lmg_imu.
+    quieto, asi que esta caida mide que ocurre cuando el entrenamiento NO
+    incluye variacion postural.
+
+    OJO CON LA LECTURA: ese modo esta sesgado contra la IMU. Con el brazo
+    fijo el acelerometro lee casi siempre el mismo vector de gravedad, y
+    el modelo nunca ve la relacion entre postura y senal optica, que es
+    lo que tendria que aprender para compensarla. Si lmg_imu cae mas, lo
+    que se concluye es que la fusion inercial necesita variacion postural
+    en los datos de entrenamiento, NO que la IMU no compense la postura.
+    Esa pregunta la responde la interaccion del modo mixto.
 
     La diferencia de caidas coincide numericamente con la interaccion del
     2x2, con el signo cambiado. Se reporta aparte porque con este
     entrenamiento significa otra cosa: alli es cuanto aporta la IMU en
-    cada condicion, y aqui cuanto aguanta cada composicion un cambio de
-    postura que nunca vio.
+    cada condicion, y aqui cuanto aguanta cada composicion una postura
+    que no estuvo en su entrenamiento.
     """
     ancha = tabla_ancha(df, metrica)
     caidas, resumen = {}, {}
@@ -171,7 +183,9 @@ def analizar_caida(df: pd.DataFrame, metrica: str) -> dict:
         salida["diferencia_de_caidas"] = contraste(
             caidas[a] - caidas[b], f"caida({a}) - caida({b})")
         salida["lectura"] = (
-            f"positivo significa que {b} aguanta mejor el cambio de postura")
+            f"positivo: {b} aguanta mejor el cambio de postura. negativo con "
+            f"entrenamiento solo estatico: la fusion inercial necesita "
+            f"variacion postural en el entrenamiento")
     return salida
 
 
@@ -231,10 +245,12 @@ def texto(res: dict) -> str:
             w(f"   {efecto:<26} F({r['df1']:.0f},{r['df2']:.0f}) = {r['F']:.3f}"
               f", p = {r['p']:.4f}")
     w("")
-    w("LECTURA: la interaccion es la cifra que responde a la pregunta del")
-    w("experimento. Un aporte de la IMU mayor en dinamica que en estatica")
-    w("indica que la IMU compensa el movimiento del brazo, que es lo que")
-    w("ningun trabajo de lightmiografia ha medido.")
+    w("LECTURA: en una corrida en modo MIXTO, la interaccion es la cifra que")
+    w("responde a la pregunta del experimento. Un aporte de la IMU mayor en")
+    w("dinamica que en estatica indica que la IMU compensa el movimiento del")
+    w("brazo, que es lo que ningun trabajo de lightmiografia ha medido. Con")
+    w("entrenamiento solo estatico la misma aritmetica NO dice eso: ver la")
+    w("seccion de caida entre posturas.")
     return "\n".join(L)
 
 
@@ -264,14 +280,30 @@ def main():
 
     modos = sorted(df["entrenamiento"].unique()) if "entrenamiento" in df else []
     if modos:
-        bloques.append(
-            "MODO DE ENTRENAMIENTO DE ESTA CORRIDA: " + ", ".join(modos)
-            + ("\n   La caida entre posturas mide GENERALIZACION: el modelo "
-               "solo vio\n   repeticiones estaticas."
-               if "estatica_a_dinamica" in modos else
-               "\n   La caida entre posturas NO mide generalizacion: el "
-               "modelo tambien vio\n   repeticiones dinamicas en el "
-               "entrenamiento."))
+        if "estatica_a_dinamica" in modos:
+            nota = (
+                "\n   El modelo solo vio repeticiones ESTATICAS, asi que esta"
+                "\n   corrida mide que ocurre cuando el entrenamiento no"
+                "\n   incluye variacion postural."
+                "\n"
+                "\n   ESTE MODO ESTA SESGADO CONTRA LA IMU: con el brazo fijo"
+                "\n   el acelerometro lee casi siempre el mismo vector de"
+                "\n   gravedad, y el modelo nunca ve la relacion entre postura"
+                "\n   y senal optica. Si lmg_imu cae mas, la conclusion es que"
+                "\n   la fusion inercial NECESITA variacion postural en el"
+                "\n   entrenamiento, no que la IMU no compense la postura."
+                "\n"
+                "\n   La prueba principal del aporte inercial es el modo"
+                "\n   mixto, y en el la cifra que responde es la interaccion."
+                "\n   Ver el rango del acelerometro en ablacion_imu.json"
+                "\n   (rango_acelerometro_train_vs_test) para comprobar si"
+                "\n   hubo desplazamiento de distribucion.")
+        else:
+            nota = ("\n   El modelo vio las dos condiciones en el"
+                    "\n   entrenamiento, asi que la caida entre posturas es lo"
+                    "\n   que cuesta la postura a un modelo que la conoce.")
+        bloques.append("MODO DE ENTRENAMIENTO DE ESTA CORRIDA: "
+                       + ", ".join(modos) + nota)
 
     informe = "\n\n".join(bloques)
     print("\n" + informe)

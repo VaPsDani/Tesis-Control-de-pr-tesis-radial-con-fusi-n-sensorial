@@ -37,12 +37,30 @@ TRES MODOS DE ENTRENAMIENTO, TRES PREGUNTAS DISTINTAS (--entrenamiento):
       una postura que no vio.
 
   estatica_a_dinamica
-      GENERALIZACION ENTRE POSTURAS. Entrena SOLO con repeticiones
-      estaticas y evalua sobre las dos condiciones de los sujetos de
-      test: la celda dinamica es entonces terreno desconocido y la
-      distancia con la estatica es la caida por cambio de postura.
-      Pregunta, y es la prueba directa de que la IMU compensa el efecto
-      de posicion: la caida tiene que ser MENOR en lmg_imu.
+      QUE OCURRE CUANDO EL ENTRENAMIENTO NO INCLUYE VARIACION POSTURAL.
+      Entrena SOLO con repeticiones estaticas y evalua sobre las dos
+      condiciones de los sujetos de test. La distancia entre las dos
+      celdas es la caida por cambio de postura.
+
+      ESTE MODO ESTA SESGADO CONTRA LA IMU, y hay que decirlo al leer
+      sus cifras. Con el brazo fijo, el acelerometro lee casi siempre el
+      mismo vector de gravedad, asi que los valores de la condicion
+      dinamica caen FUERA de la distribucion de entrenamiento. Ademas el
+      modelo nunca ve la relacion entre postura y senal optica, que es
+      justo lo que tendria que aprender para compensarla.
+
+      Por eso, si lmg_imu cae mas que solo_lmg, la lectura correcta es
+      que LA FUSION INERCIAL NECESITA VARIACION POSTURAL EN LOS DATOS DE
+      ENTRENAMIENTO, no que la IMU no compense la postura. Esa segunda
+      pregunta la responde el modo mixto.
+
+      El reporte de este modo incluye la comprobacion del rango del
+      acelerometro en entrenamiento frente al de test, que es la que
+      hace explicito el desplazamiento de distribucion.
+
+  CUAL ES LA PRUEBA PRINCIPAL:
+      El modo mixto. Su interaccion mide si la IMU aporta mas bajo
+      variacion postural, que es la pregunta del trabajo.
 
   Los tres modos usan la misma particion, la misma semilla y la misma
   arquitectura. Lo que cambia es que ve el modelo en entrenamiento, y
@@ -284,11 +302,22 @@ def caida_entre_posturas(celdas: dict) -> dict:
     """
     Cuanto se pierde al evaluar en dinamica respecto de estatica.
 
-    Con --entrenamiento estatica_a_dinamica es LA cifra del experimento:
-    el modelo solo vio el brazo quieto, asi que la celda dinamica es
-    generalizacion pura y la distancia con la estatica mide el efecto de
-    cambiar de postura. Si la IMU compensa ese efecto, la caida tiene que
-    ser MENOR en lmg_imu que en solo_lmg.
+    COMO SE LEE, SEGUN EL MODO DE ENTRENAMIENTO:
+
+      mixto
+          El modelo vio las dos condiciones. La caida es cuanto cuesta la
+          postura a un modelo que la conoce. La pregunta del trabajo la
+          responde la interaccion, no esta cifra.
+
+      estatica_a_dinamica
+          El modelo solo vio el brazo quieto. La caida mide que ocurre
+          cuando el entrenamiento NO incluye variacion postural. Si
+          lmg_imu cae mas, la lectura correcta es que la fusion inercial
+          necesita variacion postural en los datos de entrenamiento, no
+          que la IMU no compense la postura: con el brazo fijo el
+          acelerometro lee casi siempre el mismo vector de gravedad y el
+          modelo nunca llega a ver la relacion entre postura y senal
+          optica. Ver desplazamiento_de_distribucion().
 
     La caida se da en puntos absolutos y en porcentaje del valor
     estatico: con exactitudes de partida distintas entre composiciones,
@@ -329,11 +358,89 @@ def caida_entre_posturas(celdas: dict) -> dict:
             "definicion": f"caida({a}) - caida({b})",
             "absoluta": (salida[a]["caida_absoluta"]
                          - salida[b]["caida_absoluta"]),
-            "lectura": (f"positivo significa que {b} aguanta mejor el cambio "
-                        f"de postura, que es lo que se espera si la IMU "
-                        f"compensa el efecto de posicion"),
+            "lectura": (f"positivo: {b} aguanta mejor el cambio de postura. "
+                        f"negativo: {b} aguanta peor, lo que con entrenamiento "
+                        f"solo estatico indica que la fusion inercial necesita "
+                        f"variacion postural en el entrenamiento, no que la "
+                        f"IMU no compense la postura"),
         }
     return salida
+
+
+def desplazamiento_de_distribucion(v: D.Ventanas, args,
+                                   umbral_fuera_rango: float = 0.01,
+                                   umbral_fuera_central: float = 0.10) -> dict:
+    """
+    Rango del acelerometro en entrenamiento frente al de test.
+
+    POR QUE ESTA COMPROBACION:
+      En la condicion estatica el brazo esta fijo, asi que el
+      acelerometro lee casi siempre el mismo vector de gravedad. Si el
+      entrenamiento solo contiene repeticiones estaticas, los valores de
+      la condicion dinamica caen fuera de esa distribucion por la fisica
+      del protocolo, no por azar.
+
+      Cuando eso ocurre, una caida de lmg_imu NO significa que la IMU no
+      compense la postura: significa que se le pidio predecir con
+      entradas que nunca vio. La comprobacion existe para que eso quede
+      declarado en el reporte y no se lea al reves.
+
+    Se mide sobre los valores YA NORMALIZADOS, que son los que entran al
+    modelo, y por canal del acelerometro.
+    """
+    stats = D.estadisticas_de_calibracion(v)
+    vu = v.subconjunto(v.es_calibracion == 0)
+    cols = D.indices_de_canales("lmg_imu")
+    X = D.normalizar_por_calibracion(
+        D.seleccionar_canales(vu, "lmg_imu"), vu.sujeto, stats, cols)
+    idx_imu = [D.COMPOSICIONES["lmg_imu"].index(c) for c in D.CANALES_IMU]
+
+    entrena = X[vu.condicion == D.CONDICION_ESTATICA]
+    evalua = X[vu.condicion == D.CONDICION_DINAMICA]
+    if not len(entrena) or not len(evalua):
+        return {"aplicable": False,
+                "motivo": "falta alguna de las dos condiciones"}
+
+    por_canal, hay_desplazamiento = {}, False
+    for j, nombre in zip(idx_imu, D.CANALES_IMU):
+        a = entrena[:, :, j].ravel()
+        b = evalua[:, :, j].ravel()
+        lo, hi = float(a.min()), float(a.max())
+        p1, p99 = (float(x) for x in np.percentile(a, [1, 99]))
+        sd = float(a.std()) or 1.0
+        fuera_rango = float(np.mean((b < lo) | (b > hi)))
+        fuera_central = float(np.mean((b < p1) | (b > p99)))
+        desplazado = (fuera_rango > umbral_fuera_rango
+                      or fuera_central > umbral_fuera_central)
+        hay_desplazamiento |= desplazado
+        por_canal[nombre] = {
+            "train_min": lo, "train_max": hi,
+            "train_p1": p1, "train_p99": p99,
+            "test_min": float(b.min()), "test_max": float(b.max()),
+            "frac_test_fuera_del_rango_de_train": fuera_rango,
+            "frac_test_fuera_del_p1_p99_de_train": fuera_central,
+            "separacion_de_medias_en_sd_de_train":
+                float(abs(b.mean() - a.mean()) / sd),
+            "desplazado": bool(desplazado),
+        }
+
+    return {
+        "aplicable": True,
+        "entrenamiento": args.entrenamiento,
+        "umbral_fuera_rango": umbral_fuera_rango,
+        "umbral_fuera_central": umbral_fuera_central,
+        "por_canal": por_canal,
+        "hay_desplazamiento": bool(hay_desplazamiento),
+        "lectura": (
+            "DESPLAZAMIENTO DE DISTRIBUCION: los valores del acelerometro en "
+            "test caen fuera de los que el modelo vio en entrenamiento. Una "
+            "caida de lmg_imu mide que la fusion inercial necesita variacion "
+            "postural en los datos de entrenamiento, no que la IMU no "
+            "compense la postura."
+            if hay_desplazamiento else
+            "Sin desplazamiento apreciable: los valores del acelerometro en "
+            "test caen dentro del rango visto en entrenamiento."),
+    }
 
 
 def main():
@@ -409,11 +516,13 @@ def main():
     print(f"\n{'=' * 70}")
     print("  CAIDA AL PASAR DE ESTATICA A DINAMICA")
     if args.entrenamiento == "estatica_a_dinamica":
-        print("  (el modelo SOLO vio repeticiones estaticas: la celda "
-              "dinamica es generalizacion pura)")
+        print("  El modelo SOLO vio repeticiones estaticas. Esto mide que")
+        print("  ocurre cuando el entrenamiento no incluye variacion postural,")
+        print("  NO si la IMU compensa la postura: esa pregunta la responde la")
+        print("  interaccion del modo mixto.")
     else:
         print(f"  (entrenamiento '{args.entrenamiento}': el modelo TAMBIEN vio "
-              "dinamicas, asi que esto no mide generalizacion)")
+              "dinamicas)")
     print("=" * 70)
     print(f"  {'':<10}{'estatica':>11}{'dinamica':>11}{'caida':>9}"
           f"{'relativa':>11}{'por sujeto':>13}")
@@ -428,6 +537,22 @@ def main():
         print(f"  {d['definicion']} = {d['absoluta']:+.4f}")
         print(f"  {d['lectura']}")
 
+    # ---------- rango del acelerometro: train frente a test ----------
+    deriva = desplazamiento_de_distribucion(v, args)
+    if deriva.get("aplicable"):
+        print(f"\n{'=' * 70}")
+        print("  RANGO DEL ACELEROMETRO, ENTRENAMIENTO FRENTE A TEST")
+        print("  (valores normalizados, que son los que entran al modelo)")
+        print("=" * 70)
+        print(f"  {'canal':<6}{'train min':>11}{'train max':>11}"
+              f"{'test min':>11}{'test max':>11}{'fuera':>9}{'fuera p1-p99':>14}")
+        for nombre, r in deriva["por_canal"].items():
+            print(f"  {nombre:<6}{r['train_min']:11.3f}{r['train_max']:11.3f}"
+                  f"{r['test_min']:11.3f}{r['test_max']:11.3f}"
+                  f"{100 * r['frac_test_fuera_del_rango_de_train']:8.1f}%"
+                  f"{100 * r['frac_test_fuera_del_p1_p99_de_train']:13.1f}%")
+        print(f"  {deriva['lectura']}")
+
     # ---------- salidas ----------
     reporte = {
         "fecha": datetime.now().isoformat(timespec="seconds"),
@@ -440,6 +565,7 @@ def main():
         "ventanas_por_condicion": reparto,
         "celdas": celdas,
         "caida_entre_posturas": caidas,
+        "rango_acelerometro_train_vs_test": deriva,
     }
     ruta_json = os.path.join(args.output, "ablacion_imu.json")
     with open(ruta_json, "w", encoding="utf-8") as f:
