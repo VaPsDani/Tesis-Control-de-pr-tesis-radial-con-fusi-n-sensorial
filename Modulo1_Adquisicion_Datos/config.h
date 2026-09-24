@@ -3,9 +3,11 @@
  * Protesis transradial - Fusion sensorial y Deep Learning
  *
  * PINOUT:
- *   I2C-1: SDA=GPIO21, SCL=GPIO22  → ADS1115 (0x48), MPU6050 (0x68)
- *   MUX:   S0=GPIO32, S1=GPIO33, S2=GPIO25, S3=GPIO26, EN=GND
- *   LED LMG: GPIO 13, 14, 27, 16, 17 (PWM, 100 ohm en serie al LED)
+ *   I2C-1: SDA=GPIO21, SCL=GPIO22  → ADS1115 #1 (0x48), ADS1115 #2 (0x49),
+ *          MPU6050 (0x68)
+ *   LMG:   OUT de los modulos 1-3 a AIN0-2 del ADS #1; 4-5 a AIN0-1 del ADS #2
+ *   LED LMG: GPIO 13, 25, 27, 16, 17 (PWM, 100 ohm en serie al LED, en el
+ *          PCB de cada modulo)
  *   Serial: 921600 baud
  */
 
@@ -18,7 +20,16 @@
 // grabada no dice con que firmware se tomo, y eso es justo lo que hace
 // falta cuando dos sesiones no se parecen. SUBIRLA al cambiar algo que
 // altere la senal: pines, asentamiento, trama oscura o ADC.
-#define FIRMWARE_VERSION  "M1-2026.09.18"
+#define FIRMWARE_VERSION  "M1-2026.09.24"
+
+// SESIONES QUE NO SE MEZCLAN SIN COMPROBAR:
+//   M1-2026.09.24 cambia la cadena de lectura optica: sin multiplexor
+//   CD74HC4067 (la salida del OPT101 entra directa al ADC), dos ADS1115 y
+//   GAIN_TWO en lugar de GAIN_ONE, y el LED 2 pasa del GPIO14 al GPIO25.
+//   Las sesiones grabadas con M1-2026.09.18 o anteriores y las grabadas
+//   desde esta version NO se mezclan en un mismo entrenamiento sin
+//   comprobar antes que su reposo y su excursion por canal son
+//   comparables. La version queda en el JSON de cada sesion.
 
 // ======================== SERIAL ========================
 // 921600 y no 115200. Con 12 campos por linea (~122 bytes) a 100 Hz
@@ -32,26 +43,28 @@
 #define PIN_SCL         22
 #define I2C_FREQ        400000      // 400 kHz (modo Fast)
 
-// ======================== MUX CD74HC4067 ========================
-#define PIN_MUX_S0      32
-#define PIN_MUX_S1      33
-#define PIN_MUX_S2      25
-#define PIN_MUX_S3      26
-
-// Canales del MUX asignados a cada sensor LMG (fotodiodos OPT101)
-#define CH_LMG_1        0
-#define CH_LMG_2        1
-#define CH_LMG_3        2
-#define CH_LMG_4        3
-#define CH_LMG_5        4
-
-// ======================== ADC ========================
+// ======================== ADC DE LOS CANALES LMG ========================
 // Todo este bloque, hasta la autocalibracion, es IDENTICO al de Modulo3.
-// optica_lmg.cpp y mux_ads1115.cpp son el mismo archivo en ambos
-// modulos: la senal con que se entrena tiene que ser la misma con que
-// se infiere. La justificacion completa de cada valor esta en
+// optica_lmg.cpp y adc_lmg.cpp son el mismo archivo en ambos modulos: la
+// senal con que se entrena tiene que ser la misma con que se infiere. La
+// justificacion completa de cada valor esta en
 // Modulo3_Inferencia_Control/config.h.
-#define ADS_ADDR        0x48
+//
+// Dos ADC en el mismo bus I2C, sin multiplexor:
+#define ADS_ADDR_1      0x48    // ADDR a GND
+#define ADS_ADDR_2      0x49    // ADDR a VDD
+
+// Canal LMG -> ADC (0 = ADS_ADDR_1, 1 = ADS_ADDR_2) y entrada AINx.
+#define LMG1_ADS        0
+#define LMG1_AIN        0
+#define LMG2_ADS        0
+#define LMG2_AIN        1
+#define LMG3_ADS        0
+#define LMG3_AIN        2
+#define LMG4_ADS        1
+#define LMG4_AIN        0
+#define LMG5_ADS        1
+#define LMG5_AIN        1
 
 #define ADC_ADS1115     0
 #define ADC_ADS1015     1
@@ -70,23 +83,27 @@
   #define ADC_CONVERSION_US  1163
 #endif
 #define ADC_OVERHEAD_I2C_US  240     // estimado a 400 kHz; el autotest mide
-#define ASENTAMIENTO_MUX_US   50
 
+// GAIN_TWO (+/-2.048 V) en los dos ADC: solo leen canales opticos, y el
+// OPT101 a 3.3 V no pasa de ~2.15 V. Ver adc_lmg.h.
 // mV por LSB, solo informativo: la conversion usa computeVolts().
 #if ADC_MODELO == ADC_ADS1015
-  #define ADS_GAIN_MV   2.0f     // 12 bits, GAIN_ONE
+  #define ADS_GAIN_MV   1.0f       // 12 bits, GAIN_TWO
+  #define ADC_RAW_MAX   2047       // codigo de recorte
 #else
-  #define ADS_GAIN_MV   0.125f   // 16 bits, GAIN_ONE
+  #define ADS_GAIN_MV   0.0625f    // 16 bits, GAIN_TWO
+  #define ADC_RAW_MAX   32767      // codigo de recorte
 #endif
 
 // ======================== LED DE LOS MODULOS LMG (Tarea 3.a) ========================
 // Un pin por LED: se enciende solo el del canal que se lee. Ataque
-// directo con 100 ohm en serie (~20 mA con el LED IR 1206 de 940 nm,
-// Vf ~1.3 V), nunca los cinco a la vez. GPIO de la nota de diseno
-// (claude/nota-diseno-modulos-lmg.md). Validos en el WROOM 32; en un
-// WROVER, 16 y 17 son de la PSRAM. CONFIRMAR CONTRA EL PCB.
+// directo con la resistencia de 100 ohm del PCB de cada modulo (~18 mA
+// con un LED IR de 940 nm, Vf ~1.3 V), nunca los cinco a la vez.
+// Validos en el WROOM 32; en un WROVER, 16 y 17 son de la PSRAM.
+// LED 2 en GPIO25 y no en GPIO14: el 14 emite pulsos durante el arranque
+// y hacia parpadear el LED. El 25 quedo libre al quitar el multiplexor.
 #define PIN_LED_LMG_1   13
-#define PIN_LED_LMG_2   14
+#define PIN_LED_LMG_2   25
 #define PIN_LED_LMG_3   27
 #define PIN_LED_LMG_4   16
 #define PIN_LED_LMG_5   17

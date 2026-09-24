@@ -12,7 +12,7 @@
  *       b. Ejecutar inferencia TFLite Micro → clase de gesto
  *       c. Si el gesto cambio: enviar PWM al PCA9685
  *   [4] LAZO CERRADO (simultaneo al cierre):
- *       a. Leer FSR de los dedos via MUX + ADS1115
+ *       a. Leer los 5 FSR con el ADC interno del ESP32, cada 10 ms
  *       b. Si FSR > umbral: DETENER servo especifico
  *       c. Mantener presion constante
  *
@@ -26,14 +26,14 @@
  * TIMING CRITICO:
  *   - Muestreo: cada 10 ms (100 Hz)
  *   - Inferencia: cada 20 ms (50 Hz)
- *   - Lectura FSR: entre inferencias
+ *   - Lectura FSR: los 5 en cada ciclo de 10 ms
  *   - Control servos: bajo demanda (cuando cambia gesto o FSR dispara)
  *   - Sin delays bloqueantes: todo con millis()
  */
 
 #include <Wire.h>
 #include "config.h"
-#include "mux_ads1115.h"
+#include "adc_lmg.h"
 #include "optica_lmg.h"
 #include "sensor_imu.h"
 #include "sliding_window.h"
@@ -43,8 +43,8 @@
 #include "calibracion.h"
 
 // ======================== INSTANCIAS GLOBALES ========================
-MUX_ADS1115     muxAds;
-OpticaLMG       optica(muxAds);
+ADC_LMG         adcLmg;
+OpticaLMG       optica(adcLmg);
 SensorIMU       imu;
 SlidingWindow   ventana;
 MotorInferencia tflite;
@@ -80,14 +80,12 @@ float ventanaCompleta[TAMANO_VENTANA][NUM_FEATURES];  // ventana para inferencia
 float valoresLMG[NUM_LMG];
 float ax, ay, az;               // acelerometro: los 3 canales de IMU del modelo
 
-// ======================== ESCANEO ROTATIVO DE FSR ========================
-// Un solo FSR por ciclo, rotando entre los dedos que cierran en el gesto
-// actual. El ciclo pasa de 11 canales de ADC a 6, que es lo que hace que
-// quepa en los 10 ms.
-uint8_t       fsrRotacion   = 0;    // indice del proximo dedo a leer
-unsigned long tFSRUs        = 0;    // coste de la lectura del FSR del ciclo
+// ======================== LECTURA DE FSR ========================
+// Los cinco en cada ciclo de 10 ms, con el ADC interno del ESP32 (ver
+// feedback_fsr.h). Se mide su coste para el presupuesto del ciclo.
+unsigned long tFSRUs        = 0;    // coste de leer los 5 FSR en el ciclo
 unsigned long acumFSRUs     = 0;
-uint32_t      lecturasFSR   = 0;
+uint32_t      lecturasFSR   = 0;    // ciclos en que se leyeron
 
 // ======================== SENAL HAPTICA ========================
 // Pulso breve con los servos, contable por el usuario. Es el canal que
@@ -152,8 +150,8 @@ void reportarLatencias() {
     Serial.println("[LATENCIA] Presupuesto del ciclo de muestreo (10 ms):");
     Serial.printf("[LATENCIA]   5 LMG + IMU            : %8.1f us\n",
                   medMuestreo);
-    Serial.printf("[LATENCIA]   1 FSR (rotativo)       : %8.1f us "
-                  "(%lu lecturas)\n", medFSR, (unsigned long)lecturasFSR);
+    Serial.printf("[LATENCIA]   5 FSR (ADC interno)    : %8.1f us "
+                  "(%lu ciclos)\n", medFSR, (unsigned long)lecturasFSR);
     const float ciclo = medMuestreo + medFSR;
     Serial.printf("[LATENCIA]   TOTAL CICLO 10 ms      : %8.1f us "
                   "(%.1f%% de 10000 us)\n", ciclo, 100.0f * ciclo / 10000.0f);
@@ -162,8 +160,8 @@ void reportarLatencias() {
                        "muestreo no corre a 100 Hz y la ventana del modelo "
                        "no mide 200 ms.");
     } else if (ciclo > 9000.0f) {
-        Serial.printf("[LATENCIA] AVISO: solo %.0f us de margen. Considere "
-                      "leer un FSR cada dos ciclos.\n", 10000.0f - ciclo);
+        Serial.printf("[LATENCIA] AVISO: solo %.0f us de margen. Ver "
+                      "LED_SETTLE_US en config.h.\n", 10000.0f - ciclo);
     }
 
     // Tasa efectiva real de cada FSR, medida y no supuesta.
@@ -185,32 +183,35 @@ void reportarLatencias() {
 
 // ======================== AUTOTEST TEMPORAL ========================
 // Mide el ciclo de muestreo REAL: 5 LMG (con trama oscura si esta
-// habilitada) + 1 FSR + acelerometro, sin inferencia. El presupuesto de
+// habilitada) + 5 FSR + acelerometro, sin inferencia. El presupuesto de
 // config.h es analitico; este es el numero que decide si el hardware
 // montado sostiene 100 Hz. Se ejecuta al arrancar y con 'T'.
 void autotestTemporal() {
     const uint16_t N = 200;
-    unsigned long suma = 0, sumaLMG = 0, peor = 0;
+    unsigned long suma = 0, sumaLMG = 0, sumaFSR = 0, peor = 0;
     for (uint16_t k = 0; k < N; k++) {
         const unsigned long t0 = micros();
         optica.leerTodos(valoresLMG);
         const unsigned long t1 = micros();
-        muxAds.leerCanal(FeedbackFSR::canalDe(k % NUM_FSR));
+        feedback.leerTodos(t1);
+        const unsigned long t2 = micros();
         imu.leerAcelerometro(ax, ay, az);
         const unsigned long dt = micros() - t0;
         suma += dt;
         sumaLMG += t1 - t0;
+        sumaFSR += t2 - t1;
         if (dt > peor) peor = dt;
     }
+    feedback.reiniciar();   // que el autotest no deje lecturas validas
 
     const float medio   = suma / (float)N;
     const float medLMG  = sumaLMG / (float)N;
+    const float medFSR  = sumaFSR / (float)N;
     const float periodo = INTERVALO_MUESTRA_MS * 1000.0f;
     const uint8_t convLMG = NUM_LMG * (TRAMA_OSCURA_HABILITADA ? 2 : 1);
     const float estimado =
         convLMG * (ADC_CONVERSION_US + ADC_OVERHEAD_I2C_US + LED_SETTLE_US)
-        + NUM_LMG * ASENTAMIENTO_MUX_US
-        + (ADC_CONVERSION_US + ADC_OVERHEAD_I2C_US + ASENTAMIENTO_MUX_US)
+        + NUM_FSR * FSR_MUESTRAS * FSR_US_POR_MUESTRA
         + 400.0f;
 
     Serial.printf("[AUTOTEST] ADC %s, trama oscura %s, %u ciclos\n",
@@ -218,6 +219,7 @@ void autotestTemporal() {
                   TRAMA_OSCURA_HABILITADA ? "SI" : "NO", N);
     Serial.printf("[AUTOTEST]   5 LMG (%u conversiones): %8.1f us\n",
                   convLMG, medLMG);
+    Serial.printf("[AUTOTEST]   5 FSR (ADC interno)  : %8.1f us\n", medFSR);
     Serial.printf("[AUTOTEST]   ciclo completo medio : %8.1f us "
                   "(%.1f%% de %.0f us)\n", medio, 100.0f * medio / periodo, periodo);
     Serial.printf("[AUTOTEST]   ciclo completo peor  : %8lu us\n", peor);
@@ -247,13 +249,26 @@ void setup() {
     Wire.setClock(I2C_FREQ);
     Serial.println("[I2C] Bus inicializado a 400 kHz");
 
-    // ========== 2. Inicializar MUX + ADS1115 ==========
-    Serial.print("[ADS1115] Inicializando... ");
-    if (!muxAds.begin()) {
-        Serial.println("ERROR - No detectado");
+    Serial.printf("[FW] version=%s modulo=3 adc=%s adc_arq=2xADS gain=2 "
+                  "trama_oscura=%d led_settle_us=%d fs_hz=%d\n",
+                  FIRMWARE_VERSION,
+                  ADC_MODELO == ADC_ADS1015 ? "ADS1015" : "ADS1115",
+                  TRAMA_OSCURA_HABILITADA ? 1 : 0,
+                  LED_SETTLE_US, 1000 / INTERVALO_MUESTRA_MS);
+
+    // ========== 2. Inicializar los dos ADC de los LMG ==========
+    Serial.print("[ADC] Inicializando 0x48 y 0x49... ");
+    if (!adcLmg.begin()) {
+        Serial.printf("ERROR - 0x48 %s, 0x49 %s. Revise el cableado I2C y "
+                      "el pin ADDR (0x49 = ADDR a VDD).\n",
+                      adcLmg.presente(0) ? "OK" : "FALTA",
+                      adcLmg.presente(1) ? "OK" : "FALTA");
         while (1) delay(10);
     }
     Serial.println("OK");
+
+    // ========== 2a. FSR en el ADC interno ==========
+    feedback.begin();
 
     // ========== 2b. LED de los modulos LMG ==========
     // Antes que nada que lea el ADC: sin esto los LED quedan en el estado
@@ -414,47 +429,30 @@ void loop() {
         // mantener una postura no cuesta nada.
         servos.actualizarRampa(ahora);
 
-        // ===== UN FSR POR CICLO, ROTANDO =====
+        // ===== LOS 5 FSR, EN CADA CICLO =====
         // Va aqui, en el bucle de 10 ms, y no en el de inferencia: asi
-        // la tasa efectiva por sensor es 100 Hz / n_dedos_activos y no
-        // depende de cuando toque inferir. FSR_CADA_N_CICLOS a 2 activa
-        // el plan B si el presupuesto real no da.
-        static uint8_t divisorFSR = 0;
-        const bool tocaFSR = (++divisorFSR >= FSR_CADA_N_CICLOS);
-        if (tocaFSR) divisorFSR = 0;
+        // cada sensor se lee a 100 Hz en cualquier gesto. Se leen los
+        // cinco aunque el gesto no cierre todos los dedos: cuesta ~0.5 ms
+        // y mantiene constante la duracion del ciclo.
+        const unsigned long tf0 = micros();
+        feedback.leerTodos(tf0);
+        tFSRUs = micros() - tf0;
+        acumFSRUs += tFSRUs;
+        lecturasFSR++;
 
+        // FRENAR AQUI MISMO, no en el bucle de inferencia. El lazo de
+        // fuerza no tiene por que esperar a una inferencia: hacerlo
+        // anadia hasta 20 ms de latencia, que a 180 grados/s son 3.6
+        // grados mas de sobrecierre. Solo se frenan los dedos que cierran
+        // en el gesto actual.
         const uint8_t activos = FeedbackFSR::dedosActivos(gestoActual);
-        if (activos && tocaFSR) {
-            // Avanzar hasta el proximo dedo que este cerrando.
-            uint8_t intentos = 0;
-            while (intentos < NUM_FSR &&
-                   !(activos & (1 << fsrRotacion))) {
-                fsrRotacion = (fsrRotacion + 1) % NUM_FSR;
-                intentos++;
-            }
-            if (activos & (1 << fsrRotacion)) {
-                const unsigned long tf0 = micros();
-                const float mv = muxAds.leerCanal(
-                    FeedbackFSR::canalDe(fsrRotacion));
-                tFSRUs = micros() - tf0;
-                acumFSRUs += tFSRUs;
-                lecturasFSR++;
-                feedback.actualizar(fsrRotacion, mv, micros());
-                fsrRotacion = (fsrRotacion + 1) % NUM_FSR;
-
-                // FRENAR AQUI MISMO, no en el bucle de inferencia.
-                // El lazo de fuerza no tiene por que esperar a una
-                // inferencia: hacerlo anadia hasta 20 ms de latencia
-                // gratis, que a 180 grados/s son 3.6 grados mas de
-                // sobrecierre. Asi la latencia total es solo el periodo
-                // de escaneo del FSR.
-                const uint8_t frenar = feedback.verificarUmbrales(activos);
-                if (frenar & 0x01) servos.frenarServo(SERVO_PULGAR);
-                if (frenar & 0x02) servos.frenarServo(SERVO_INDICE);
-                if (frenar & 0x04) servos.frenarServo(SERVO_MEDIO);
-                if (frenar & 0x08) servos.frenarServo(SERVO_ANULAR);
-                if (frenar & 0x10) servos.frenarServo(SERVO_MENIQUE);
-            }
+        if (activos) {
+            const uint8_t frenar = feedback.verificarUmbrales(activos);
+            if (frenar & 0x01) servos.frenarServo(SERVO_PULGAR);
+            if (frenar & 0x02) servos.frenarServo(SERVO_INDICE);
+            if (frenar & 0x04) servos.frenarServo(SERVO_MEDIO);
+            if (frenar & 0x08) servos.frenarServo(SERVO_ANULAR);
+            if (frenar & 0x10) servos.frenarServo(SERVO_MENIQUE);
         }
 
         // ========== MODO CALIBRACION ==========
@@ -501,7 +499,6 @@ void loop() {
                 // lecturas anteriores quedan rancias y no deben frenar
                 // un dedo que acaba de empezar a moverse.
                 feedback.reiniciar();
-                fsrRotacion = 0;
 
                 Serial.printf("[INFERENCIA] Gesto: %s (clase %d)\n",
                               ControlServos::gestos[gestoActual].nombre,
@@ -513,7 +510,7 @@ void loop() {
 
             // ========== LAZO CERRADO: solo traza ==========
             // Ni la lectura ni la frenada ocurren aqui. Ambas viven en
-            // el bucle de 10 ms, junto al escaneo del FSR: hacer que el
+            // el bucle de 10 ms, junto a la lectura de los FSR: hacer que el
             // lazo de fuerza esperase a una inferencia anadia hasta
             // 20 ms de latencia, que a 180 grados/s son 3.6 grados mas
             // de sobrecierre por nada.

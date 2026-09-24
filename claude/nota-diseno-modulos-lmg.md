@@ -1,10 +1,57 @@
 # Nota de diseño, construcción de los 5 módulos LMG
 
-Actualizada: 2026-09-18. Fuentes: Godoy et al., *Lightmyography Based Decoding of
+Actualizada: 2026-09-24 (sección "Estado vigente"); cuerpo original del
+2026-09-18. Fuentes: Godoy et al., *Lightmyography Based Decoding of
 Human Intention Using Temporal Multi-Channel Transformers*, IROS 2022 (Fig. 1 y
 Sec. III-A), Shahmohammadi et al. 2023 (Sci Rep 13:327), Guan et al. 2025
 (HDLMG), Khalikov et al. 2026 (Sci Rep, optomiografía), `Modulo1/config.h`,
 `Modulo3/config.h`, ficha CIS 2026 v2.
+
+## Estado vigente (2026-09-24)
+
+Esta sección manda sobre el resto de la nota. Lo que sigue más abajo se
+conserva como historia de las decisiones; donde contradice a esta sección, está
+superado y lo indica.
+
+**Construcción del módulo: un PCB propio por módulo.** Proyecto de KiCad
+`Documents/KiCad/LMG_Sensor`, con archivos de fabricación, instrucciones de
+soldadura y tabla de interfaz con la carcasa en `LMG_Sensor/fab/`.
+
+| Aspecto | Antes (perfboard) | Ahora (PCB del módulo) |
+|---|---|---|
+| Conexión | cables sueltos a la placa principal | **conector J1 de 4 pines: 1 VCC, 2 GND, 3 OUT, 4 LED** |
+| OPT101 | en zócalo DIP-8 | **soldado directo, sin zócalo**, en la cara inferior (la de la piel) |
+| LED | en una pestaña aparte, con hilos esmaltados | **en el mismo PCB**, cara inferior, en una de **tres posiciones: 9, 11 o 13 mm** del centro del OPT101 |
+| Altura del LED | al ras de la cara de contacto | se ajusta al soldar para que su punta quede en el **plano de la piel, Z_piel** (tabla de interfaz) |
+| Resistencia del LED | en la placa principal | **R1, 100 ohm, en el PCB del módulo** |
+| Desacople del OPT101 | no había | **C1, 100 nF, en el PCB del módulo** |
+| Puente de realimentación | puente a mano | **pista del PCB entre los pines 4 y 5**; el pin 2 queda sin conexión |
+
+**Cadena de lectura (firmware M1-2026.09.24 y M3-2026.09.24):**
+
+- **Sin multiplexor CD74HC4067.** Las salidas OUT entran directas a **dos
+  ADS1115**: el #1 en 0x48 (ADDR a GND) lee los módulos 1, 2 y 3 por A0, A1 y
+  A2; el #2 en 0x49 (ADDR a VDD) lee los módulos 4 y 5 por A0 y A1.
+- **GAIN_TWO (±2.048 V)** en los dos, porque solo leen canales ópticos. El
+  firmware avisa si una lectura llega al máximo (`[ADC] AVISO ... recorta`) y
+  cuenta los recortes por sesión (`[OPTICA_RECORTES]`, que queda en el JSON).
+- **LED:** GPIO **13, 25, 27, 16, 17**. El LED 2 pasó del GPIO14 al 25, porque
+  el 14 emite pulsos durante el arranque.
+- **FSR (Módulo 3):** ADC interno del ESP32, solo ADC1: GPIO 32, 33, 34, 35 y
+  36, a 11 dB. Divisor de **22 kohm** en lugar de 10 kohm, con 100 nF en cada
+  pin. Umbrales recalculados a 410 y 372 mV. Se leen los cinco en cada ciclo de
+  10 ms; ya no hay escaneo rotativo.
+- **Tiempo de ciclo estimado:** Módulo 1 ~8.9 ms, Módulo 3 ~9.4 ms (peor ciclo
+  ~9.8 ms con la escritura de la rampa de servos). El autotest del arranque mide
+  el real.
+- **Sesiones:** las grabadas antes de M1-2026.09.24 y las grabadas después no se
+  mezclan sin comprobar que su reposo y su excursión por canal son comparables.
+
+**Pendiente de unificar: espesor del taco.** Esta nota fijaba 4 mm frente al
+OPT101. La tabla de interfaz del PCB calcula Z_piel con un taco de 5 mm. Hay
+que decidir uno y dejarlo en los dos documentos.
+
+El cableado completo, cable por cable, está en `claude/manual-armado-hardware.md`.
 
 ## El principio que manda todo el diseño
 
@@ -22,10 +69,17 @@ la piel no hay medio compresible y no hay señal LMG.
 | Silicona | **transparente o incolora**, curado por platino | La luz la atraviesa en ambos sentidos |
 | Dureza | blanda, Shore A menor o igual a 10 | Tiene que deformarse con el abultamiento de la piel |
 | Espesor del taco | 4 mm frente al OPT101, **igual en los 5 módulos** | Espesores distintos dan respuestas distintas a la misma contracción |
-| Ópticas | OPT101 detrás del taco, LED al ras de la piel | Ver la sección del LED SMD |
+| Ópticas | OPT101 detrás del taco, LED tocando la piel (en Z_piel) | Ver la sección del LED SMD y el estado vigente |
 | Aislamiento LED a fotodiodo | tabique opaco hasta la cara de contacto | La silicona transparente y el PLA claro conducen luz directa |
 
 ## Cambio a LED SMD 1206 (decisión del 2026-09-18)
+
+> **Superado en parte (2026-09-24).** El LED ya no va en una pestaña aparte: va
+> en el PCB del módulo, en la cara inferior, y su altura se ajusta al soldar
+> para que toque la piel. El PCB admite el LED de 5 mm por sus patas o un SMD
+> sostenido por dos pines. La separación deja de ser 12.7 mm: hay tres
+> posiciones, 9, 11 y 13 mm. Siguen vigentes el LED tocando la piel, el OPT101
+> detrás del taco, la prohibición del hueco de aire y el tabique opaco.
 
 El asesor pidió LED planos tipo SMD. Se compraron LED **IR 940 nm en encapsulado
 1206** (AliExpress, lote de 20, variante "1206 Emitter"). Los LED IR de 5 mm que
@@ -64,12 +118,13 @@ Consecuencias de diseño:
 
 ## Conexión eléctrica de un módulo
 
-- **OPT101 alimentado a 3.3 V**, no a 5 V. Su salida llega hasta cerca de V+
-  menos 1 V, así que a 3.3 V nunca supera el límite de entrada del ADS1115
-  (VDD más 0.3 V). GND común. Salida al canal del MUX correspondiente (0 a 4).
-- **LED IR 1206 con resistencia de 100 ohm en serie** desde un GPIO del ESP32
-  (unos 20 mA con Vf de 1.3 V). Cátodo a GND.
-- **Un GPIO por LED**: 13, 14, 27, 16, 17. Nunca los 5 encendidos a la vez si
+- **OPT101 alimentado a 3.3 V**, no a 5 V. Su salida llega hasta unos 2.15 V,
+  así que a 3.3 V nunca supera el límite de entrada del ADS1115 (VDD más 0.3 V).
+  GND común. La salida OUT (J1-3) va directa a una entrada de uno de los dos
+  ADS1115 (ver el estado vigente).
+- **LED IR con la resistencia de 100 ohm del PCB** desde un GPIO del ESP32
+  (unos 18 mA con Vf de 1.3 V). Cátodo a GND. El GPIO se conecta a J1-4.
+- **Un GPIO por LED**: 13, 25, 27, 16, 17. Nunca los 5 encendidos a la vez si
   cuelgan directo del GPIO.
 
 ## Firmware
@@ -78,7 +133,8 @@ Lo que pedía esta nota, en su redacción original, era agregar el control de LE
 porque se creía que no existía. Ver el apéndice del final: ya existe. Lo que
 esta nota fija y el firmware toma como entrada es:
 
-- Pines `PIN_LED_LMG_1..5` en 13, 14, 27, 16, 17.
+- Pines `PIN_LED_LMG_1..5` en 13, 25, 27, 16, 17 (el LED 2 estaba en el 14
+  hasta el 2026-09-24).
 - `LED_SETTLE_US` de 300 us.
 - Trama oscura con **una sola trama por ciclo, rotando de canal**, no cinco.
 - `setDataRate(RATE_ADS1115_860SPS)`. Con el valor por defecto de la librería
@@ -179,8 +235,9 @@ asiento del SMD (1206 nominal 3.2 por 1.6 por 1.1 mm).
 2. **Imprimir una sola carcasa** de prueba, meter las piezas en seco y verificar
    que topan donde deben.
 3. Imprimir las 5, colar, curar.
-4. Recién al final, PCB con zócalo DIP-8 para que el OPT101 siga siendo
-   desmontable.
+4. ~~Recién al final, PCB con zócalo DIP-8 para que el OPT101 siga siendo
+   desmontable.~~ Superado: el PCB del módulo existe y lleva el OPT101 soldado
+   sin zócalo, porque el zócalo cambia su altura.
 
 ## Parámetros del paper de referencia
 
@@ -275,7 +332,7 @@ Lo que sí cierra la brecha, pendiente de decisión:
 | leer la IMU dentro de la espera de una conversión del ADC | 400 us | 10 518 us |
 | modo continuo en el ADS1115, sin reescribir configuración por lectura | 720 us | 10 198 us |
 | las tres juntas | 1720 us | **9198 us, cabe** |
-| repartir los 5 LMG entre dos ADS1115 que convierten en paralelo | 4400 us | **6500 us** |
+| ~~repartir los 5 LMG entre dos ADS1115 que convierten en paralelo~~ | ~~4400 us~~ | ~~6500 us~~ |
 
 Las tres primeras son de firmware y dos de ellas atacan el costo de I2C, que en
 `config.h` es un valor **estimado y no medido**, así que el margen real solo se
@@ -284,3 +341,11 @@ comando 'T'.
 
 **Mientras esto no se decida, `TRAMA_OSCURA_HABILITADA` sigue atada al ADS1015 y
 con el ADS1115 soldado se lee solo L, un LED a la vez.**
+
+**Corrección del 2026-09-24 a la última fila.** Dos ADS1115 no convierten los
+LMG en paralelo: solo puede haber un LED encendido a la vez, así que las cinco
+conversiones siguen siendo una detrás de otra. La razón válida para usar dos
+ADS1115 es otra: sacar los FSR del ADC (pasan al ADC interno del ESP32) y
+eliminar la espera del multiplexor. Con eso, y sin trama oscura, el ciclo queda
+en ~8.9 ms en el Módulo 1 y ~9.4 ms en el Módulo 3. Es la arquitectura vigente
+(ver el estado vigente, al principio).

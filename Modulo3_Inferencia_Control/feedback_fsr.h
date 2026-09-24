@@ -2,30 +2,25 @@
  * feedback_fsr.h - Lazo de realimentacion de fuerza con FSR
  *
  * QUE HACE:
- *   Mantiene el ultimo valor de cada FSR de yema y decide que servos
- *   deben frenarse. La LECTURA fisica ocurre en el bucle principal,
- *   porque el ADS1115 se comparte con los canales LMG.
+ *   Lee los FSR de las yemas con el ADC INTERNO del ESP32, guarda el
+ *   ultimo valor de cada uno y decide que servos deben frenarse.
  *
- * ESCANEO ROTATIVO:
- *   Cada ciclo de 10 ms se lee UN solo FSR, no los cinco. El escaneo
- *   rota entre los dedos que estan cerrando en el gesto actual, asi que
- *   la tasa efectiva por sensor es 100 Hz / n_dedos_activos: 50 Hz en
- *   Pinch, 33 Hz en Tripod y 20 Hz en Power.
+ * LECTURA (desde FIRMWARE_VERSION M3-2026.09.24):
+ *   Los FSR ya no pasan por el ADS1115, que queda solo para los canales
+ *   opticos. Van a pines del ADC1 (config.h, PIN_FSR_*), con atenuacion
+ *   de 11 dB y analogReadMilliVolts(), que aplica la calibracion de
+ *   fabrica grabada en el chip. Cada lectura promedia FSR_MUESTRAS
+ *   conversiones.
  *
- *   Eso baja el ciclo de 11 canales de ADC a 6 y hace que quepa en los
- *   10 ms, que es lo que antes no ocurria.
+ *   Cada muestra cuesta ~25 us, asi que se leen LOS CINCO EN CADA CICLO
+ *   de 10 ms: 100 Hz por sensor en cualquier gesto. El escaneo rotativo
+ *   anterior (un FSR por ciclo, 20 Hz por sensor en Power) ya no hace
+ *   falta.
  *
- * POR QUE BASTA CON ESAS TASAS:
- *   La fuerza de agarre es mecanicamente lenta; un dedo tarda cientos de
- *   ms en cerrarse sobre un objeto. Lo que determina el sobrecierre no
- *   es la tasa de lectura sola, sino su producto por la velocidad a la
- *   que avanza el dedo. Con los servos moviendose a tope (~600 grados/s
- *   en un MG90S) ninguna tasa razonable bastaria; con una rampa
- *   controlada de 180 grados/s, 20 Hz dejan el sobrecierre en 9 grados.
- *
- *   Ver la nota sobre frenarServo() en control_servos.h: mientras el
- *   freno no actue sobre una rampa, el sobrecierre no depende de esta
- *   tasa en absoluto.
+ * POR QUE BASTA:
+ *   El sobrecierre es la velocidad de la rampa por la latencia de
+ *   deteccion. Con 180 grados/s y ~12 ms (un ciclo + el filtro RC del
+ *   divisor) son ~2.2 grados en cualquier gesto.
  *
  * DIAGNOSTICO:
  *   Se guarda el instante de la ultima lectura de cada sensor para poder
@@ -42,14 +37,23 @@ class FeedbackFSR {
 public:
     FeedbackFSR();
 
-    // Canal del MUX correspondiente al FSR de cada dedo.
-    static uint8_t canalDe(uint8_t dedo);
+    // Configura resolucion y atenuacion del ADC en los pines de los FSR.
+    void begin();
+
+    // Pin del ADC1 correspondiente al FSR de cada dedo.
+    static uint8_t pinDe(uint8_t dedo);
 
     // Bitmap de dedos que cierran en un gesto dado.
     static uint8_t dedosActivos(uint8_t gesto_id);
 
-    // Registra la lectura de UN sensor (escaneo rotativo).
-    void actualizar(uint8_t dedo, float valor_mv, unsigned long ahora);
+    // Lee un FSR (promedio de FSR_MUESTRAS). En mV en el pin del ADC.
+    static float leerMv(uint8_t dedo);
+
+    // Lee los cinco FSR y registra sus valores.
+    void leerTodos(unsigned long ahora_us);
+
+    // Registra la lectura de un sensor.
+    void actualizar(uint8_t dedo, float valor_mv, unsigned long ahora_us);
 
     // Bitmap de servos cuyo umbral se ha superado. Solo considera los
     // sensores efectivamente leidos desde el ultimo gesto: un valor

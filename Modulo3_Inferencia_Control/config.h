@@ -4,25 +4,29 @@
  *
  * HARDWARE:
  *   - ESP32 WROOM 32
- *   - LMG: 5 fotodiodos OPT101 via MUX CD74HC4067 + ADC ADS1115
+ *   - LMG: 5 fotodiodos OPT101, cada uno en su PCB de modulo con conector
+ *          de 4 pines (VCC, GND, OUT, LED). OUT entra directo a dos ADC:
+ *          modulos 1-3 al ADS1115 #1 (0x48), modulos 4-5 al #2 (0x49).
+ *          Sin multiplexor.
  *   - IMU: MPU6050 via I2C
- *   - FSR: 5 sensores de presion, uno por yema (2x FSR402 + 3x DF9-40)
- *          via MUX + ADS1115. No alimentan al clasificador: solo cierran
- *          el lazo de fuerza.
+ *   - FSR: 5 sensores de presion, uno por yema (2x FSR402 + 3x DF9-40),
+ *          leidos por el ADC INTERNO del ESP32 (ADC1). No alimentan al
+ *          clasificador: solo cierran el lazo de fuerza.
  *   - Servos: 5x MG90S via Driver PCA9685 (I2C)
  *
  * PINOUT I2C:
  *   Bus I2C: SDA=GPIO21, SCL=GPIO22  (400 kHz)
- *   ADS1115: 0x48   (ADC LMG + FSR via MUX)
- *   MPU6050: 0x68   (IMU)
- *   PCA9685: 0x40   (Driver Servos)
+ *   ADS1115 #1: 0x48 (ADDR a GND)   LMG 1, 2, 3 en AIN0, AIN1, AIN2
+ *   ADS1115 #2: 0x49 (ADDR a VDD)   LMG 4, 5 en AIN0, AIN1
+ *   MPU6050:    0x68 (IMU)
+ *   PCA9685:    0x40 (Driver Servos)
  *
- * LED LMG: GPIO 13, 14, 27, 16, 17 (PWM, 100 ohm en serie al LED)
+ * LED LMG: GPIO 13, 25, 27, 16, 17 (PWM, 100 ohm en serie al LED, en el
+ *          PCB de cada modulo)
  *
- * MUX CD74HC4067 (compartido LMG + FSR):
- *   S0=32, S1=33, S2=25, S3=26, EN=GND
- *   Canales 0-4:   LMG 1..5
- *   Canales 5-9:   FSR 1..5 (pulgar, indice, medio, anular, menique)
+ * FSR (ADC1, atenuacion 11 dB, divisor con 22 kohm a GND):
+ *   Pulgar GPIO32, Indice GPIO33, Medio GPIO34, Anular GPIO35,
+ *   Menique GPIO36. GPIO39 queda libre (ADC1 de reserva).
  */
 
 #ifndef CONFIG_H
@@ -30,67 +34,72 @@
 
 #include <cstdint>
 
+// ======================== VERSION ========================
+// Se emite al arrancar como [FW] version=... SUBIRLA al cambiar algo que
+// altere la senal: pines, asentamiento, trama oscura o ADC.
+#define FIRMWARE_VERSION  "M3-2026.09.24"
+
+// SESIONES QUE NO SE MEZCLAN SIN COMPROBAR (igual que en Modulo1):
+//   Desde la version 2026.09.24 la cadena optica cambio: sin multiplexor
+//   CD74HC4067, dos ADS1115 y GAIN_TWO en lugar de GAIN_ONE, y el LED 2
+//   en GPIO25 en lugar de GPIO14. Un modelo entrenado con sesiones de
+//   Modulo1 anteriores a M1-2026.09.24 no se despliega aqui, ni se
+//   mezclan sesiones de antes y de despues, sin comprobar que el reposo
+//   y la excursion por canal son comparables.
+
 // ======================== I2C ========================
 #define PIN_SDA         21
 #define PIN_SCL         22
 #define I2C_FREQ        400000
 
-// ======================== MUX CD74HC4067 ========================
-#define PIN_MUX_S0      32
-#define PIN_MUX_S1      33
-#define PIN_MUX_S2      25
-#define PIN_MUX_S3      26
+// ======================== ADC DE LOS CANALES LMG ========================
+// Todo este bloque, hasta la autocalibracion, es IDENTICO al de Modulo1:
+// optica_lmg.cpp y adc_lmg.cpp son el mismo archivo en ambos modulos.
+//
+// Dos ADC en el mismo bus I2C, sin multiplexor. Solo leen canales
+// opticos: los FSR van al ADC interno del ESP32 (seccion FSR, abajo).
+#define ADS_ADDR_1      0x48    // ADDR a GND
+#define ADS_ADDR_2      0x49    // ADDR a VDD
 
-// Canales LMG (sensores predictivos)
-#define CH_LMG_1        0
-#define CH_LMG_2        1
-#define CH_LMG_3        2
-#define CH_LMG_4        3
-#define CH_LMG_5        4
-
-// Canales FSR (sensores de retroalimentacion)
-#define CH_FSR_PULGAR   5   // FSR402 - dedo pulgar
-#define CH_FSR_INDICE   6   // FSR402 - dedo indice
-#define CH_FSR_MEDIO    7   // DF9-40
-#define CH_FSR_ANULAR   8   // DF9-40
-#define CH_FSR_MENIQUE  9   // DF9-40
-
-// Un FSR por yema, cinco. El sensor de palma (antes en el canal 10) se
-// DESCARTO del diseno: la ley de control frena servos individuales cuando
-// la yema correspondiente supera su umbral, y no existe un servo de palma
-// que frenar. Ya era codigo muerto antes de retirarlo: verificarUmbrales
-// calculaba su bit y el .ino solo actuaba sobre los bits de las yemas.
-#define NUM_FSR         5
-
-// ======================== ADC ========================
-#define ADS_ADDR        0x48
+// Canal LMG -> ADC (0 = ADS_ADDR_1, 1 = ADS_ADDR_2) y entrada AINx.
+#define LMG1_ADS        0
+#define LMG1_AIN        0
+#define LMG2_ADS        0
+#define LMG2_AIN        1
+#define LMG3_ADS        0
+#define LMG3_AIN        2
+#define LMG4_ADS        1
+#define LMG4_AIN        0
+#define LMG5_ADS        1
+#define LMG5_AIN        1
 
 #define ADC_ADS1115     0
 #define ADC_ADS1015     1
 
-// DECISION (Tarea 3.c): ADS1015. Es la unica de las tres opciones
-// evaluadas que cabe en los 10 ms del ciclo a 100 Hz con trama oscura:
+// DECISION (Tarea 3.c): ADS1015 para poder usar la trama oscura. Sin
+// multiplexor y con los FSR fuera del ADS, el ciclo de 10 ms queda asi:
 //
-//                     LMG con trama oscura  +1 FSR  +MPU   total
-//   ADS1115 860 SPS         16.25 ms         1.45   0.4   18.1 ms  NO
-//   ADS1015 3300 SPS         7.65 ms         0.59   0.4    8.6 ms  SI
+//                     5 LMG               +MPU   +5 FSR (ADC ESP32)   total
+//   ADS1115 solo L     8.52 ms            0.4    ~0.5                 9.4 ms  SI
+//   ADS1115 L y D     17.03 ms            0.4    ~0.5                17.9 ms  NO
+//   ADS1015 L y D      8.43 ms            0.4    ~0.5                 9.3 ms  SI
 //
 //   (ANALITICO, no medido: 1163 o 303 us de conversion + ~240 us de I2C
-//   + 200 us de asentamiento del LED por lectura. El firmware lo mide al
-//   arrancar; ver autotestTemporal().)
+//   + 300 us de asentamiento del LED por lectura; ~25 us por muestra del
+//   ADC del ESP32. El firmware lo mide al arrancar; ver autotestTemporal().)
 //
-//   Bajar la frecuencia no alcanza con el ADS1115: a 60 y a 80 Hz sigue
-//   sin caber, y 60 Hz es ademas la peor eleccion en Peru, porque el
+//   60 Hz de muestreo seria ademas la peor eleccion en Peru, porque el
 //   parpadeo de 120 Hz de las lamparas se plegaria exactamente a DC.
-//   Leer los FSR cada dos ciclos tampoco: solo los LMG ya ocupan 16 ms.
 //
-//   Coste del ADS1015: 12 bits en lugar de 16, 2 mV/LSB en lugar de
-//   0.125. Con el reposo autocalibrado a ~1.3 V, un cambio de gesto del
-//   5-20% son 30-130 LSB, suficiente; los trabajos de referencia usan 12.
+//   Coste del ADS1015: 12 bits en lugar de 16. A GAIN_TWO son 1 mV/LSB:
+//   con el reposo autocalibrado a 700 mV (35% de 2000), un cambio de
+//   gesto del 5-20% son 35-140 mV, o sea 35-140 LSB. (A GAIN_ONE eran
+//   17-70 LSB; con el OPT101 a 5 V, 30-130.)
 //
-// Pin compatible y misma libreria. MIENTRAS SIGA SOLDADO EL ADS1115,
+// Pin compatible y misma libreria. MIENTRAS SIGAN SOLDADOS LOS ADS1115,
 // dejar ADC_ADS1115: con trama oscura el ciclo no cabe en 10 ms y el
-// autotest de arranque lo reporta.
+// autotest de arranque lo reporta. Los dos ADC tienen que ser del mismo
+// modelo.
 #ifndef ADC_MODELO                      // -DADC_MODELO=1 para compilar la otra rama
 #define ADC_MODELO      ADC_ADS1115
 #endif
@@ -101,24 +110,26 @@
   #define ADC_CONVERSION_US  1163
 #endif
 #define ADC_OVERHEAD_I2C_US  240     // estimado a 400 kHz; el autotest mide
-#define ASENTAMIENTO_MUX_US   50
 
 // ======================== LED DE LOS MODULOS LMG (Tarea 3.a) ========================
 // Un pin por LED para encender solo el del canal que se lee y eliminar el
 // crosstalk optico entre modulos vecinos.
 //
-// GPIO de la nota de diseno (claude/nota-diseno-modulos-lmg.md, PCB de
-// los modulos SMD). No son pines de arranque (0, 2, 5, 12, 15), no son
-// de la flash (6-11) ni solo de entrada (34-39), y todos admiten LEDC.
-// Validos en el WROOM 32; en un WROVER, 16 y 17 son de la PSRAM.
-// CONFIRMAR CONTRA EL PCB antes del bring-up.
+// No son pines de arranque (0, 2, 5, 12, 15), no son de la flash (6-11)
+// ni solo de entrada (34-39), y todos admiten LEDC. Validos en el
+// WROOM 32; en un WROVER, 16 y 17 son de la PSRAM.
 //
-// HARDWARE: ataque directo desde el GPIO con 100 ohm en serie. Con el
-// LED IR 1206 de 940 nm (Vf ~1.3 V) son ~20 mA, dentro de lo que
-// entrega un pin del ESP32. Solo se enciende un LED a la vez, asi que
-// los 20 mA nunca se multiplican por cinco.
+// LED 2 en GPIO25 y no en GPIO14: el 14 emite pulsos durante el
+// arranque del ESP32 y hacia parpadear el LED. El 25 quedo libre al
+// quitar el multiplexor y no los emite.
+//
+// HARDWARE: ataque directo desde el GPIO con la resistencia de 100 ohm
+// que va soldada en el PCB de cada modulo. Con un LED IR de 940 nm
+// (Vf ~1.3 V) son ~18 mA; el techo fisico es (3.3 V - Vf) / 100 ohm, y
+// el PWM solo baja la media, nunca el pico. Solo se enciende un LED a la
+// vez, asi que la corriente nunca se multiplica por cinco.
 #define PIN_LED_LMG_1   13
-#define PIN_LED_LMG_2   14
+#define PIN_LED_LMG_2   25
 #define PIN_LED_LMG_3   27
 #define PIN_LED_LMG_4   16
 #define PIN_LED_LMG_5   17
@@ -150,9 +161,11 @@
 #define LED_SETTLE_US            300
 
 // ======================== AUTOCALIBRACION DE GANANCIA (Tarea 3.d) ========================
-// Fondo de escala UTIL: el menor entre el del ADC (4096 mV a GAIN_ONE) y
-// la excursion maxima del OPT101, que con 5 V de alimentacion satura
-// hacia Vs - 1.3 V = 3.7 V. Si el OPT101 va a 3.3 V, bajar a ~2000.
+// Fondo de escala UTIL: el menor entre el del ADC (2048 mV a GAIN_TWO) y
+// la excursion maxima del OPT101. Alimentado a 3.3 V, TI garantiza
+// Vs - 1.3 V = 2.0 V (tipico Vs - 1.15 V = 2.15 V; SBBS002B). De ahi
+// 2000: reposo objetivo 35% = 700 mV, gesto maximo < 95% = 1900 mV.
+// El valor anterior, 3700, correspondia al OPT101 a 5 V.
 #define FONDO_ESCALA_UTIL_MV       2000.0f
 #define AUTOCAL_OBJETIVO_FRAC      0.35f    // reposo en el 35% del FS
 #define AUTOCAL_LIMITE_FRAC        0.95f    // el gesto maximo no pasa del 95%
@@ -163,11 +176,15 @@
 #define AUTOCAL_MUESTRAS           24
 #define AUTOCAL_VERIFICAR_GESTO_MAX 1
 
+// GAIN_TWO (+/-2.048 V) en los dos ADC: solo leen canales opticos, y el
+// OPT101 a 3.3 V no pasa de ~2.15 V. Ver adc_lmg.h.
 // mV por LSB, solo informativo: la conversion usa computeVolts().
 #if ADC_MODELO == ADC_ADS1015
-  #define ADS_GAIN_MV   2.0f     // 12 bits, GAIN_ONE
+  #define ADS_GAIN_MV   1.0f       // 12 bits, GAIN_TWO
+  #define ADC_RAW_MAX   2047       // codigo de recorte
 #else
-  #define ADS_GAIN_MV   0.125f   // 16 bits, GAIN_ONE
+  #define ADS_GAIN_MV   0.0625f    // 16 bits, GAIN_TWO
+  #define ADC_RAW_MAX   32767      // codigo de recorte
 #endif
 
 // ======================== MPU6050 ========================
@@ -236,27 +253,20 @@
 //   Mas lento   menos sobrecierre, pero el agarre se siente perezoso.
 //
 // 180 grados/s cierra el recorrido completo en 1 s. El sobrecierre es
-// el producto de esta velocidad por la latencia de deteccion, que es
-// SOLO el periodo de escaneo del FSR: la frenada ocurre en el mismo
-// bucle de 10 ms en que se lee el sensor, no en el de inferencia.
-// Hacerla esperar a una inferencia anadia hasta 20 ms, o sea 3.6
-// grados mas de sobrecierre por nada.
+// el producto de esta velocidad por la latencia de deteccion. Desde que
+// los cinco FSR se leen en cada ciclo de 10 ms (ADC del ESP32), esa
+// latencia es un periodo de muestreo mas el filtro RC del divisor
+// (22 kohm x 100 nF = 2.2 ms), en cualquier gesto:
 //
-// Peor caso barriendo todas las fases posibles del escaneo rotativo
-// (simulado sobre la logica exacta de actualizarRampa, no medido en
-// hardware):
+//   Cualquier gesto   ~12 ms ->  ~2.2 grados   (~1.2% del rango)
 //
-//   Pinch  (2 dedos, 50 Hz)   20 ms ->  3.6 grados   (2.0% del rango)
-//   Tripod (3 dedos, 33 Hz)   30 ms ->  7.2 grados   (4.0%)
-//   Power  (5 dedos, 20 Hz)   50 ms -> 10.8 grados   (6.0%)
-//   Plan B (Power a 10 Hz)   100 ms -> 18.0 grados  (10.0%)
+// La frenada ocurre en el mismo bucle de 10 ms en que se lee el sensor,
+// no en el de inferencia. (Con el escaneo rotativo anterior, por el
+// ADS1115 compartido, el peor caso era Power a 20 Hz: 10.8 grados.)
 //
 // Referencia de lo que habia antes: sin rampa, el MG90S viajaba libre
 // a ~600 grados/s hasta el tope comandado, o sea 90 grados de
 // sobrecierre (50%) a cualquier tasa de lectura.
-//
-// El peor caso cae en Power, que es agarre de fuerza y donde el
-// sobrecierre molesta menos.
 //
 // EL VALOR OPTIMO DEPENDE DE LA INERCIA DE LOS DEDOS IMPRESOS, que
 // todavia no se conoce. Con dedos pesados puede hacer falta bajarlo
@@ -369,47 +379,48 @@ static_assert(TAMANO_VENTANA == 20,
 // Periodo del aviso persistente mientras el estado no sea OK.
 #define CALIB_AVISO_PERIODO_MS   5000
 
-// ======================== ESCANEO DESACOPLADO DEL ADC ========================
-// El problema: LMG y FSR comparten un unico ADS1115 multiplexado. Leer
-// 5 LMG + 5 FSR son 10 conversiones, ~14-17 ms, sobre un presupuesto de
-// 10 ms. El ciclo no cerraba.
+// ======================== FSR: ADC INTERNO DEL ESP32 ========================
+// Los FSR ya no comparten el ADS1115 con los LMG: van al ADC interno del
+// ESP32, SOLO pines del ADC1 (32-36 y 39). El ADC2 no se usa: deja de
+// funcionar mientras el WiFi esta activo.
 //
-// La solucion no es acelerar el ADC, que ya esta a 860 SPS, sino
-// reconocer que los dos grupos NO necesitan la misma tasa:
-//
-//   LMG   100 Hz obligatorio. Alimentan la ventana de 20 muestras del
-//         modelo; a menos tasa la ventana deja de ser de 200 ms.
-//   FSR   la fuerza de agarre es mecanicamente lenta. Un dedo tarda
-//         cientos de ms en cerrarse sobre un objeto.
-//
-// Por eso cada ciclo de 10 ms lee los 5 LMG y UN SOLO FSR, rotando. El
-// ciclo pasa de 11 canales a 6.
-#define FSR_POR_CICLO   1
+// Cada lectura cuesta ~25 us por muestra en lugar de ~1.45 ms, asi que se
+// leen LOS CINCO EN CADA CICLO de 10 ms (100 Hz por sensor, en cualquier
+// gesto). Ya no hay escaneo rotativo ni plan B.
+// Un FSR por yema, cinco. El sensor de palma (antes en el canal 10 del
+// multiplexor) se DESCARTO del diseno: la ley de control frena servos
+// individuales cuando la yema correspondiente supera su umbral, y no
+// existe un servo de palma que frenar.
+#define NUM_FSR          5
 
-// PLAN B DEL PRESUPUESTO, escrito antes de necesitarlo.
-//
-// El presupuesto analitico del ciclo era ~8.8 ms sobre 10, un 12% de
-// margen, y el overhead de I2C que lo sustenta esta estimado y no
-// medido. ACTUALIZACION (Tarea 3): encender un LED por canal anade
-// 200 us de asentamiento a cada lectura; con el ADS1115 y sin trama
-// oscura el estimado sube a ~9.9 ms, al limite. Con el ADS1015 y trama
-// oscura, ~8.6 ms. El autotest de arranque (y el comando 'T') mide el
-// ciclo real. Si en el bring-up el comando 'I' reporta que el ciclo no
-// cabe, poner esta constante a 2 libera ~1.4 ms leyendo un FSR cada dos
-// ciclos en vez de cada uno.
-//
-// Coste de la degradacion: la tasa por sensor se reduce a la mitad
-// (Power pasa de 20 a 10 Hz) y el sobrecierre con la rampa de 180
-// grados/s sube de 10.8 a 18.0 grados, un 10% del recorrido. Sigue
-// siendo aceptable para un agarre de fuerza, y muy lejos de los 90
-// grados que producia la version sin rampa.
-//
-// Que quede aqui y no haya que rediseniar nada en pleno bring-up es el
-// motivo de escribirlo ahora.
-#define FSR_CADA_N_CICLOS   1   // 2 = plan B degradado
+#define PIN_FSR_PULGAR   32     // FSR402
+#define PIN_FSR_INDICE   33     // FSR402
+#define PIN_FSR_MEDIO    34     // DF9-40
+#define PIN_FSR_ANULAR   35     // DF9-40
+#define PIN_FSR_MENIQUE  36     // DF9-40
 
-// ESCANEO ADAPTATIVO: solo se rotan los FSR de los dedos que estan
-// cerrando en el gesto actual. De los angulos de control_servos.cpp:
+// Atenuacion de 11 dB: rango util de ~150 a ~2450 mV, el unico que
+// contiene a la vez los umbrales (~400 mV) y las lecturas de mas fuerza.
+// Un voltaje mayor no dana el pin: solo se lee como el maximo.
+// (Se traduce a ADC_11db en feedback_fsr.cpp.)
+#define FSR_ATENUACION_DB  11
+
+// Muestras promediadas por lectura. El condensador de 100 nF en cada pin
+// ya filtra el ruido; el promedio quita el del propio ADC del ESP32.
+#define FSR_MUESTRAS       4
+#define FSR_US_POR_MUESTRA 25   // estimado para el presupuesto; el autotest mide
+
+// El FSR va de 3.3 V al punto medio, y del punto medio una resistencia
+// fija a GND: V = FSR_VCC_MV * R_FIJA / (R_FIJA + R_FSR).
+// 22 kohm (serie E24, 1%) en lugar de 10 kohm: sube el voltaje de un
+// toque suave por encima de la zona ciega del ADC (<150 mV). A cambio,
+// por encima de ~0.8 N el ADC pierde precision y hacia ~5 N satura. Si
+// al calibrar los umbrales pasan de ~0.6 N, volver a 10-15 kohm.
+#define FSR_VCC_MV         3300.0f
+#define FSR_R_FIJA_OHM     22000.0f
+
+// Los dedos que cierran en cada gesto, para frenar solo esos. De los
+// angulos de control_servos.cpp:
 //
 //              Pulgar Indice Medio Anular Menique   dedos que cierran
 //   Rest          0      0      0     0      0             0
@@ -417,15 +428,6 @@ static_assert(TAMANO_VENTANA == 20,
 //   Tripod      180    150    120     0      0             3
 //   Power       180    170    170   150    140             5
 //   Extension     0      0      0     0      0             0
-//
-// La tasa efectiva por FSR es 100 Hz / n_dedos_activos:
-//   Pinch   2 dedos -> 50.0 Hz por FSR
-//   Tripod  3 dedos -> 33.3 Hz por FSR
-//   Power   5 dedos -> 20.0 Hz por FSR
-//
-// La tasa mas alta cae en Pinch, que es el agarre delicado, y la mas
-// baja en Power, que es donde la fuerza se quiere alta. El reparto
-// favorece justo donde importa.
 //
 // Bitmap de dedos que cierran, indexado por gesto. Bit i = servo i.
 #define FSR_ACTIVOS_REST        0x00
@@ -435,13 +437,24 @@ static_assert(TAMANO_VENTANA == 20,
 #define FSR_ACTIVOS_EXTENSION   0x00
 
 // ======================== UMBRALES FSR ========================
-// Umbral de presion para detener servo (lazo cerrado)
-// Valores en mV, calibrar experimentalmente
-#define UMBRAL_FSR_PULGAR   200.0f
-#define UMBRAL_FSR_INDICE   200.0f
-#define UMBRAL_FSR_MEDIO    180.0f
-#define UMBRAL_FSR_ANULAR   180.0f
-#define UMBRAL_FSR_MENIQUE  180.0f
+// Umbral de presion para detener el servo (lazo cerrado), en mV en el
+// pin del ADC. CALIBRAR CON LOS FSR REALES: estos valores son la misma
+// FUERZA que los umbrales anteriores, recalculada para el divisor nuevo.
+//
+//   Umbral anterior (10 kohm)  ->  R del FSR  ->  umbral nuevo (22 kohm)
+//   200 mV                     ->  155 kohm   ->  410 mV
+//   180 mV                     ->  173 kohm   ->  372 mV
+//
+//   Formula: V = FSR_VCC_MV * FSR_R_FIJA_OHM / (FSR_R_FIJA_OHM + R_FSR)
+//
+// Esa fuerza es un toque muy ligero (~0.04 N en la curva tipica del
+// FSR402, por debajo de su rango especificado de 0.2-20 N). Los DF9-40 no
+// tienen curva fiable publicada: calibrarlos por separado.
+#define UMBRAL_FSR_PULGAR   410.0f
+#define UMBRAL_FSR_INDICE   410.0f
+#define UMBRAL_FSR_MEDIO    372.0f
+#define UMBRAL_FSR_ANULAR   372.0f
+#define UMBRAL_FSR_MENIQUE  372.0f
 
 // ======================== GESTOS ========================
 enum Gesto : uint8_t {
