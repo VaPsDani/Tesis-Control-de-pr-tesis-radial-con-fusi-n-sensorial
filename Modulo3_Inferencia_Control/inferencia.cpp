@@ -1,26 +1,75 @@
 /*
  * inferencia.cpp - Implementacion del motor de inferencia TFLite Micro
  *
- * DEPENDENCIAS (Arduino IDE / PlatformIO):
- *   - TensorFlowLite_ESP32  (https://github.com/esp-arduino-libs/TensorFlowLite_ESP32)
- *   - O descargar: https://github.com/espressif/esp-tflite-micro
+ * DEPENDENCIAS (Arduino IDE / arduino-cli):
+ *   - Chirale_TensorFLowLite 2.0.0 (gestor de librerias de Arduino). Es
+ *     TensorFlow Lite Micro empaquetado para ESP32 y mbed. Sustituye a
+ *     TensorFlowLite_ESP32 1.0.0, que no compila con el core esp32 3.x.
  *
  * El archivo modelo_gestos_tflite.h se genera automaticamente con
  * convertir_tflite.py y debe estar presente en esta carpeta.
+ *
+ * OPERACIONES:
+ *   En lugar de AllOpsResolver (todas las operaciones, mucha flash) se
+ *   registran solo las 13 que usa el modelo CNN-BiLSTM-Attention INT8.
+ *   REVERSE_V2 no esta en la libreria y se aporta desde reverse_v2_lmg.cpp.
+ *   Si el modelo cambia y aparece otra operacion, begin() falla con
+ *   "Didn't find op for builtin opcode ..." en el monitor serie.
  */
 
 #include "inferencia.h"
 #include "modelo_gestos_tflite.h"
 
 // Includes de TFLite Micro
-#include <TensorFlowLite_ESP32.h>
-#include "tensorflow/lite/micro/all_ops_resolver.h"
+#include <Chirale_TensorFlowLite.h>
+#include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
 #include "tensorflow/lite/schema/schema_generated.h"
-#include "tensorflow/lite/version.h"
+#include "reverse_v2_lmg.h"
 
-// Namespace alias para claridad
-namespace tflite = ::tflite;
+// ============================================================
+// Resolver de operaciones del modelo
+// ============================================================
+// Las operaciones de la libreria mas REVERSE_V2 (propia). MicroOpResolver
+// es la interfaz que usa el interprete para buscar cada operacion.
+class ResolverModeloLMG : public tflite::MicroOpResolver {
+public:
+    ResolverModeloLMG() {
+        _base.AddQuantize();
+        _base.AddDequantize();
+        _base.AddReshape();
+        _base.AddConv2D();
+        _base.AddMul();
+        _base.AddAdd();
+        _base.AddUnidirectionalSequenceLSTM();
+        _base.AddConcatenation();
+        _base.AddFullyConnected();
+        _base.AddTanh();
+        _base.AddSoftmax();
+        _base.AddSum();
+        _reverse = lmg::Register_REVERSE_V2();
+        _reverse.builtin_code = tflite::BuiltinOperator_REVERSE_V2;
+    }
+
+    const TfLiteRegistration *FindOp(tflite::BuiltinOperator op) const override {
+        if (op == tflite::BuiltinOperator_REVERSE_V2) return &_reverse;
+        return _base.FindOp(op);
+    }
+
+    const TfLiteRegistration *FindOp(const char *op) const override {
+        return _base.FindOp(op);
+    }
+
+    tflite::TfLiteBridgeBuiltinParseFunction GetOpDataParser(
+        tflite::BuiltinOperator op) const override {
+        if (op == tflite::BuiltinOperator_REVERSE_V2) return lmg::ParseReverseV2;
+        return _base.GetOpDataParser(op);
+    }
+
+private:
+    tflite::MicroMutableOpResolver<12> _base;
+    TfLiteRegistration _reverse;
+};
 
 // ============================================================
 // Implementacion
@@ -36,7 +85,7 @@ MotorInferencia::MotorInferencia()
 
 MotorInferencia::~MotorInferencia() {
     if (_tensor_arena) delete[] _tensor_arena;
-    if (_resolver) delete static_cast<tflite::AllOpsResolver *>(_resolver);
+    if (_resolver) delete static_cast<ResolverModeloLMG *>(_resolver);
     if (_interpreter) delete static_cast<tflite::MicroInterpreter *>(_interpreter);
 }
 
@@ -58,9 +107,9 @@ bool MotorInferencia::begin() {
     }
 
     // ========== 3. Crear resolver de operaciones ==========
-    _resolver = new tflite::AllOpsResolver();
+    _resolver = new (std::nothrow) ResolverModeloLMG();
     if (_resolver == nullptr) {
-        Serial.println("[TFLITE] ERROR: No se pudo crear AllOpsResolver");
+        Serial.println("[TFLITE] ERROR: No se pudo crear el resolver");
         return false;
     }
 
@@ -74,7 +123,7 @@ bool MotorInferencia::begin() {
     // MicroInterpreter necesita el modelo, el resolver, el tensor arena y su tamano
     _interpreter = new tflite::MicroInterpreter(
         model,
-        *static_cast<tflite::AllOpsResolver *>(_resolver),
+        *static_cast<ResolverModeloLMG *>(_resolver),
         _tensor_arena,
         TENSOR_ARENA_SIZE
     );
