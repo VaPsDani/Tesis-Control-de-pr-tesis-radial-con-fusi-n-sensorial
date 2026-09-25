@@ -30,6 +30,27 @@ directamente sin instalar nada ni fijar `PYTHONPATH`.
 
 ## Entorno
 
+Hay dos entornos, y cada resultado se reproduce en el suyo.
+
+| Entorno | Para qué | Keras |
+|---|---|---|
+| `~/venv-tflite-viab`, `requirements-produccion.txt` (versiones exactas) | **Desde 2026-09-25:** todo entrenamiento nuevo de producción y de ablación con datos propios, y la conversión a TFLite INT8 | **Keras 2 (`tf_keras`)**, forzado por `common/keras_legado.py` |
+| `~/venv-tesis`, `requirements.txt` | La validación preliminar sobre NinaPro y los análisis del dataset público de LMG, tal como se obtuvieron | Keras 3 |
+
+El entorno de producción usa Keras 2 porque con Keras 3 la LSTM no se convierte en la operación
+nativa de TFLite y la cuantización INT8 falla. Así, el modelo que se evalúa es el mismo que se
+despliega (`claude/viabilidad-tflite-micro.md`). Por ahora es solo CPU.
+
+```bash
+python3.12 -m venv ~/venv-tflite-viab
+~/venv-tflite-viab/bin/pip install -r Modulo2_Pipeline_DL/requirements-produccion.txt
+```
+
+`requirements-tflm.txt` describe un tercer entorno, solo de validación (Python 3.13), con el
+intérprete oficial de TensorFlow Lite Micro para PC.
+
+### Entorno de la validación preliminar (venv-tesis)
+
 WSL2 con Ubuntu, Python 3.12 y una GPU NVIDIA con controladores recientes.
 
 ```bash
