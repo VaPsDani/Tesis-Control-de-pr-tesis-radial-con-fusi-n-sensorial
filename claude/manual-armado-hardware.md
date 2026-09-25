@@ -26,6 +26,10 @@ manual.
 - Corrección: la versión anterior indicaba un puente entre los pines 2 y 3 del
   OPT101. **Era un error.** El pin 2 va sin conexión y el puente es entre los
   pines 4 y 5. En el PCB del módulo ese puente ya es una pista.
+- El PCB del módulo pasa a ser de **una sola cara** (rev B, para un proveedor
+  local), con **dos versiones del conector J1**: JST PH SMD o tira de pines SMD
+  para cables Dupont. El orden de los pines es el mismo en las dos. La versión de
+  dos caras (rev A) queda congelada en `Documents/KiCad/LMG_Sensor_2capas`.
 
 **Regla de oro: nunca conecte la batería mientras cablea.** Todo se cablea con
 el sistema apagado y se enciende solo para las pruebas.
@@ -48,7 +52,7 @@ el sistema apagado y se enciende solo para las pruebas.
 | **PWM** | Señal cuadrada que se enciende y apaga muy rápido. Variando cuánto tiempo está encendida se regula el brillo de un LED o la posición de un servo. |
 | **ADC** | Conversor analógico a digital. Traduce un voltaje a un número. El ADS1115 es de 16 bits; el ESP32 trae además uno propio, de 12 bits y menos preciso. |
 | **Divisor** | Dos resistencias en serie. El voltaje del punto medio depende de la relación entre ambas. Así se convierte la resistencia de un FSR en un voltaje legible. |
-| **Conector J1** | Los 4 pines de cada módulo LMG: 1 VCC, 2 GND, 3 OUT, 4 LED. |
+| **Conector J1** | Los 4 pines de cada módulo LMG: 1 VCC, 2 GND, 3 OUT, 4 LED. Hay dos versiones del PCB: con conector **JST PH** o con **tira de pines para cables Dupont**. El orden de los pines es el mismo en las dos. |
 
 ---
 
@@ -63,7 +67,7 @@ el sistema apagado y se enciende solo para las pruebas.
 | MPU6050 (placa GY-521) | 1 | Mide aceleración y giro del antebrazo, que entran al modelo junto al LMG. |
 | PCA9685 | 1 | Genera las señales de los 5 servos sin ocupar pines del ESP32. Solo Módulo 3. |
 | **PCB del módulo LMG** | 5 | Ver la lista del módulo, abajo. |
-| Cable de 4 hilos | 5 tramos | Une el conector J1 de cada módulo con la placa principal: VCC, GND, OUT y LED. |
+| Cable de 4 hilos | 5 tramos | Une el conector J1 de cada módulo con la placa principal: VCC, GND, OUT y LED. **Versión JST:** cable JST PH de 2.0 mm, 4 pines, ya armado (no crimpar a mano). **Versión Dupont:** 4 cables Dupont hembra o una carcasa Dupont de 4 vías. |
 | FSR402 | 2 | Sensor de presión de la yema del pulgar y del índice. Solo Módulo 3. |
 | DF9-40 | 3 | Sensor de presión de las yemas medio, anular y meñique. Solo Módulo 3. |
 | **Resistencia de 22 kohm, 1 %** | 5 | Divisor de cada FSR. Reemplaza a la de 10 kohm. Solo Módulo 3. |
@@ -72,16 +76,18 @@ el sistema apagado y se enciende solo para las pruebas.
 
 ### Lista de cada PCB de módulo (por 5)
 
-La lista exacta, con referencias y huellas, está en
-`LMG_Sensor/fab/bom/LMG_Sensor_BOM.csv`.
+La lista exacta, con el dibujo de dónde va cada pieza, está en el PDF de montaje
+de cada versión: `LMG_Sensor/fab/1cara_JST/LMG_Sensor_1cara_JST_montaje.pdf` y
+`LMG_Sensor/fab/1cara_Dupont/LMG_Sensor_1cara_Dupont_montaje.pdf`.
 
 | Componente | Cantidad por módulo | Notas |
 |---|---|---|
 | OPT101P, DIP-8 | 1 | **Sin zócalo**: el zócalo cambia la altura del sensor. |
-| LED IR de 940 nm | 1 | De 5 mm, por sus patas, o SMD sostenido por dos pines de 0.64 mm. Se suelda en **una sola** de las tres posiciones (9, 11 o 13 mm). |
+| LED IR de 940 nm | 1 | De 5 mm, por sus patas, o SMD sostenido por dos alambres rígidos AWG 22 (0.64 mm). **La misma placa sirve para los dos.** Se suelda en **una sola** de las tres posiciones (9, 11 o 13 mm). |
 | Resistencia de 100 ohm, 1206 | 1 | R1. Limita la corriente del LED a unos 18 mA. |
 | Condensador de 100 nF, 1206 | 1 | C1. Desacople del OPT101. |
-| Tira de pines 1 x 4, paso 2.54 mm | 1 | J1. |
+| J1, **versión JST** | 1 | Conector JST PH **S4B-PH-SM4-TB**: 4 pines, paso 2.0 mm, SMD, de entrada lateral, con 2 pads de anclaje. |
+| J1, **versión Dupont** | 1 | Tira de pines macho 1 x 4, paso 2.54 mm, **SMD vertical**. No tiene pads de anclaje: se refuerza con silicona caliente. |
 
 ### Alimentación
 
@@ -364,7 +370,8 @@ mecánica entre módulos entra al modelo como si fuera señal muscular.
 
 **Orientación del PCB.** La **cara inferior** mira a la piel y queda dentro de
 la carcasa. En ella solo van el cuerpo del OPT101 y el LED. Todo lo demás (C1,
-R1, J1) va en la **cara superior**, que mira hacia afuera.
+R1, J1) va en la **cara superior**, que mira hacia afuera. La placa es de una
+sola cara: solo tiene cobre en la cara superior, y todo se suelda por ahí.
 
 **Paso 1. Soldar el PCB.** Siga el orden y las comprobaciones de
 `LMG_Sensor/fab/LEEME_fabricacion.md`. En resumen:
@@ -377,11 +384,20 @@ R1, J1) va en la **cara superior**, que mira hacia afuera.
 3. Tapar por la cara superior, con cinta aislante negra, el anillo sin cobre
    que rodea al pin 2.
 4. Un solo LED, en la posición elegida (9, 11 o 13 mm), desde la cara inferior,
-   con el ánodo en el pad «+». Su altura se ajusta con un separador para que la
-   punta quede en el plano de la piel (Z_piel, ver el paso 3).
+   con el ánodo en el pad «+». Con el taco provisional de 4.8 mm, el LED de 5 mm
+   va a ras del PCB y su punta queda en el plano de la piel (Z_piel, ver el
+   paso 3). Si usa un LED SMD sobre dos alambres, su cara se deja a esa misma
+   altura: el procedimiento está en el LEEME.
 5. Tapar con estaño los 4 agujeros de las otras dos posiciones del LED, sin unir
    nunca la fila de ánodos con la de cátodos.
-6. J1 en la cara superior; cortar a ras las puntas que asoman por la inferior.
+6. J1 en la cara superior. Es SMD en las dos versiones: no asoma nada por la
+   cara inferior.
+   - **Versión JST:** primero los 2 pads de anclaje y luego los 4 pines. La boca
+     mira al borde de la placa y el cable sale por el lateral.
+   - **Versión Dupont:** los 4 pines y, después de pasar las pruebas, **silicona
+     caliente** sobre las soldaduras y la base de la tira, dejando libre la parte
+     de arriba de los pines. El cable sale hacia arriba, así que la carcasa
+     necesita una abertura en la tapa.
 
 **Paso 2. Probar el módulo antes de montarlo.** Pruebas 2 y 3 de la sección 7.
 Es el último momento cómodo para corregir un error.
@@ -397,7 +413,8 @@ Con esas medidas se calcula el plano de la piel,
 fórmulas y los valores vigentes están en `LMG_Sensor/fab/Tabla_interfaz_carcasa.md`.
 
 **Paso 4. Montar en la carcasa.** La carcasa se diseña alrededor del modelo 3D
-del PCB (`LMG_Sensor/fab/3d/`). El PCB se atornilla con dos tornillos M2 a los
+del PCB (`LMG_Sensor/fab/1cara_JST/` o `LMG_Sensor/fab/1cara_Dupont/`; el STEP
+de la versión JST no trae J1, cuyas cotas están en la tabla de interfaz). El PCB se atornilla con dos tornillos M2 a los
 insertos de la carcasa. Entre el pozo del LED y la cavidad del sensor va un
 **tabique opaco** hasta la cara de contacto: si queda corto, la luz pasa por
 encima y el módulo mide su propio LED en vez del músculo.
@@ -556,7 +573,9 @@ actual no da el resultado esperado.**
 
 ## 9. Orden de trabajo recomendado
 
-1. Fabricar los PCB de los módulos (`LMG_Sensor/fab/`).
+1. Fabricar los PCB de los módulos: enviar al proveedor el zip de la versión
+   elegida (`LMG_Sensor/fab/LMG_Sensor_1cara_JST_gerbers.zip` o
+   `LMG_Sensor/fab/LMG_Sensor_1cara_Dupont_gerbers.zip`).
 2. Soldar **un solo módulo** y pasar las pruebas 2 y 3.
 3. Imprimir una sola carcasa, alrededor del modelo 3D del PCB, y verificar el
    encaje en seco.
