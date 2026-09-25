@@ -26,7 +26,7 @@ cambios.
 
 `produccion/convertir_tflite.py` **no funciona tal como está**. Hubo tres fallos, en orden:
 
-| # | Fallo | Causa | Arreglo aplicado en la prueba (copia, no en el repo) |
+| # | Fallo | Causa | Arreglo (aplicado en `produccion/convertir_tflite.py` el 2026-09-25) |
 |---|---|---|---|
 | 1 | `Could not locate class 'MecanismoAtencion'` al cargar el `.keras` | `custom_objects={"MecanismoAtencion": None}` no registra la clase | `custom_objects={"MecanismoAtencion": MecanismoAtencion}` |
 | 2 | Con Keras 3 (venv-tesis): el conversor aborta (TF 2.16) o falla (TF 2.21) | **Keras 3 exporta la LSTM como un bucle WHILE** con GATHER/SLICE, que no se fusiona en la LSTM nativa de TFLite. La cuantización INT8 de ese bucle **revienta el proceso (segfault)** en TF 2.16.1 y en TF 2.21.0, con cualquier opción del cuantizador | Entrenar y convertir con **Keras 2 (`tf_keras`, `TF_USE_LEGACY_KERAS=1`)**. Con él la LSTM sale como la operación nativa `UNIDIRECTIONAL_SEQUENCE_LSTM` |
@@ -67,28 +67,46 @@ conversión funciona: **modelo INT8 de 99 936 bytes (97.6 KB)**.
   - arena necesaria **16 128 bytes** (medida en PC, 64 bits).
 - **Única operación no soportada por la librería de Arduino: `REVERSE_V2`.**
   - Alternativa aplicada, sin tocar arquitectura ni librería: kernel propio `reverse_v2_lmg.cpp`
-    en el sketch, registrado con un *resolver* propio (`ResolverModeloLMG` en `inferencia.cpp`).
+    en el sketch, registrado con un *resolver* propio (`ResolverModeloLMG`, en `resolver_modelo_lmg.h`).
   - Otras alternativas, no aplicadas: vendorizar una versión más nueva de TFLite Micro, o
     esp-tflite-micro de Espressif, que además trae ESP-NN para acelerar conv y FC.
 
-## 3. Precisión INT8 frente a float (datos sintéticos, orientativo)
+## 3. Precisión INT8 frente a float, con datos reales (actualizado 2026-09-25)
 
-| | Acierto en 300 ventanas |
-|---|---|
-| float (Keras) | 88.3 % |
-| INT8, calibrado con las 1000 primeras ventanas (producción) | 73.3 % |
-| INT8, calibrado con 1000 ventanas al azar | 73.3 % |
+**Sustituye a la versión anterior de esta sección.** Aquella (datos sintéticos: float 88.3 %, INT8
+73.3 %) estaba mal medida: la LSTM conservaba su estado entre ventanas (ver 3b).
 
-- El INT8 coincide con el float en el 84 % de las ventanas. El docstring de producción promete
-  una pérdida < 2 %; **con este modelo de prueba es de 15 puntos**.
-- **Por capa el error es normal:** menos de 1 paso de cuantización en todas, con el máximo en la
-  LSTM hacia atrás (0.77) y en el MUL de la atención (0.63). No hay una capa rota: el error se
-  acumula.
-- **Hay que medirlo con el modelo real.** Si se confirma, hay dos alternativas que no cambian la
-  arquitectura:
-  - **(i)** entrenamiento con cuantización simulada (QAT);
-  - **(ii)** activaciones de 16 bits (cuantización 16x8), comprobando antes que TFLite Micro
-    tenga todas las operaciones en esa variante.
+Medido sobre **NinaPro DB5 remuestreado a 100 Hz**, con ventana 20 × 8 igual que en producción:
+- un pliegue por sujeto (test: sujetos 3 y 6, 10 746 ventanas);
+- normalización por sujeto;
+- validación interna más reentreno;
+- tf_keras.
+
+Detalle y scripts en `Modulo2_Pipeline_DL/experimentos/cuantizacion_int8/`.
+
+| | Exactitud | Pérdida |
+|---|---|---|
+| Keras float | 49.92 % | — |
+| TFLite float32, sin cuantizar | 49.92 % | 0.00 pt |
+| **INT8 de producción** (TFLite en PC / TFLite Micro) | **49.52 % / 49.51 %** | **0.40 pt** |
+| INT8, calibración al azar | 49.18 % | 0.74 pt |
+
+- **Pérdida por debajo de 2 puntos:** no hacen falta 16 bits ni QAT.
+- Las activaciones de 16 bits tampoco serían posibles hoy para la LSTM. El conversor de TF 2.21
+  responde *"16x8 not yet supported for op: UNIDIRECTIONAL_SEQUENCE_LSTM"*.
+
+### 3b. La LSTM guarda estado entre inferencias
+
+- `UNIDIRECTIONAL_SEQUENCE_LSTM` tiene su estado h/c en tensores variables que **persisten entre
+  `Invoke()`**. Sin reiniciarlos, cada ventana arranca con el estado de la anterior.
+- Sin reiniciar, el float32 convertido baja a 47.78 % y el INT8 a 47.54 %. Esos eran los 2.4 puntos
+  que parecían de cuantización.
+- **Corregido en el firmware:** `MotorInferencia::predecir()` llama a `interp->Reset()` antes de cada
+  `Invoke()`.
+- Las comparaciones de la sección 2 (300/300, 299/300) siguen siendo válidas como equivalencia
+  entre implementaciones, porque todas arrastraban el estado de la misma manera.
+- Con reinicio, la librería Chirale en PC da 49.68 %, con la misma clase que TFLite en el 98.0 % de
+  las ventanas de NinaPro.
 
 ## 4. Compilación de Modulo3 con el modelo real (sintético)
 
@@ -104,7 +122,8 @@ de AllOpsResolver. Core esp32 3.3.11, placa `esp32:esp32:esp32`.
 
 **Validación en PC antes de grabar la placa.** Se compiló la misma librería Chirale, con los
 mismos kernels CMSIS-NN que usa el ESP32 y con `reverse_v2_lmg.cpp` y el resolver del sketch, y se
-ejecutaron las 300 ventanas de prueba:
+ejecutaron las 300 ventanas de prueba (sin reiniciar el estado; con reinicio y datos de NinaPro,
+ver 3b):
 
 - Arena usada: **17 648 bytes**.
 - Misma clase que TFLite Micro oficial en **299 de 300** ventanas.
@@ -119,14 +138,17 @@ ejecutaron las 300 ventanas de prueba:
 (datos sintéticos). Está en `.gitignore` y lleva un aviso en su cabecera. **No clasifica gestos
 reales.**
 
-## 5. Tiempo de inferencia
+## 5. Tiempo de inferencia y núcleos
 
-**No medido en el ESP32: no había ninguna placa conectada.** El sketch ya lo mide
-(`tInferenciaUs` alrededor de `tflite.predecir()`), y `tflite.info()` imprime la arena
-realmente usada al arrancar.
+**No medido todavía en el ESP32.**
+- Sketch de medición: `Benchmark_Inferencia/`. Sin sensores ni I2C: 100 inferencias con `Reset()`
+  incluido, y como resultado:
+  - tiempo medio, mínimo y máximo;
+  - tiempo por tipo de operación;
+  - intervalo propuesto entre inferencias y latencia peor caso frente a 150 ms.
+- Antes de subirlo, copiar en la carpeta del sketch el `modelo_gestos_tflite.h` de Modulo3.
 
-Estimación gruesa, para saber qué esperar. El modelo hace unas **1.43 millones de
-multiplicaciones-suma por ventana**:
+El modelo hace unas **1.43 millones de multiplicaciones-suma por ventana**:
 
 | Parte | Multiplicaciones-suma | Proporción |
 |---|---|---|
@@ -134,7 +156,21 @@ multiplicaciones-suma por ventana**:
 | BiLSTM (2 × 20 pasos) | 0.82 M | 57 % |
 | Atención y Dense | 0.09 M | 7 % |
 
-- Con los kernels en C portable de la librería (sin aceleración ESP-NN), el orden esperable en un
-  ESP32 a 240 MHz es de **decenas de milisegundos**.
-- El firmware pide una inferencia cada **20 ms** (`INTERVALO_INFERENCIA_MS`). **Es probable que no
-  quepa**: hay que medirlo en la placa antes de decidir nada.
+**Requisito: latencia menor de 150 ms**, no una inferencia cada 20 ms.
+- Latencia peor caso = intervalo entre inferencias + tiempo de inferencia.
+- Si la inferencia tarda T, el intervalo mínimo es T más un margen, redondeado al periodo de
+  muestreo de 10 ms. El benchmark lo calcula con el 20 %.
+- Ejemplo: con T = 40 ms, se infiere cada 50 ms (5 muestras) y la latencia es de 90 ms.
+- `STRIDE` en `config.h` es el número de muestras entre inferencias. Cambiarlo no toca el modelo:
+  la ventana sigue siendo de 20 muestras.
+
+**Núcleos: hoy la inferencia NO está separada de la adquisición.**
+- Todo corre en `loop()`: la tarea de Arduino, en el núcleo 1 (`ARDUINO_RUNNING_CORE=1`).
+  Eso incluye el muestreo de 10 ms, los FSR, la rampa de los servos y la inferencia.
+- `tflite.predecir()` se llama dentro del bloque de 10 ms. Si tarda más de 10 ms, retrasa las
+  lecturas siguientes y el muestreo baja de 100 Hz.
+- Propuesta, pendiente de aprobación:
+  - adquisición (LMG, IMU, FSR, frenado) en una tarea de FreeRTOS fijada al núcleo 0, con
+    `vTaskDelayUntil` a 10 ms;
+  - inferencia y servos en el núcleo 1;
+  - comunicación entre ambas con una cola o un búfer doble protegido.
