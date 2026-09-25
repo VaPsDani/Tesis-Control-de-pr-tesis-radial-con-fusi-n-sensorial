@@ -1,0 +1,4 @@
+# Solo se versionan los JSON de resultados; el resto se regenera
+resultados/*
+!resultados/*.json
+__pycache__/

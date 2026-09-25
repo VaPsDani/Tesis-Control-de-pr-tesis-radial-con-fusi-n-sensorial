@@ -27,6 +27,7 @@ directamente sin instalar nada ni fijar `PYTHONPATH`.
 | `lmg_wavelength/` | Ventana, canales, longitud de onda y modelos clásicos, sobre el dataset público de LMG |
 | `ablacion_fases/` | ¿Qué tramo del gesto conviene que entre al entrenamiento? |
 | `optica_espaciador/` | ¿LED verde con espaciador o infrarrojo en contacto? |
+| `cuantizacion_int8/` | ¿Cuánta exactitud se pierde al pasar el modelo a INT8 para el ESP32? |
 
 ## Entorno
 

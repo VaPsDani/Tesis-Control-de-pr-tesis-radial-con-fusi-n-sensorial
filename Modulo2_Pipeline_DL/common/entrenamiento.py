@@ -90,10 +90,15 @@ def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
                      epochs, batch_size, lr, early_stopping_start=0,
                      seed=None, determinismo=False,
                      X_test=None, y_test=None, lr_por_epoca=None,
-                     num_clases=None, nombres_clases=None):
+                     num_clases=None, nombres_clases=None,
+                     guardar_modelo_en=None):
     """
     Construye, entrena y evalua el modelo en un pliegue.
     Retorna (history, y_pred, metricas_dict).
+
+    guardar_modelo_en: ruta .keras opcional donde guardar el modelo evaluado
+    antes de liberarlo (p. ej. para convertirlo a TFLite). Por defecto no se
+    guarda nada y el comportamiento es el de siempre.
 
     lr_por_epoca: si se pasa, es un REENTRENAMIENTO. Sin EarlyStopping, sin
     ReduceLROnPlateau y sin datos de validacion: se entrena exactamente
@@ -263,6 +268,10 @@ def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
         "reentreno": bool(reentreno),
     }
 
+    if guardar_modelo_en:
+        modelo.save(guardar_modelo_en)
+        print(f"    Modelo guardado: {guardar_modelo_en}")
+
     del modelo
     tf.keras.backend.clear_session()
 
@@ -275,7 +284,8 @@ def entrenar_con_validacion_interna(X_train, y_train, grupos_train,
                                     early_stopping_start=10, seed=None,
                                     determinismo=False, modo="interna",
                                     val_grupos=1, reentrenar=True, n_max=None,
-                                    num_clases=None, nombres_clases=None):
+                                    num_clases=None, nombres_clases=None,
+                                    guardar_modelo_en=None):
     """
     El mismo mecanismo para entrenamiento_cv.py y para los scripts de
     experimentos/: nadie debe volver a pasar el test como validation_data.
@@ -296,6 +306,9 @@ def entrenar_con_validacion_interna(X_train, y_train, grupos_train,
     la validacion, por separado en la seleccion y en el reentreno. Si ambos
     superan el tope, el reentreno no gana ventanas: solo la diversidad del
     grupo anadido.
+
+    guardar_modelo_en: ruta .keras opcional del modelo que se evalua (el
+    del reentreno si reentrenar, si no el de la seleccion).
 
     Returns: (history de la seleccion, probabilidades sobre test, metricas)
     """
@@ -337,6 +350,7 @@ def entrenar_con_validacion_interna(X_train, y_train, grupos_train,
         seed=seed, determinismo=determinismo,
         X_test=X_eval, y_test=y_eval,
         num_clases=num_clases, nombres_clases=nombres_clases,
+        guardar_modelo_en=None if reentrenar else guardar_modelo_en,
     )
     metricas["validacion"] = modo
     metricas["grupos_validacion"] = list(grupos_val)
@@ -353,6 +367,7 @@ def entrenar_con_validacion_interna(X_train, y_train, grupos_train,
             seed=seed, determinismo=determinismo,
             X_test=X_test, y_test=y_test, lr_por_epoca=calendario,
             num_clases=num_clases, nombres_clases=nombres_clases,
+            guardar_modelo_en=guardar_modelo_en,
         )
         metricas_final["validacion"] = "interna+reentreno"
         metricas_final["grupos_validacion"] = list(grupos_val)

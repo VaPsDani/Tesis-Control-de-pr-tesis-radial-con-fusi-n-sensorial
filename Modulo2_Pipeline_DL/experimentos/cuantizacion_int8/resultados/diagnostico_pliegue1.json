@@ -1,0 +1,62 @@
+{
+  "mcnemar": {
+    "float_bien_int8_mal": 95,
+    "float_mal_int8_bien": 52,
+    "p_valor_exacto": 0.0004896357481684591
+  },
+  "capas_peor_error": [
+    {
+      "op": "UNIDIRECTIONAL_SEQUENCE_LSTM",
+      "tensor": "tfl.unidirectional_sequence_lstm1",
+      "rmse_en_pasos": 0.48393418154283496
+    },
+    {
+      "op": "UNIDIRECTIONAL_SEQUENCE_LSTM",
+      "tensor": "tfl.unidirectional_sequence_lstm",
+      "rmse_en_pasos": 0.47177256951591895
+    },
+    {
+      "op": "FULLY_CONNECTED",
+      "tensor": "CNN_BiLSTM_Attention/salida_gesto/MatMul;CNN_BiLSTM_Attention/salida_gesto/BiasAdd",
+      "rmse_en_pasos": 0.3098287070369449
+    },
+    {
+      "op": "RESHAPE",
+      "tensor": "CNN_BiLSTM_Attention/conv1d_1/Conv1D/ExpandDims1",
+      "rmse_en_pasos": 0.2985069636852825
+    },
+    {
+      "op": "ADD",
+      "tensor": "CNN_BiLSTM_Attention/bn_2/batchnorm/add_1;CNN_BiLSTM_Attention/conv1d_2/Conv1D/Squeeze;CNN_BiLSTM_Attention/bn_2/batchnorm/mul_1;CNN_BiLSTM_Attention/conv1d_2/Relu;CNN_BiLSTM_Attention/conv1d_2/BiasAdd;CNN_BiLSTM_Attention/conv1d_2/BiasAdd/ReadVariableOp;CNN_BiLSTM_Attention/bn_2/batchnorm/mul;CNN_BiLSTM_Attention/bn_2/batchnorm/sub",
+      "rmse_en_pasos": 0.2952102610836846
+    },
+    {
+      "op": "FULLY_CONNECTED",
+      "tensor": "CNN_BiLSTM_Attention/atencion/Tensordot",
+      "rmse_en_pasos": 0.29444902501056747
+    }
+  ],
+  "calibracion_2000": 0.49227619579378373,
+  "selectiva": {
+    "nodo_en_float": "tfl.unidirectional_sequence_lstm1",
+    "accuracy": 0.4952540480178671,
+    "bytes": 161344,
+    "operaciones": [
+      "ADD",
+      "CONCATENATION",
+      "CONV_2D",
+      "DEQUANTIZE",
+      "FULLY_CONNECTED",
+      "MUL",
+      "QUANTIZE",
+      "RESHAPE",
+      "REVERSE_V2",
+      "SOFTMAX",
+      "SUM",
+      "TANH",
+      "UNIDIRECTIONAL_SEQUENCE_LSTM"
+    ]
+  },
+  "float": 0.4991624790619765,
+  "int8_produccion": 0.4951609901358645
+}

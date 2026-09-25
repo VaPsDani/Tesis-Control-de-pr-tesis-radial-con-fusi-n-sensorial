@@ -170,6 +170,8 @@ def exportar_a_c_array(ruta_tflite: str, output_dir: str = "output"):
     hex_lines.append("// Modelo TFLite cuantizado INT8 para clasificacion de gestos")
     hex_lines.append(f"// Tamano: {len(tflite_data)} bytes ({len(tflite_data)/1024:.2f} KB)")
     hex_lines.append("// Generado por: convertir_tflite.py")
+    hex_lines.append("// La LSTM guarda su estado entre Invoke(): reiniciar con")
+    hex_lines.append("// interpreter->Reset() antes de cada ventana (inferencia.cpp lo hace).")
     hex_lines.append("")
     hex_lines.append(
         "alignas(16) const unsigned char modelo_gestos_tflite[] = {"

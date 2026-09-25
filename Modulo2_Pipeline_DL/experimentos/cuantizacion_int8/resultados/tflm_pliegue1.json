@@ -1,0 +1,26 @@
+{
+  "float32": {
+    "soportado_tflm": true,
+    "accuracy": 0.4991624790619765,
+    "acuerdo_con_tflite_pc": 1.0,
+    "max_dif_con_tflite_pc": 1.3709068298339844e-06
+  },
+  "int8_azar": {
+    "soportado_tflm": true,
+    "accuracy": 0.4920900800297785,
+    "acuerdo_con_tflite_pc": 0.9951609901358645,
+    "max_dif_con_tflite_pc": 0.05078125
+  },
+  "int8_produccion": {
+    "soportado_tflm": true,
+    "accuracy": 0.4950679322538619,
+    "acuerdo_con_tflite_pc": 0.9979527265959427,
+    "max_dif_con_tflite_pc": 0.0625
+  },
+  "int8_selectivo": {
+    "soportado_tflm": true,
+    "accuracy": 0.4951609901358645,
+    "acuerdo_con_tflite_pc": 0.9976735529499349,
+    "max_dif_con_tflite_pc": 0.04296875
+  }
+}

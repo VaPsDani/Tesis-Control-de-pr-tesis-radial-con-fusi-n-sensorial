@@ -1,0 +1,23 @@
+{
+  "pliegue": 1,
+  "tasa_hz": 100,
+  "forma": [
+    20,
+    8
+  ],
+  "n_train": 43535,
+  "n_test": 10746,
+  "sujetos_test": [
+    3,
+    6
+  ],
+  "accuracy_float": 0.4991624653339386,
+  "f1_macro_float": 0.47826123787650865,
+  "epocas_reentreno": 13,
+  "epoca_restaurada": 13,
+  "normalizacion": "sujeto",
+  "validacion": "interna+reentreno",
+  "grupos_validacion": [
+    9
+  ]
+}
