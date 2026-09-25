@@ -47,9 +47,19 @@ soldadura y tabla de interfaz con la carcasa en `LMG_Sensor/fab/`.
 - **Sesiones:** las grabadas antes de M1-2026.09.24 y las grabadas después no se
   mezclan sin comprobar que su reposo y su excursión por canal son comparables.
 
-**Pendiente de unificar: espesor del taco.** Esta nota fijaba 4 mm frente al
-OPT101. La tabla de interfaz del PCB calcula Z_piel con un taco de 5 mm. Hay
-que decidir uno y dejarlo en los dos documentos.
+**Espesor del taco: 4.8 mm, provisional (unificado el 2026-09-24).** Sale de
+montar el LED de 5 mm a ras del PCB, sin separador, con su punta en el plano de
+la piel:
+
+    espesor_taco = L_LED − d_ventana = 8.61 − 3.77 = 4.84 ≈ 4.8 mm
+
+donde L_LED es el largo del LED desde la base del reborde hasta la punta (8.61
+en el modelo 3D de un LED de 5 mm genérico) y d_ventana la distancia de la cara
+inferior del PCB a la ventana del OPT101 (3.77 en el modelo; 3.43 a 4.19 según
+el plano de TI). **Se confirma midiendo las piezas reales**: el LED comprado y
+el OPT101 ya soldado. Reemplaza a los 4 mm de la versión original de esta nota
+y a los 5 mm que usaba la tabla de interfaz. El mismo valor figura en
+`LMG_Sensor/fab/Tabla_interfaz_carcasa.md`.
 
 El cableado completo, cable por cable, está en `claude/manual-armado-hardware.md`.
 
@@ -68,7 +78,7 @@ la piel no hay medio compresible y no hay señal LMG.
 |---|---|---|
 | Silicona | **transparente o incolora**, curado por platino | La luz la atraviesa en ambos sentidos |
 | Dureza | blanda, Shore A menor o igual a 10 | Tiene que deformarse con el abultamiento de la piel |
-| Espesor del taco | 4 mm frente al OPT101, **igual en los 5 módulos** | Espesores distintos dan respuestas distintas a la misma contracción |
+| Espesor del taco | **4.8 mm provisional** frente al OPT101 (ver el estado vigente), **igual en los 5 módulos** | Espesores distintos dan respuestas distintas a la misma contracción |
 | Ópticas | OPT101 detrás del taco, LED tocando la piel (en Z_piel) | Ver la sección del LED SMD y el estado vigente |
 | Aislamiento LED a fotodiodo | tabique opaco hasta la cara de contacto | La silicona transparente y el PLA claro conducen luz directa |
 
