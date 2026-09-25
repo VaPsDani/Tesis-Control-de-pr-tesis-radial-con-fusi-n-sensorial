@@ -95,6 +95,11 @@ for _d in (_M2, _os.path.join(_M2, "common"), _os.path.join(_M2, "produccion"),
     if _d not in _sys.path:
         _sys.path.insert(0, _d)
 
+# Datos propios: Keras 2 (tf_keras), el mismo modelo que se despliega.
+# TensorFlow se importa mas tarde (entrenamiento.py); esto va antes.
+import keras_legado
+keras_legado.activar()
+
 import argparse
 import json
 import os

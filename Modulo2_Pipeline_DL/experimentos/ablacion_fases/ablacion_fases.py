@@ -235,6 +235,10 @@ def main():
         sesiones = cargar_publico(args.config, args.data, args.cache)
         nombres = NOMBRES_PUBLICO
     else:
+        # Datos propios: Keras 2 (tf_keras), el mismo modelo que se despliega.
+        # El dataset publico sigue con el Keras de su entorno original.
+        import keras_legado
+        keras_legado.activar()
         nombre_fuente = "captura"
         sesiones = cargar_capturas(args.csv)
         nombres = NOMBRES_CAPTURA

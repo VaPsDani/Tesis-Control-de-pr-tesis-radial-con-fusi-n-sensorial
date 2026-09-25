@@ -17,6 +17,10 @@ CUANTIZACION INT8:
   - La perdida de precision tipica es < 2% en accuracy
   - Habilita aceleracion por hardware en el ESP32 (TFLite Micro)
 
+ENTORNO:
+  Keras 2 (tf_keras), requirements-produccion.txt. El modelo tiene que
+  haberse entrenado tambien con tf_keras (entrenar_modelo.py lo hace).
+
 USO:
   python convertir_tflite.py --modelo output/mejor_modelo.keras --csv dataset_gestos.csv
 """
@@ -39,9 +43,13 @@ import os
 import struct
 
 import numpy as np
-import tensorflow as tf
 
-from preprocesamiento import SlidingWindowPreprocessor
+import keras_legado
+keras_legado.activar()          # antes de importar tensorflow
+import tensorflow as tf         # noqa: E402
+
+from modelo import MecanismoAtencion                   # noqa: E402
+from preprocesamiento import SlidingWindowPreprocessor  # noqa: E402
 
 
 def representative_dataset_gen(dataset: np.ndarray, num_samples: int = 1000):
@@ -75,14 +83,22 @@ def convertir_a_tflite(
     Returns:
         ruta_tflite: Ruta al archivo .tflite generado
     """
+    print(f"[TFLITE] Keras 2 (tf_keras {keras_legado.verificar()})")
     print("[TFLITE] Cargando modelo Keras...")
+    # La capa de atencion es propia: hay que pasar la clase, no None
     modelo = tf.keras.models.load_model(
         ruta_modelo,
-        custom_objects={"MecanismoAtencion": None},  # se resuelve por nombre
+        custom_objects={"MecanismoAtencion": MecanismoAtencion},
     )
 
     # ========== CONVERTER ==========
-    converter = tf.lite.TFLiteConverter.from_keras_model(modelo)
+    # Lote fijo de 1: el ESP32 infiere una ventana cada vez, y con lote
+    # variable el conversor no puede fusionar la LSTM en su operacion
+    # nativa (error "TensorListReserve ... element_shape to be static").
+    forma = [1] + list(modelo.inputs[0].shape[1:])
+    funcion = tf.function(lambda x: modelo(x, training=False))
+    concreta = funcion.get_concrete_function(tf.TensorSpec(forma, tf.float32))
+    converter = tf.lite.TFLiteConverter.from_concrete_functions([concreta], modelo)
 
     # Optimizacion por defecto: reduce tamano
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
@@ -103,6 +119,7 @@ def convertir_a_tflite(
 
     print("[TFLITE] Convirtiendo a TFLite INT8...")
     tflite_model = converter.convert()
+    verificar_operaciones(tflite_model)
 
     # ========== GUARDAR .tflite ==========
     os.makedirs(output_dir, exist_ok=True)
@@ -115,6 +132,23 @@ def convertir_a_tflite(
     print(f"[TFLITE] Tamano: {tamano_kb:.2f} KB")
 
     return ruta_tflite
+
+
+def verificar_operaciones(tflite_model: bytes):
+    """
+    Falla si la LSTM no quedo como operacion nativa.
+
+    Un bucle WHILE en el grafo significa que el modelo se entreno o se
+    convirtio con Keras 3: TFLite Micro no lo ejecutaria como la BiLSTM
+    validada.
+    """
+    interp = tf.lite.Interpreter(model_content=tflite_model)
+    ops = sorted({d["op_name"] for d in interp._get_ops_details()})
+    print(f"[TFLITE] Operaciones: {', '.join(ops)}")
+    if "WHILE" in ops or "UNIDIRECTIONAL_SEQUENCE_LSTM" not in ops:
+        raise RuntimeError(
+            "La LSTM no se fusiono en UNIDIRECTIONAL_SEQUENCE_LSTM. "
+            "Entrene y convierta con tf_keras (requirements-produccion.txt).")
 
 
 def exportar_a_c_array(ruta_tflite: str, output_dir: str = "output"):

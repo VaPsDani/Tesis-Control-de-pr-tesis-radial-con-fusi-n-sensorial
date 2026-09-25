@@ -33,7 +33,11 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
-import tensorflow as tf
+
+# Keras 2 (tf_keras): el modelo que se entrena es el que se despliega
+import keras_legado
+keras_legado.activar()          # antes de importar tensorflow
+import tensorflow as tf         # noqa: E402
 from sklearn.metrics import classification_report, confusion_matrix
 
 from modelo import construir_modelo, compilar_modelo

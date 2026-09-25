@@ -1,0 +1,14 @@
+# Interprete oficial de TensorFlow Lite Micro para PC (validacion, no produccion)
+# ============================================================================
+# Ejecuta el .tflite con los kernels de TFLite Micro para comprobar que todas
+# sus operaciones estan soportadas y medir la arena. El paquete solo funciona
+# con Python 3.13, por eso va en un entorno aparte:
+#   uv venv --python 3.13 ~/venv-tflm313
+#   VIRTUAL_ENV=~/venv-tflm313 uv pip install -r requirements-tflm.txt
+# ziglang solo hace falta para compilar en PC la libreria de Arduino
+# (Chirale_TensorFLowLite) y comparar sus resultados con TFLite Micro.
+flatbuffers==25.12.19
+numpy==2.5.3
+pyyaml==6.0.3
+tflite-micro==0.dev20260923231500
+ziglang==0.16.0
