@@ -22,54 +22,10 @@
 
 // Includes de TFLite Micro
 #include <Chirale_TensorFlowLite.h>
-#include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
 #include "tensorflow/lite/schema/schema_generated.h"
-#include "reverse_v2_lmg.h"
+#include "resolver_modelo_lmg.h"
 
-// ============================================================
-// Resolver de operaciones del modelo
-// ============================================================
-// Las operaciones de la libreria mas REVERSE_V2 (propia). MicroOpResolver
-// es la interfaz que usa el interprete para buscar cada operacion.
-class ResolverModeloLMG : public tflite::MicroOpResolver {
-public:
-    ResolverModeloLMG() {
-        _base.AddQuantize();
-        _base.AddDequantize();
-        _base.AddReshape();
-        _base.AddConv2D();
-        _base.AddMul();
-        _base.AddAdd();
-        _base.AddUnidirectionalSequenceLSTM();
-        _base.AddConcatenation();
-        _base.AddFullyConnected();
-        _base.AddTanh();
-        _base.AddSoftmax();
-        _base.AddSum();
-        _reverse = lmg::Register_REVERSE_V2();
-        _reverse.builtin_code = tflite::BuiltinOperator_REVERSE_V2;
-    }
-
-    const TfLiteRegistration *FindOp(tflite::BuiltinOperator op) const override {
-        if (op == tflite::BuiltinOperator_REVERSE_V2) return &_reverse;
-        return _base.FindOp(op);
-    }
-
-    const TfLiteRegistration *FindOp(const char *op) const override {
-        return _base.FindOp(op);
-    }
-
-    tflite::TfLiteBridgeBuiltinParseFunction GetOpDataParser(
-        tflite::BuiltinOperator op) const override {
-        if (op == tflite::BuiltinOperator_REVERSE_V2) return lmg::ParseReverseV2;
-        return _base.GetOpDataParser(op);
-    }
-
-private:
-    tflite::MicroMutableOpResolver<12> _base;
-    TfLiteRegistration _reverse;
-};
 
 // ============================================================
 // Implementacion
@@ -173,6 +129,17 @@ uint8_t MotorInferencia::predecir(float entrada[TAMANO_VENTANA][NUM_FEATURES]) {
     if (!_inicializado) return 0;
 
     auto *interp = static_cast<tflite::MicroInterpreter *>(_interpreter);
+
+    // ========== Estado de la LSTM a cero ==========
+    // La LSTM de TFLite guarda su estado (h y c) en tensores variables que
+    // PERSISTEN entre Invoke(). Sin esto, cada ventana arrancaria con el
+    // estado que dejo la anterior y el modelo no calcularia lo mismo que en
+    // el entrenamiento, donde cada ventana es independiente (medido sobre
+    // NinaPro: unos 2 puntos menos de exactitud). Cuesta un memset de ~200 B.
+    if (interp->Reset() != kTfLiteOk) {
+        Serial.println("[TFLITE] ERROR: no se pudo reiniciar el estado");
+        return GESTO_REST;
+    }
     TfLiteTensor *input = interp->input(0);
 
     // ========== Copiar datos de entrada al tensor ==========
