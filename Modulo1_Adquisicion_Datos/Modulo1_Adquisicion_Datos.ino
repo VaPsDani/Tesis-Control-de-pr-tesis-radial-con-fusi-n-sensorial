@@ -4,7 +4,7 @@
  * Protesis transradial - Fusion sensorial y Deep Learning
  *
  * OBJETIVO:
- *   Adquirir senales de 5 fotodiodos LMG (OPT101 via MUX+ADC) y los
+ *   Adquirir senales de 5 fotodiodos LMG (OPT101 via dos ADS1115) y los
  *   6 ejes crudos del MPU6050 para construir el dataset de entrenamiento.
  *
  * LECTURA OPTICA (Tarea 3, ver optica_lmg.h):
@@ -59,12 +59,17 @@
  *     'T' → autotest del ciclo de muestreo
  *     'K' → reemitir las lineas [OPTICA_*]
  *
+ *   Al enviar 'L' y 'S' se emite [OPTICA_RECORTES]: cuantas conversiones
+ *   de cada canal llegaron al maximo del ADC. La PC lo guarda en el JSON;
+ *   distinto de cero significa que hubo lecturas no validas.
+ *
  * PRESUPUESTO TEMPORAL POR CICLO (analitico; el autotest mide el real):
- *   Por lectura: 50 us MUX + 200 us asentamiento del LED + conversion
- *   + ~240 us de I2C. MPU6050, 14 bytes a 400 kHz: ~0.4 ms.
- *     ADS1115, solo L          : 5 x 1.65 ms + 0.4 ≈  8.7 ms   cabe
- *     ADS1015, L y D           : 10 x 0.74 ms + 0.65 ≈ 8.1 ms  cabe
- *     ADS1115, L y D           : 10 x 1.6 ms       ≈ 16.7 ms   NO cabe
+ *   Por lectura: 300 us de asentamiento del LED + conversion + ~240 us
+ *   de I2C. Sin multiplexor ya no hay espera de 50 us por canal.
+ *   MPU6050, 14 bytes a 400 kHz: ~0.4 ms.
+ *     ADS1115, solo L   : 5 x 1.70 ms + 0.4        ≈  8.9 ms   cabe
+ *     ADS1015, L y D    : 5 x (2 x 0.84) ms + 0.4  ≈  8.8 ms   cabe
+ *     ADS1115, L y D    : 5 x (2 x 1.70) ms + 0.4  ≈ 17.4 ms   NO cabe
  *   De ahi que la trama oscura vaya ligada al ADS1015 (config.h).
  *
  * ANCHO DE BANDA:
@@ -76,13 +81,13 @@
 
 #include <Wire.h>
 #include "config.h"
-#include "mux_ads1115.h"
+#include "adc_lmg.h"
 #include "optica_lmg.h"
 #include "sensor_imu.h"
 
 // ======================== INSTANCIAS GLOBALES ========================
-MUX_ADS1115 muxAds;
-OpticaLMG   optica(muxAds);
+ADC_LMG     adcLmg;
+OpticaLMG   optica(adcLmg);
 SensorIMU   imu;
 
 // ======================== VARIABLES DE CONTROL ========================
@@ -95,11 +100,22 @@ float valoresLMG[NUM_LMG];
 float ax, ay, az;   // acelerometro: entra al modelo
 float gx, gy, gz;   // giroscopio: solo al CSV, no al modelo
 
+// Conversiones que llegaron al maximo del ADC, por canal. Distinto de
+// cero: hubo lecturas no validas en la sesion (ver adc_lmg.h).
+void emitirRecortes() {
+    Serial.print("[OPTICA_RECORTES] ");
+    for (uint8_t i = 0; i < NUM_LMG; i++) {
+        Serial.print(adcLmg.recortes(i));
+        Serial.print(i + 1 < NUM_LMG ? "," : "\n");
+    }
+}
+
 // Lineas que la PC guarda en el JSON de la sesion. El reposo por canal
 // es el S-barra-r del indice de rendimiento; la ganancia permite saber
 // despues si dos sesiones se capturaron con la misma corriente de LED.
 void emitirOptica() {
-    Serial.printf("[OPTICA_CONFIG] adc=%s trama_oscura=%d pwm_hz=%d bits=%d\n",
+    Serial.printf("[OPTICA_CONFIG] adc=%s arq=2xADS gain=2 trama_oscura=%d "
+                  "pwm_hz=%d bits=%d\n",
                   ADC_MODELO == ADC_ADS1015 ? "ADS1015" : "ADS1115",
                   TRAMA_OSCURA_HABILITADA ? 1 : 0, LED_PWM_FREQ_HZ, LED_PWM_BITS);
     Serial.print("[OPTICA_DUTY] ");
@@ -112,6 +128,7 @@ void emitirOptica() {
         Serial.print(optica.reposoMedio(i), 2);
         Serial.print(i + 1 < NUM_LMG ? "," : "\n");
     }
+    emitirRecortes();
 }
 
 // Mide el ciclo de muestreo REAL (5 LMG + IMU completa). El presupuesto
@@ -147,8 +164,8 @@ void autotestTemporal() {
 // lo guarda en el JSON de la sesion, de modo que meses despues se sabe
 // con que firmware se grabo cada CSV.
 void emitirVersion() {
-    Serial.printf("[FW] version=%s modulo=1 adc=%s trama_oscura=%d "
-                  "led_settle_us=%d fs_hz=%d\n",
+    Serial.printf("[FW] version=%s modulo=1 adc=%s adc_arq=2xADS gain=2 "
+                  "trama_oscura=%d led_settle_us=%d fs_hz=%d\n",
                   FIRMWARE_VERSION,
                   ADC_MODELO == ADC_ADS1015 ? "ADS1015" : "ADS1115",
                   TRAMA_OSCURA_HABILITADA ? 1 : 0,
@@ -161,12 +178,15 @@ void setup() {
     Wire.setClock(I2C_FREQ);
 
     emitirVersion();
-    Serial.println("[INIT] Inicializando MUX + ADC...");
-    if (!muxAds.begin()) {
-        Serial.println("[ERROR] ADC no detectado");
+    Serial.println("[INIT] Inicializando los dos ADC (0x48 y 0x49)...");
+    if (!adcLmg.begin()) {
+        Serial.printf("[ERROR] ADC no detectado: 0x48 %s, 0x49 %s. Revise "
+                      "el cableado I2C y el pin ADDR (0x49 = ADDR a VDD).\n",
+                      adcLmg.presente(0) ? "OK" : "FALTA",
+                      adcLmg.presente(1) ? "OK" : "FALTA");
         while (1) delay(10);
     }
-    Serial.println("[OK] ADC listo");
+    Serial.println("[OK] ADC listos");
 
     if (!optica.begin()) {
         Serial.println("[ERROR] No se pudo configurar el PWM de los LED");
@@ -200,12 +220,14 @@ void loop() {
             // version, la ganancia y el reposo de la sesion aunque se
             // aborte a los dos minutos.
             emitirVersion();
+            adcLmg.reiniciarRecortes();
             emitirOptica();
             adquiriendo = true;
             contadorMuestras = 0;
             Serial.println("[START] Adquiriendo datos...");
         } else if (c == 'S') {
             adquiriendo = false;
+            emitirRecortes();
             Serial.print("[STOP] Muestras adquiridas: ");
             Serial.println(contadorMuestras);
         } else if (c == 'R') {

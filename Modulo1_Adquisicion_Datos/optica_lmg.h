@@ -57,11 +57,11 @@
 
 #include <Arduino.h>
 #include "config.h"
-#include "mux_ads1115.h"
+#include "adc_lmg.h"
 
 class OpticaLMG {
 public:
-    explicit OpticaLMG(MUX_ADS1115 &adc);
+    explicit OpticaLMG(ADC_LMG &adc);
 
     // Configura el PWM de los 5 LED (apagados) y carga la calibracion
     // guardada. Devuelve false si no pudo asignar un canal PWM.
@@ -90,7 +90,7 @@ public:
     void     info() const;
 
 private:
-    MUX_ADS1115 &_adc;
+    ADC_LMG &_adc;
     uint16_t _duty[NUM_LMG];
     float    _reposo[NUM_LMG];
     float    _oscura[NUM_LMG];

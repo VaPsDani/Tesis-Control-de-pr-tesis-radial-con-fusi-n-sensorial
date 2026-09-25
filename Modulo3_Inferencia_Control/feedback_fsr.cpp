@@ -1,9 +1,13 @@
 #include "feedback_fsr.h"
 
-static const uint8_t CANALES_FSR[NUM_FSR] = {
-    CH_FSR_PULGAR, CH_FSR_INDICE, CH_FSR_MEDIO,
-    CH_FSR_ANULAR, CH_FSR_MENIQUE,
+static const uint8_t PINES_FSR[NUM_FSR] = {
+    PIN_FSR_PULGAR, PIN_FSR_INDICE, PIN_FSR_MEDIO,
+    PIN_FSR_ANULAR, PIN_FSR_MENIQUE,
 };
+
+static_assert(FSR_ATENUACION_DB == 11,
+              "feedback_fsr.cpp solo traduce la atenuacion de 11 dB. Si se "
+              "cambia, revisar tambien el rango util y los umbrales.");
 
 static const char *NOMBRES_DEDO[NUM_FSR] = {
     "Pulgar", "Indice", "Medio", "Anular", "Menique",
@@ -18,8 +22,33 @@ FeedbackFSR::FeedbackFSR() {
     reiniciar();
 }
 
-uint8_t FeedbackFSR::canalDe(uint8_t dedo) {
-    return (dedo < NUM_FSR) ? CANALES_FSR[dedo] : CH_FSR_PULGAR;
+void FeedbackFSR::begin() {
+    analogReadResolution(12);
+    for (uint8_t i = 0; i < NUM_FSR; i++) {
+        // 11 dB: rango util ~150-2450 mV (ver config.h).
+        analogSetPinAttenuation(PINES_FSR[i], ADC_11db);
+    }
+}
+
+uint8_t FeedbackFSR::pinDe(uint8_t dedo) {
+    return (dedo < NUM_FSR) ? PINES_FSR[dedo] : PIN_FSR_PULGAR;
+}
+
+float FeedbackFSR::leerMv(uint8_t dedo) {
+    const uint8_t pin = pinDe(dedo);
+    uint32_t suma = 0;
+    for (uint8_t k = 0; k < FSR_MUESTRAS; k++) {
+        // analogReadMilliVolts aplica la calibracion de fabrica del ADC
+        // (eFuse), que corrige buena parte de su no linealidad.
+        suma += analogReadMilliVolts(pin);
+    }
+    return (float)suma / FSR_MUESTRAS;
+}
+
+void FeedbackFSR::leerTodos(unsigned long ahora_us) {
+    for (uint8_t i = 0; i < NUM_FSR; i++) {
+        actualizar(i, leerMv(i), ahora_us);
+    }
 }
 
 uint8_t FeedbackFSR::dedosActivos(uint8_t gesto_id) {

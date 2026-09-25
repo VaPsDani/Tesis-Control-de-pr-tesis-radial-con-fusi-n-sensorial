@@ -1,14 +1,22 @@
 # Módulo 1 — Adquisición de datos
 
-Firmware del ESP32 que adquiere 5 canales LMG (OPT101 vía MUX CD74HC4067 +
-ADC ADS1115/ADS1015) y los 6 ejes del MPU6050 a 100 Hz, y los envía por serie
-a la aplicación de captura del Módulo 2 (`Modulo2_Pipeline_DL/captura/`).
+Firmware del ESP32 que adquiere 5 canales LMG (OPT101 leídos por dos ADC
+ADS1115/ADS1015, en 0x48 y 0x49, sin multiplexor) y los 6 ejes del MPU6050 a
+100 Hz, y los envía por serie a la aplicación de captura del Módulo 2
+(`Modulo2_Pipeline_DL/captura/`).
+
+> **Desde `M1-2026.09.24`** la cadena óptica cambió: sin multiplexor CD74HC4067,
+> dos ADS1115 a GAIN_TWO y el LED 2 en el GPIO25. **Las sesiones grabadas con
+> versiones anteriores y las grabadas desde esta no se mezclan en un mismo
+> entrenamiento sin comprobar** que su reposo y su excursión por canal son
+> comparables. La versión queda en el JSON de cada sesión (`version_firmware`).
+> Cableado completo en `claude/manual-armado-hardware.md`.
 
 ## Lectura óptica
 
-- **Un LED a la vez.** Cada módulo LMG tiene su propio pin PWM (GPIO 13, 14, 27,
-  16, 17; confirmar contra el PCB, ataque directo con 100 Ω en serie, según
-  `claude/nota-diseno-modulos-lmg.md`). Solo se enciende el LED del canal que se
+- **Un LED a la vez.** Cada módulo LMG tiene su propio pin PWM (GPIO 13, 25, 27,
+  16, 17; ataque directo con la resistencia de 100 Ω del PCB de cada módulo,
+  según `claude/nota-diseno-modulos-lmg.md`). Solo se enciende el LED del canal que se
   está leyendo, lo que elimina el crosstalk óptico entre módulos vecinos.
 - **Trama oscura** (`v = L − D`, con 300 µs de asentamiento). Cancela la
   componente continua de la luz ambiental. **No** cancela el parpadeo de 120 Hz
@@ -16,7 +24,11 @@ a la aplicación de captura del Módulo 2 (`Modulo2_Pipeline_DL/captura/`).
   trama oscura va ligada al ADS1015; con el ADS1115 el ciclo no cabe en 10 ms.
   El razonamiento y el presupuesto temporal están en
   `Modulo3_Inferencia_Control/config.h` y en `optica_lmg.h`.
-- `optica_lmg.*` y `mux_ads1115.*` son **idénticos** en los módulos 1 y 3:
+- **GAIN_TWO (±2.048 V)** en los dos ADC. Si una lectura llega al máximo, el
+  firmware avisa (`[ADC] AVISO ... recorta`) y lo cuenta: `[OPTICA_RECORTES]`
+  se emite al iniciar y al detener y la PC lo guarda en el JSON. Distinto de
+  cero significa que hubo lecturas no válidas en la sesión.
+- `optica_lmg.*` y `adc_lmg.*` son **idénticos** en los módulos 1 y 3:
   la señal con que se entrena es la misma con que se infiere.
 
 Comandos serie: `L` iniciar, `S` detener, `M` marcador de sincronización,
@@ -95,7 +107,7 @@ según el participante. Ahora cada fila lleva una columna `fase`:
 | reposo | `reposo` | reposo estable, la clase Rest |
 | reposo | `recorte` | bordes del reposo estable que se descartan |
 
-**Detección del onset** (`Modulo2_Pipeline_DL/fases.py`). Con la media y la
+**Detección del onset** (`Modulo2_Pipeline_DL/produccion/fases.py`). Con la media y la
 desviación por canal de la línea base se calcula la desviación multicanal
 D(t) = √(media_c z_c²). El onset es la primera muestra en que D supera
 μ_D + k·σ_D durante al menos T ms seguidos, con **k = 3** y **T = 50 ms** por

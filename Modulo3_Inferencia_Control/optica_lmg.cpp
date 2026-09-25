@@ -4,16 +4,13 @@
 static const uint8_t PINES_LED[NUM_LMG] = {
     PIN_LED_LMG_1, PIN_LED_LMG_2, PIN_LED_LMG_3, PIN_LED_LMG_4, PIN_LED_LMG_5,
 };
-static const uint8_t CANALES_LMG[NUM_LMG] = {
-    CH_LMG_1, CH_LMG_2, CH_LMG_3, CH_LMG_4, CH_LMG_5,
-};
 
 static const char *NVS_NS = "optica";
 
 static const uint16_t DUTY_NOMINAL =
     (uint16_t)(AUTOCAL_DUTY_NOMINAL_FRAC * LED_DUTY_MAX);
 
-OpticaLMG::OpticaLMG(MUX_ADS1115 &adc)
+OpticaLMG::OpticaLMG(ADC_LMG &adc)
     : _adc(adc), _debil(0), _cambio(false) {
     for (uint8_t i = 0; i < NUM_LMG; i++) {
         _duty[i]   = DUTY_NOMINAL;
@@ -54,7 +51,7 @@ float OpticaLMG::leerCanal(uint8_t i) {
     // Todos apagados antes de seleccionar el canal: ningun LED vecino
     // puede iluminar este fotodiodo (crosstalk optico).
     apagarTodos();
-    _adc.seleccionar(CANALES_LMG[i]);
+    _adc.seleccionar(i);
 
 #if TRAMA_OSCURA_HABILITADA
     // D: solo luz ambiental. El asentamiento cubre la cola del LED que
