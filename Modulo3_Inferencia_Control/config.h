@@ -286,6 +286,9 @@
 // Ventana: 200 ms → 20 muestras
 // Stride:  20 ms  → 2 muestras de avance entre inferencias
 #define INTERVALO_MUESTRA_MS    10   // 100 Hz
+// Cada cuanto se PUBLICA una ventana para el nucleo 1. Si la inferencia
+// tarda mas, gana la ventana mas reciente (intercambio_nucleos.h). El
+// valor definitivo se fija con Benchmark_Inferencia (latencia < 150 ms).
 #define INTERVALO_INFERENCIA_MS 20   // 50 Hz (cada 2 muestras)
 #define TAMANO_VENTANA          20   // muestras por ventana
 #define STRIDE                   2   // muestras entre inferencias
@@ -306,6 +309,25 @@ static_assert(NUM_FEATURES == 8,
 static_assert(TAMANO_VENTANA == 20,
               "TAMANO_VENTANA debe ser 20 (200 ms a 100 Hz), igual que en "
               "preprocesamiento.py.");
+
+// ======================== REPARTO ENTRE NUCLEOS ========================
+// Nucleo 0: tarea de tiempo real cada 10 ms con TODO el I2C (ADS1115,
+//   MPU6050, PCA9685) y todo lo que tiene plazo: LMG, IMU, FSR, frenado,
+//   rampa de servos, comandos por Serial.
+// Nucleo 1: el loop() de Arduino, que solo infiere (calculo puro).
+// Los servos no van con la inferencia: con el nucleo 1 ocupado decenas de
+// ms, la rampa se congelaria y el frenado por FSR llegaria tarde. Y el
+// bus I2C se usa desde un solo nucleo, sin coordinar accesos.
+#define NUCLEO_TIEMPO_REAL        0
+#define NUCLEO_INFERENCIA         1
+// Por encima de las tareas normales (1) y muy por debajo de las del
+// sistema (esp_timer 22, ipc 24).
+#define PRIORIDAD_TIEMPO_REAL     5
+#define PILA_TIEMPO_REAL_BYTES    8192
+
+#if defined(ARDUINO_RUNNING_CORE) && ARDUINO_RUNNING_CORE != NUCLEO_INFERENCIA
+#error "loop() tiene que correr en el nucleo 1 (ARDUINO_RUNNING_CORE=1): es el de la inferencia"
+#endif
 
 // ======================== CALIBRACION / NORMALIZACION ========================
 // El modelo se entrena con datos normalizados por sujeto (z-score por

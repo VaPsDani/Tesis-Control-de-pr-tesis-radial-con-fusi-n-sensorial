@@ -164,13 +164,40 @@ El modelo hace unas **1.43 millones de multiplicaciones-suma por ventana**:
 - `STRIDE` en `config.h` es el número de muestras entre inferencias. Cambiarlo no toca el modelo:
   la ventana sigue siendo de 20 muestras.
 
-**Núcleos: hoy la inferencia NO está separada de la adquisición.**
-- Todo corre en `loop()`: la tarea de Arduino, en el núcleo 1 (`ARDUINO_RUNNING_CORE=1`).
-  Eso incluye el muestreo de 10 ms, los FSR, la rampa de los servos y la inferencia.
-- `tflite.predecir()` se llama dentro del bloque de 10 ms. Si tarda más de 10 ms, retrasa las
-  lecturas siguientes y el muestreo baja de 100 Hz.
-- Propuesta, pendiente de aprobación:
-  - adquisición (LMG, IMU, FSR, frenado) en una tarea de FreeRTOS fijada al núcleo 0, con
-    `vTaskDelayUntil` a 10 ms;
-  - inferencia y servos en el núcleo 1;
-  - comunicación entre ambas con una cola o un búfer doble protegido.
+**Núcleos (implementado el 2026-09-25):**
+
+| Núcleo 0: tarea `tiempo_real`, cada 10 ms (`xTaskDelayUntil`) | Núcleo 1: `loop()` de Arduino |
+|---|---|
+| Todo el I2C, inicializado desde este núcleo: ADS1115, MPU6050, PCA9685 | Solo la inferencia: cálculo puro, sin periféricos ni Serial |
+| LMG, IMU, 5 FSR, frenado, rampa de servos, comandos por Serial | Espera el aviso de ventana nueva, la copia, `Reset()` + `Invoke()` |
+| Cada STRIDE muestras: normaliza la ventana y la publica | Deja el gesto, su tiempo y el número de la ventana |
+| En cada ciclo lee el último gesto y, si cambió, fija el objetivo de los servos | |
+
+- **Copia atómica** (`intercambio_nucleos.h`): un cerrojo de giro (`portMUX`) protege un `memcpy`
+  de 640 B, unos 2 µs.
+- **Si la inferencia tarda más que el stride**, se clasifica siempre la ventana más reciente. Las
+  intermedias se cuentan como descartadas y el muestreo no espera nunca.
+- Los resultados de ventanas publicadas antes de 'S', 'A' o una calibración se ignoran.
+
+**Presupuesto del ciclo del núcleo 0.**
+- El peor ciclo estimado era ~9.8 ms, con la escritura de la rampa incluida: la rampa ya estaba en
+  el ciclo de 10 ms.
+- Lo nuevo por ciclo: leer el resultado (~1 µs) y, cada dos ciclos, normalizar, copiar y avisar
+  (~5-10 µs). Estimado: **~9.81 ms, cabe con ~0.2 ms de margen**.
+- Antes, la inferencia se ejecutaba dentro de ese mismo ciclo.
+- Corregido además: la traza de FSR (~235 B) podía bloquear hasta ~9 ms el ciclo, porque Serial
+  escribía directo a la FIFO de 128 B. Ahora hay un búfer de transmisión de 1 KB.
+- **El número real** lo da 'I': ciclo completo medio y peor, y ciclos que no cupieron en 10 ms.
+  Un riesgo a medir: el núcleo 1 lee pesos de la flash y puede competir con el núcleo 0 por la
+  caché de la flash.
+
+**Si no cabe**, en orden de preferencia:
+
+| Opción | Ahorro | Nota |
+|---|---|---|
+| `LED_SETTLE_US` de 300 a 200 µs | ~500 µs | Sigue siendo 2.5 veces la respuesta del OPT101. Cambia la señal: afecta a los datos ya grabados con 300 |
+| `FSR_MUESTRAS` de 4 a 2 | ~250 µs | El condensador de 100 nF ya filtra |
+| Repartir las escrituras de la rampa: como mucho 3 servos por ciclo | ~150-200 µs en el peor ciclo | Misma velocidad angular |
+| ADS1015 en lugar de ADS1115 (hardware) | ~4.3 ms | Ya soportado en `config.h`; cambia la resolución |
+
+El bus a 1 MHz no es opción: el MPU6050 no pasa de 400 kHz.

@@ -126,7 +126,10 @@ bool MotorInferencia::begin() {
 }
 
 uint8_t MotorInferencia::predecir(float entrada[TAMANO_VENTANA][NUM_FEATURES]) {
-    if (!_inicializado) return 0;
+    // Corre en el nucleo 1: calculo puro, sin Serial ni ningun periferico.
+    // Los fallos se devuelven en ultimaOk() y los reporta el nucleo 0.
+    _ultimaOk = false;
+    if (!_inicializado) return GESTO_REST;
 
     auto *interp = static_cast<tflite::MicroInterpreter *>(_interpreter);
 
@@ -136,10 +139,7 @@ uint8_t MotorInferencia::predecir(float entrada[TAMANO_VENTANA][NUM_FEATURES]) {
     // estado que dejo la anterior y el modelo no calcularia lo mismo que en
     // el entrenamiento, donde cada ventana es independiente (medido sobre
     // NinaPro: unos 2 puntos menos de exactitud). Cuesta un memset de ~200 B.
-    if (interp->Reset() != kTfLiteOk) {
-        Serial.println("[TFLITE] ERROR: no se pudo reiniciar el estado");
-        return GESTO_REST;
-    }
+    if (interp->Reset() != kTfLiteOk) return GESTO_REST;
     TfLiteTensor *input = interp->input(0);
 
     // ========== Copiar datos de entrada al tensor ==========
@@ -152,11 +152,8 @@ uint8_t MotorInferencia::predecir(float entrada[TAMANO_VENTANA][NUM_FEATURES]) {
     }
 
     // ========== Ejecutar inferencia ==========
-    TfLiteStatus status = interp->Invoke();
-    if (status != kTfLiteOk) {
-        Serial.println("[TFLITE] ERROR: Inferencia fallida");
-        return 0;
-    }
+    if (interp->Invoke() != kTfLiteOk) return GESTO_REST;
+    _ultimaOk = true;
 
     // ========== Leer salida ==========
     TfLiteTensor *output = interp->output(0);

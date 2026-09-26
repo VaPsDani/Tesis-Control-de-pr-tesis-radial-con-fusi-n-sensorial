@@ -5,8 +5,8 @@
  *   1. Carga el modelo .tflite desde un array en memoria (generado por
  *      convertir_tflite.py del Modulo 2).
  *   2. Asigna un tensor arena de 40 KB para las operaciones intermedias.
- *   3. Cada 20 ms recibe una ventana de 20x8, ejecuta la inferencia y
- *      retorna la clase predicha (0-4).
+ *   3. En el nucleo 1, recibe la ventana mas reciente de 20x8 que publica
+ *      el nucleo 0, ejecuta la inferencia y retorna la clase (0-4).
  *
  * TENSOR ARENA:
  *   Memoria reservada para TFLite Micro. Debe ser suficiente para todas
@@ -34,7 +34,11 @@ public:
     // Ejecuta la inferencia sobre la ventana de entrada
     // entrada: (TAMANO_VENTANA, NUM_FEATURES) en orden cronologico
     // Retorna: indice de la clase predicha (0-4)
+    // Calculo puro (corre en el nucleo 1): no escribe en Serial.
     uint8_t predecir(float entrada[TAMANO_VENTANA][NUM_FEATURES]);
+
+    // false si la ultima predecir() fallo (Reset o Invoke); devolvio REST
+    bool ultimaOk() const { return _ultimaOk; }
 
     // Obtener puntajes de confianza de la ultima prediccion
     void obtenerConfianza(float confianza[NUM_CLASES]) const;
@@ -44,6 +48,7 @@ public:
 
 private:
     bool _inicializado;
+    bool _ultimaOk = false;
 
     // Puntero al modelo cargado (definido en modelo_gestos_tflite.h)
     const unsigned char *_modelo_data;
