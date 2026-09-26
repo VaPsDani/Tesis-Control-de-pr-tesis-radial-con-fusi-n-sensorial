@@ -3,6 +3,39 @@ estadistica.py - Contrastes del 2x2 de la ablacion de la IMU
 =============================================================
 Protesis transradial - Ablacion de la IMU
 
+==============================================================================
+REGLA DE ANALISIS FIJADA EL 2026-09-26, ANTES DE CAPTURAR NINGUN DATO
+==============================================================================
+  El piloto no estaba grabado cuando se escribio esto. La regla se fija de
+  antemano para que la conclusion no dependa de que prueba resulte salir
+  bien, que es el riesgo de correr 24 contrastes y quedarse con el mejor.
+
+  CONFIRMATORIO (lo que decide, y lo unico que se declara como tal)
+    Dos contrastes, sobre F1 MACRO y solo sobre esa metrica:
+      1. aporte de la IMU con el brazo quieto      lmg_imu - solo_lmg
+      2. aporte de la IMU con el brazo en movimiento
+    Prueba: Wilcoxon de los rangos con signo, DE DOS COLAS, pareado por
+    sujeto. Correccion de HOLM entre los dos, con alfa global de 0.05.
+
+    Se elige F1 macro y no exactitud porque las cinco clases no estan
+    balanceadas ni siquiera tras el submuestreo de Rest, y el F1 macro no
+    deja que la clase mayoritaria decida el resultado.
+
+    Se eligen esos dos contrastes y no la interaccion porque la pregunta
+    de la tesis es si la IMU aporta, y la interaccion responde a una
+    segunda pregunta, la de si aporta MAS en movimiento, que con n = 10
+    tiene mucha menos potencia.
+
+  EXPLORATORIO (todo lo demas)
+    ANOVA 2x2, interaccion, efectos principales, caidas entre posturas,
+    exactitud y AUC. Se imprime en su propia seccion, SIN correccion y
+    con el aviso de que no es confirmatorio. Sirve para orientar el
+    trabajo futuro, no para sostener una conclusion.
+
+  Cambiar esta regla despues de ver los datos invalida el analisis
+  confirmatorio. Si hay que cambiarla, se declara como exploratorio.
+==============================================================================
+
 QUE SE CONTRASTA:
 
   Efecto principal de A    lmg_imu frente a solo_lmg
@@ -11,10 +44,10 @@ QUE SE CONTRASTA:
                            menos
                            (lmg_imu - solo_lmg) en estatica
 
-  La interaccion, SOBRE UNA CORRIDA EN MODO MIXTO, es la prueba
-  principal del aporte inercial: si la IMU sirve sobre todo cuando el
-  brazo se mueve, su aporte tiene que ser MAYOR en la condicion dinamica
-  que en la estatica.
+  La interaccion, SOBRE UNA CORRIDA EN MODO MIXTO, dice si la IMU aporta
+  mas cuando el brazo se mueve. Es EXPLORATORIA: con n = 10 tiene poca
+  potencia, asi que orienta pero no decide. Lo que decide son los dos
+  contrastes confirmatorios de la cabecera.
 
   Con --entrenamiento estatica_a_dinamica la misma aritmetica significa
   otra cosa, porque el modelo nunca vio variacion postural. Ver
@@ -47,6 +80,45 @@ from scipy.stats import ttest_rel, wilcoxon
 
 COMPOSICIONES = ["solo_lmg", "lmg_imu"]
 CONDICIONES = ["estatica", "dinamica"]
+
+# --- regla confirmatoria fijada el 2026-09-26 (ver cabecera) ---
+METRICA_CONFIRMATORIA = "f1_macro"
+CONTRASTES_CONFIRMATORIOS = ("aporte_imu_en_estatica", "aporte_imu_en_dinamica")
+ALFA = 0.05
+
+
+def holm(p_valores: dict) -> dict:
+    """
+    Correccion de Holm, tambien llamada Holm-Bonferroni.
+
+    Ordena los p de menor a mayor y multiplica cada uno por el numero de
+    pruebas que quedan por delante: el menor por m, el siguiente por
+    m - 1, y asi. Despues fuerza que la secuencia no decrezca, porque un
+    p ajustado nunca puede quedar por debajo de otro que era menor sin
+    ajustar. Todo se recorta a 1.
+
+    Con m = 2, que es este caso, se reduce a: el menor se duplica y el
+    mayor se queda igual, salvo que el duplicado lo supere.
+
+    Se prefiere a Bonferroni porque controla la misma tasa de error por
+    familia y rechaza mas, y no supone independencia entre las pruebas,
+    que aqui no la hay: los dos contrastes comparten los mismos sujetos.
+
+    Args:
+        p_valores: {nombre: p crudo}
+
+    Returns:
+        {nombre: p ajustado}
+    """
+    items = sorted(p_valores.items(), key=lambda kv: kv[1])
+    m = len(items)
+    ajustados, previo = {}, 0.0
+    for i, (nombre, p) in enumerate(items):
+        ajustado = min(1.0, (m - i) * p)
+        ajustado = max(ajustado, previo)      # monotonia
+        ajustados[nombre] = ajustado
+        previo = ajustado
+    return ajustados
 
 
 def d_de_cohen_pareado(dif: np.ndarray) -> float:
@@ -189,10 +261,96 @@ def analizar_caida(df: pd.DataFrame, metrica: str) -> dict:
     return salida
 
 
+def analisis_confirmatorio(df: pd.DataFrame) -> dict:
+    """
+    Los dos contrastes que deciden, con Holm entre ellos.
+
+    Nada de lo que hay aqui se elige mirando los datos: la metrica, los
+    dos contrastes, la prueba, las colas y la correccion estaban fijadas
+    desde el 2026-09-26 (ver cabecera).
+    """
+    if METRICA_CONFIRMATORIA not in df.columns:
+        return {"disponible": False,
+                "motivo": f"el CSV no tiene la columna "
+                          f"{METRICA_CONFIRMATORIA}"}
+
+    res = analizar(df, METRICA_CONFIRMATORIA)
+    crudos = {c: res[c]["wilcoxon_p"] for c in CONTRASTES_CONFIRMATORIOS}
+    ajustados = holm(crudos)
+
+    contrastes = {}
+    for c in CONTRASTES_CONFIRMATORIOS:
+        base = res[c]
+        significativo = bool(ajustados[c] < ALFA)
+        contrastes[c] = {
+            "etiqueta": base["etiqueta"],
+            "n": base["n"],
+            "media": base["media"],
+            "sd": base["sd"],
+            "d_z": base["d_z"],
+            "wilcoxon_p_crudo": base["wilcoxon_p"],
+            "wilcoxon_p_holm": ajustados[c],
+            "significativo": significativo,
+            "conclusion": (
+                f"la IMU {'SI' if significativo else 'no'} aporta de forma "
+                f"demostrable ({base['media']:+.4f} de F1 macro)"),
+        }
+
+    alguno = any(v["significativo"] for v in contrastes.values())
+    return {
+        "disponible": True,
+        "regla_fijada": "2026-09-26, antes de capturar datos",
+        "metrica": METRICA_CONFIRMATORIA,
+        "prueba": "Wilcoxon de los rangos con signo, dos colas, pareado por sujeto",
+        "correccion": f"Holm entre los {len(CONTRASTES_CONFIRMATORIOS)} contrastes",
+        "alfa": ALFA,
+        "n_sujetos": res["n_sujetos"],
+        "p_minimo_alcanzable": res[CONTRASTES_CONFIRMATORIOS[0]][
+            "wilcoxon_p_minimo_alcanzable"],
+        "contrastes": contrastes,
+        "conclusion_global": (
+            "Se demuestra aporte de la IMU en al menos una condicion postural"
+            if alguno else
+            "No se demuestra aporte de la IMU en ninguna de las dos "
+            "condiciones posturales"),
+    }
+
+
+def texto_confirmatorio(res: dict) -> str:
+    L = []
+    w = L.append
+    w("=" * 74)
+    w("ANALISIS CONFIRMATORIO")
+    w("=" * 74)
+    if not res.get("disponible"):
+        w(f"   No se pudo calcular: {res.get('motivo')}")
+        return "\n".join(L)
+
+    w(f"   Regla fijada el {res['regla_fijada']}.")
+    w(f"   Metrica: {res['metrica']}.  Prueba: {res['prueba']}.")
+    w(f"   Correccion: {res['correccion']}, alfa global {res['alfa']}.")
+    w(f"   n = {res['n_sujetos']} sujetos. p minimo alcanzable por Wilcoxon: "
+      f"{res['p_minimo_alcanzable']:.4f}")
+    w("")
+    w(f"   {'contraste':<28}{'media':>9}{'d_z':>7}{'p crudo':>10}"
+      f"{'p Holm':>9}{'':>4}")
+    for clave, c in res["contrastes"].items():
+        marca = "  *" if c["significativo"] else "   "
+        w(f"   {clave:<28}{c['media']:+9.4f}{c['d_z']:+7.2f}"
+          f"{c['wilcoxon_p_crudo']:10.4f}{c['wilcoxon_p_holm']:9.4f}{marca}")
+    w(f"   (* = significativo al {res['alfa']} tras Holm)")
+    w("")
+    for clave, c in res["contrastes"].items():
+        w(f"   {clave}: {c['conclusion']}")
+    w("")
+    w(f"   CONCLUSION: {res['conclusion_global']}.")
+    return "\n".join(L)
+
+
 def texto_caida(res: dict) -> str:
     L = []
     w = L.append
-    w(f"CAIDA ENTRE POSTURAS - {res['metrica'].upper()} "
+    w(f"[EXPLORATORIO] CAIDA ENTRE POSTURAS - {res['metrica'].upper()} "
       f"(n = {res['n_sujetos']} sujetos)")
     w("=" * 74)
     w(f"   {'':<10}{'estatica':>11}{'dinamica':>11}{'caida':>10}{'relativa':>11}"
@@ -217,7 +375,8 @@ def texto(res: dict) -> str:
     L = []
     w = L.append
     m = res["metrica"]
-    w(f"ABLACION DE LA IMU - {m.upper()} (n = {res['n_sujetos']} sujetos)")
+    w(f"[EXPLORATORIO] ABLACION DE LA IMU - {m.upper()} "
+      f"(n = {res['n_sujetos']} sujetos)")
     w("=" * 74)
     w("")
     w("1. MEDIAS POR CELDA")
@@ -245,12 +404,12 @@ def texto(res: dict) -> str:
             w(f"   {efecto:<26} F({r['df1']:.0f},{r['df2']:.0f}) = {r['F']:.3f}"
               f", p = {r['p']:.4f}")
     w("")
-    w("LECTURA: en una corrida en modo MIXTO, la interaccion es la cifra que")
-    w("responde a la pregunta del experimento. Un aporte de la IMU mayor en")
-    w("dinamica que en estatica indica que la IMU compensa el movimiento del")
-    w("brazo, que es lo que ningun trabajo de lightmiografia ha medido. Con")
-    w("entrenamiento solo estatico la misma aritmetica NO dice eso: ver la")
-    w("seccion de caida entre posturas.")
+    w("LECTURA, Y RECUERDE QUE ESTO ES EXPLORATORIO: en una corrida en modo")
+    w("MIXTO, un aporte de la IMU mayor en dinamica que en estatica sugiere")
+    w("que la IMU compensa el movimiento del brazo, que es lo que ningun")
+    w("trabajo de lightmiografia ha medido. Sugiere, no demuestra: estos p no")
+    w("llevan correccion. Con entrenamiento solo estatico la misma aritmetica")
+    w("ni siquiera dice eso, ver la seccion de caida entre posturas.")
     return "\n".join(L)
 
 
@@ -267,6 +426,26 @@ def main():
     os.makedirs(salida, exist_ok=True)
 
     todo, bloques = {}, []
+
+    # ---------- 1. confirmatorio, primero y con Holm ----------
+    confirmatorio = analisis_confirmatorio(df)
+    todo["confirmatorio"] = confirmatorio
+    bloques.append(texto_confirmatorio(confirmatorio))
+
+    # ---------- 2. exploratorio, sin correccion ----------
+    presentes = [m for m in args.metricas if m in df.columns]
+    bloques.append(
+        "=" * 74
+        + "\nEXPLORATORIO"
+        + "\n" + "=" * 74
+        + f"\n   Lo que sigue NO es confirmatorio: {len(presentes)} metrica(s) "
+          f"x 8 contrastes pareados = {8 * len(presentes)} pruebas,"
+        "\n   mas un ANOVA por metrica, SIN correccion por comparaciones"
+        "\n   multiples. Con tantas pruebas se espera alguna significativa por"
+        "\n   azar. Sirve para orientar trabajo futuro, no para sostener una"
+        "\n   conclusion. La conclusion esta arriba, en el bloque"
+        "\n   confirmatorio.")
+
     for metrica in args.metricas:
         if metrica not in df.columns:
             print(f"[AVISO] El CSV no tiene la columna {metrica}, se omite.")
@@ -274,6 +453,7 @@ def main():
         res = analizar(df, metrica)
         caida = analizar_caida(df, metrica)
         res["caida_entre_posturas"] = caida
+        res["caracter"] = "exploratorio"
         todo[metrica] = res
         bloques.append(texto(res))
         bloques.append(texto_caida(caida))

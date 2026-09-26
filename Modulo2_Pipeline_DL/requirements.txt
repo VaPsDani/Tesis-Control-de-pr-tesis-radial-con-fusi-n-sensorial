@@ -1,10 +1,46 @@
-tensorflow>=2.13.0
-numpy>=1.24.0
-pandas>=2.0.0
-scikit-learn>=1.3.0
-matplotlib>=3.7.0
-seaborn>=0.12.0
-scipy>=1.12.0
-h5py>=3.10.0
-pyserial>=3.5
-pytest>=8.0
+# Entorno de ANALISIS del Modulo 2
+# ================================
+# Validacion preliminar sobre NinaPro DB5 y analisis del dataset publico de
+# LMG. Keras 3, con GPU. NO se usa para produccion ni para convertir a
+# TFLite: eso va en requirements-produccion.txt, con Keras 2 (tf_keras),
+# porque la LSTM de Keras 3 no cuantiza a INT8.
+#
+# Versiones EXACTAS del entorno con el que se obtuvieron los resultados
+# reportados, tomadas de pip freeze. WSL Ubuntu, Python 3.12.14,
+# CUDA 12.3, cuDNN 8.9.7.29, driver 616.64, GeForce RTX 4060.
+#
+#   python3.12 -m venv ~/venv-tesis
+#   ~/venv-tesis/bin/pip install -r requirements.txt
+#
+# La GPU solo se ve tras 'source ~/env-tesis.sh', que fija LD_LIBRARY_PATH
+# hacia las librerias CUDA del propio entorno. Sin eso TensorFlow arranca en
+# CPU sin decirlo de forma clara.
+
+# --- nucleo ---
+tensorflow==2.16.1
+keras==3.15.1
+numpy==1.26.4
+scipy==1.17.1
+scikit-learn==1.9.0
+pandas==3.0.5
+
+# --- estadistica ---
+# statsmodels lo usan el ANOVA de medidas repetidas de lmg_wavelength (1.b)
+# y la estadistica de la ablacion de la IMU. Faltaba declararlo.
+statsmodels==0.15.0
+patsy==1.0.3
+
+# --- figuras ---
+matplotlib==3.11.1
+seaborn==0.13.2
+
+# --- utilidades ---
+h5py==3.16.0
+pytest==9.1.1
+
+# --- captura de sesiones ---
+# pyserial lo usa SOLO la app de captura (captura/adquisicion.py, con import
+# local dentro de LectorSerie.abrir), que se ejecuta en la PC conectada al
+# ESP32 por el puerto COM, no en WSL. Por eso no esta instalado en este
+# entorno y la app corre igual con --simulado. Instalarlo donde se capture.
+pyserial==3.5
