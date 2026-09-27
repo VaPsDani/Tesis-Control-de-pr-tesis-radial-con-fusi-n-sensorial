@@ -39,6 +39,7 @@ from config_captura import (BAUDIOS_DEFECTO, CONDICION_DINAMICA,
                             FUENTE_CUENTA, FUENTE_FASE, FUENTE_GESTO,
                             FUENTE_INSTRUCCION, FUENTE_PIE, FUENTE_POSICION,
                             LADO_IMAGEN, PUERTO_DEFECTO, RAMPA_CONTRACCION_MS,
+                            RAMPA_RETENCION_MS,
                             SONIDO_HABILITADO, SONIDO_HZ, SONIDO_MS,
                             POSICIONES_BRAZO, TEXTO_MOVIMIENTO_LENTO,
                             TEXTO_POSICION)
@@ -210,26 +211,43 @@ class VentanaParticipante(tk.Toplevel):
         """
         Barra que se llena durante el primer segundo de la contraccion.
 
-        El aviso de texto aparece YA EN LA PREPARACION, sin barra. Solo
-        durante el segundo de la rampa apenas da tiempo a leerlo, y lo que
-        se pide es algo que hay que saber ANTES de empezar a contraer.
+        LA BARRA SE VE DESDE LA PREPARACION, vacia y con el aviso al
+        lado. Si solo apareciera durante el segundo que dura la rampa, el
+        participante la descubriria cuando ya esta contrayendo, que es
+        tarde: lo que se le pide hay que saberlo ANTES de empezar. Con la
+        preparacion incluida el aviso esta en pantalla unos 4 s.
+
+        Al acabar la rampa la barra se queda llena y con el aviso de
+        mantener durante RAMPA_RETENCION_MS, para que el final de la
+        subida no se confunda con un fallo de la pantalla.
         """
         if bloque.tipo == TIPO_PREPARACION:
+            self._rampa.itemconfigure(self._rampa_marco, state="normal")
             self._rampa.coords(self._rampa_relleno, 2, 2, 2, 24)
-            self._rampa.itemconfigure(self._rampa_marco, state="hidden")
             self._rampa_txt.config(
-                text="Al empezar, suba la fuerza poco a poco, sin golpe")
+                text="Al empezar, suba la fuerza poco a poco siguiendo "
+                     "esta barra, sin golpe")
             return
 
-        if bloque.tipo != TIPO_CONTRACCION or transcurrido_ms > RAMPA_CONTRACCION_MS:
-            self._rampa.coords(self._rampa_relleno, 2, 2, 2, 24)
-            self._rampa.itemconfigure(self._rampa_marco, state="hidden")
-            self._rampa_txt.config(text="")
-            return
-        self._rampa.itemconfigure(self._rampa_marco, state="normal")
-        frac = max(0.0, min(1.0, transcurrido_ms / RAMPA_CONTRACCION_MS))
-        self._rampa.coords(self._rampa_relleno, 2, 2, 2 + frac * 896, 24)
-        self._rampa_txt.config(text="Suba la fuerza poco a poco, sin golpe")
+        if bloque.tipo == TIPO_CONTRACCION:
+            if transcurrido_ms <= RAMPA_CONTRACCION_MS:
+                self._rampa.itemconfigure(self._rampa_marco, state="normal")
+                frac = max(0.0, min(1.0,
+                                    transcurrido_ms / RAMPA_CONTRACCION_MS))
+                self._rampa.coords(self._rampa_relleno,
+                                   2, 2, 2 + frac * 896, 24)
+                self._rampa_txt.config(
+                    text="Suba la fuerza poco a poco, sin golpe")
+                return
+            if transcurrido_ms <= RAMPA_CONTRACCION_MS + RAMPA_RETENCION_MS:
+                self._rampa.itemconfigure(self._rampa_marco, state="normal")
+                self._rampa.coords(self._rampa_relleno, 2, 2, 898, 24)
+                self._rampa_txt.config(text="Mantenga la fuerza")
+                return
+
+        self._rampa.coords(self._rampa_relleno, 2, 2, 2, 24)
+        self._rampa.itemconfigure(self._rampa_marco, state="hidden")
+        self._rampa_txt.config(text="")
 
     def _actualizar_posicion(self, bloque, transcurrido_ms: float):
         """
@@ -303,11 +321,13 @@ class VentanaParticipante(tk.Toplevel):
 
         self._actualizar_posicion(bloque, transcurrido_ms)
 
-        # La imagen acompana desde la preparacion, que es cuando sirve
-        # para reconocer el gesto que viene.
+        # La imagen se muestra en TODOS los bloques. El reposo y la
+        # calibracion llevan LABEL_REST, o sea Rest.png, que es
+        # justamente la mano relajada que se le pide al participante.
+        # Antes se ocultaba fuera de la preparacion y la contraccion, y
+        # el resultado era que Rest.png no aparecia nunca.
         img = self._imagenes.get(bloque.nombre_gesto)
-        if img is not None and bloque.tipo in (TIPO_CONTRACCION,
-                                               TIPO_PREPARACION):
+        if img is not None:
             self._img.config(image=img, text="")
         else:
             self._img.config(image="", text="[ imagen del gesto ]")

@@ -75,6 +75,12 @@ TRAMO_POSICION_MINIMO_MS = 2000
 # del margen de entrada, asi que la rampa no contamina el dato util.
 RAMPA_CONTRACCION_MS = 1000
 
+# Tiempo que la barra se queda llena, con el aviso de mantener, una vez
+# terminada la rampa. Es solo pantalla: no toca ningun margen ni ninguna
+# etiqueta del CSV. Sirve para que la barra no se apague de golpe justo
+# cuando el participante acaba de llegar a la fuerza pedida.
+RAMPA_RETENCION_MS = 1500
+
 N_REPETICIONES = 6
 
 # ============================================================

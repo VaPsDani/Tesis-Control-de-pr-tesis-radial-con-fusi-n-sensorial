@@ -61,6 +61,13 @@ class Sesion:
         self._t_pausa_ini = None
         self._pausa_por_fallo = False
         self._after_id = None
+        # Cierre en curso. Los pasos de disco del cierre tardan varios
+        # segundos y durante ellos se bombea la cola de eventos, asi que
+        # sin esta bandera un segundo clic en Abortar entraria por
+        # segunda vez a cerrar lo que ya se esta cerrando.
+        self._cerrando = False
+        self._cerrada = False
+        self._abortada = False
 
         self.cola = queue.Queue(maxsize=20000)
         self.lector = None
@@ -486,11 +493,29 @@ class Sesion:
         sonar("aviso")
 
     def abortar(self):
+        """
+        Primer clic: termina la captura y deja la ventana abierta.
+        Segundo clic, ya con el boton en Salir: cierra la aplicacion.
+
+        NO SE CIERRA LA VENTANA EN EL MISMO CLIC a proposito. El cierre
+        reescribe el CSV y lo recorre entero para anotar las fases, y con
+        la ventana del participante a pantalla completa por delante el
+        operador solo veia una pantalla congelada. Ademas, las
+        observaciones se escriben despues de abortar, y destruir la
+        ventana ahi las perdia.
+        """
+        if self._cerrando:
+            return
         if self.corriendo:
             self.op.log("ABORTADA por el operador.")
             self._cerrar(abortada=True)
+            return
         if self.lector_prueba:
             self._cerrar_prueba()
+        # Las observaciones que el operador haya escrito despues del
+        # cierre se vuelcan ahora al JSON.
+        if self._cerrada:
+            self.guardar_metadatos(self._abortada)
         self.op.destroy()
 
     def finalizar(self):
@@ -499,30 +524,80 @@ class Sesion:
             self.part.mostrar_fin("Gracias")
         self._cerrar(abortada=False)
 
+    def _paso_cierre(self, texto: str):
+        """
+        Anota el paso y repinta la ventana.
+
+        Sin esto Windows marca la aplicacion como que no responde: el
+        cierre pasa varios segundos dentro de un solo callback de Tk, sin
+        atender la cola de mensajes. Los botones ya estan deshabilitados
+        y _cerrando protege la reentrada, asi que bombear eventos aqui es
+        seguro.
+        """
+        self.op.log(texto)
+        try:
+            self.op.update()
+        except Exception:
+            pass
+
     def _cerrar(self, abortada: bool):
+        if self._cerrando:
+            return
+        self._cerrando = True
         self.corriendo = False
-        # Cancela el tick pendiente: si no, Tk intenta ejecutarlo despues
-        # de destruir la ventana y escupe un error que no significa nada
-        # pero asusta al operador.
-        if self._after_id is not None:
+        # Cancela los ticks pendientes: si no, Tk intenta ejecutarlos
+        # despues de destruir la ventana y escupe un error que no
+        # significa nada pero asusta al operador.
+        for atributo in ("_after_id", "_after_cmd"):
+            pendiente = getattr(self, atributo, None)
+            if pendiente is not None:
+                try:
+                    self.op.after_cancel(pendiente)
+                except Exception:
+                    pass
+                setattr(self, atributo, None)
+
+        # Los botones de la sesion se apagan ANTES del trabajo lento.
+        self.op.btn_pausa.config(state="disabled")
+        self.op.btn_descartar.config(state="disabled")
+        self.op.btn_abortar.config(state="disabled")
+
+        # La ventana del participante sale de pantalla completa antes de
+        # empezar. A pantalla completa tapa la del operador, y lo que se
+        # ve durante el cierre es una pantalla quieta que parece colgada.
+        if self.part:
             try:
-                self.op.after_cancel(self._after_id)
+                self.part.attributes("-fullscreen", False)
+                self.part.mostrar_fin("Fin de la sesion" if abortada
+                                      else "Gracias")
             except Exception:
                 pass
-            self._after_id = None
+        self._paso_cierre("Cerrando la sesion. Espere, no cierre la ventana.")
+
         if self.lector:
             self.lector.enviar("S")
             self.drenar_cola()
             self.lector.detener()
         if self.escritor:
             self.escritor.cerrar()
-            self.op.log(f"CSV cerrado: {self.escritor.filas_escritas} filas")
-            self.marcar_descartes()
+            self._paso_cierre(
+                f"CSV cerrado: {self.escritor.filas_escritas} filas")
+            if self.descartadas:
+                self._paso_cierre("Marcando los descartes, puede tardar...")
+                self.marcar_descartes()
+                self.op.update()
+            self._paso_cierre("Anotando la columna fase, puede tardar...")
             self.anotar_fases()
+            self.op.update()
         self.guardar_metadatos(abortada)
-        self.op.btn_pausa.config(state="disabled")
-        self.op.btn_descartar.config(state="disabled")
-        self.op.btn_abortar.config(state="disabled")
+
+        self._cerrando = False
+        self._cerrada = True
+        self._abortada = abortada
+        # El boton pasa a Salir y se queda activo: el operador escribe
+        # las observaciones con calma y cierra cuando termina.
+        self.op.btn_abortar.config(text="Salir", state="normal")
+        self.op.log("Listo. Escriba las observaciones y pulse Salir.")
 
     def marcar_descartes(self):
         """
