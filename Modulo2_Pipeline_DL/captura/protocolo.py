@@ -135,7 +135,9 @@ class Bloque:
     # el bloque de calibracion, que no pertenece a ninguna.
     condicion_postural: str = CONDICION_NINGUNA
     # Orden en que se recorren las tres posiciones del brazo, solo en las
-    # repeticiones dinamicas. Vacio en las estaticas.
+    # repeticiones dinamicas. Vacio en las estaticas. Lo llevan la
+    # contraccion, que es donde se recorre, y su preparacion, que lo usa
+    # solo para pedir en pantalla la posicion de partida.
     orden_posiciones: tuple = ()
 
     def posicion_en(self, t_ms: int) -> str:
@@ -395,12 +397,22 @@ def construir_sesion(subject_id: int,
         # repeticion es con el brazo en movimiento. Entera en margen, asi
         # que no entra al entrenamiento por descuido. Lleva el label del
         # gesto anunciado para poder estudiar la anticipacion.
+        #
+        # LLEVA TAMBIEN EL ORDEN DE POSICIONES, y es solo para la
+        # pantalla: en la preparacion se ilumina la PRIMERA posicion del
+        # recorrido para que el participante coloque ahi el brazo, con la
+        # mano relajada, antes de que empiece la contraccion. Sin esto el
+        # primer tramo de cada repeticion dinamica se gastaba llevando el
+        # brazo a su sitio con el gesto ya hecho.
+        #
+        # No toca el CSV: posicion_en() sigue devolviendo vacio en
+        # cualquier bloque que no sea la contraccion.
         bloques.append(Bloque(
             tipo=TIPO_PREPARACION, label=gesto, repetition_id=rep_id,
             t_inicio_ms=t, duracion_ms=DUR_PREPARACION_MS,
             margen_inicial_ms=MARGEN_PREPARACION[0],
             margen_final_ms=MARGEN_PREPARACION[1],
-            condicion_postural=condicion,
+            condicion_postural=condicion, orden_posiciones=orden,
         ))
         t += DUR_PREPARACION_MS
 

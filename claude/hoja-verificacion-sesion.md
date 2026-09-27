@@ -55,6 +55,8 @@ Pedir **3 contracciones fuertes** y mirar la ventana.
 - [ ] "En CONTRAIGA suba la fuerza poco a poco durante el primer segundo,
       siguiendo la barra amarilla, y manténgala los 10 s."
 - [ ] "Cuando diga **BRAZO QUIETO**, no mueva el brazo."
+- [ ] "Si en PREPÁRESE se ilumina una posición, lleve el brazo ahí con la
+      mano relajada. El gesto empieza recién cuando el fondo se pone verde."
 - [ ] "Cuando diga **BRAZO EN MOVIMIENTO**, recorra las tres posiciones que se
       iluminan abajo sin soltar el gesto y sin parar. Suena un tono en cada
       cambio, no hace falta que mire."

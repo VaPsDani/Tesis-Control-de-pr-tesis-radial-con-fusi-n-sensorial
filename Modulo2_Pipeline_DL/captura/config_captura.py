@@ -118,6 +118,11 @@ TEXTO_POSICION = {
     "al_frente_codo_90": "AL FRENTE, CODO A 90",
     "arriba_sobre_el_hombro": "ARRIBA, SOBRE EL HOMBRO",
 }
+# Aviso de la preparacion de una repeticion dinamica. El brazo se
+# coloca en la primera posicion del recorrido ANTES de empezar, con la
+# mano relajada, para que la contraccion no se gaste en el traslado.
+TEXTO_COLOCAR_BRAZO = ("Lleve el brazo aqui, mano relajada. "
+                       "El gesto empieza recien en verde")
 TEXTO_MOVIMIENTO_LENTO = "Pase de una posicion a otra sin parar y sin soltar el gesto"
 
 # ============================================================

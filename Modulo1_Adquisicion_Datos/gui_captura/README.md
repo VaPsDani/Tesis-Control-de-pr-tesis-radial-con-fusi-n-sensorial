@@ -119,7 +119,10 @@ de iniciar.
 Antes de pulsar Iniciar, explique:
 
 - Mire la pantalla, no el teclado ni su mano.
-- En **PREPARESE** verá el gesto que viene, con cuenta de 3, 2 y 1.
+- En **PREPARESE** verá el gesto que viene, con cuenta de 3, 2 y 1. Si la
+  repetición es con movimiento, además se ilumina la posición de partida:
+  hay que llevar el brazo ahí con la mano relajada, sin hacer el gesto
+  todavía.
 - En **CONTRAIGA** ejecute el gesto y manténgalo los 10 s. **Suba la fuerza
   poco a poco durante el primer segundo**, siguiendo la barra amarilla, sin
   dar un golpe.
@@ -133,6 +136,8 @@ sesión y la pantalla avisa de cuál toca ya en la fase de preparación.
 |---|---|
 | **BRAZO QUIETO** | Mantener el gesto sin mover el brazo, en una postura cómoda |
 | **BRAZO EN MOVIMIENTO** | Mantener el gesto mientras recorre las tres posiciones que se iluminan abajo, una cada 3.3 s, pasando de una a otra sin parar y sin soltar el gesto |
+
+En las repeticiones con movimiento, **la casilla de la primera posicion ya se ilumina durante la preparacion**, con el aviso de llevar el brazo ahi con la mano relajada. El gesto empieza recien con el fondo verde. Asi la contraccion no se gasta llevando el brazo a su sitio, que era lo que convertia el primer tramo de 3.3 s en un traslado etiquetado como si el brazo ya estuviera colocado.
 
 En las repeticiones con movimiento suena un tono agudo en cada cambio de
 posición, así que no hace falta mirar la pantalla mientras se mueve el brazo.

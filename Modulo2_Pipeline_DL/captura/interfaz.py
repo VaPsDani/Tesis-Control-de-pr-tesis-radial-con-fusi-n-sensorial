@@ -41,7 +41,8 @@ from config_captura import (BAUDIOS_DEFECTO, CONDICION_DINAMICA,
                             LADO_IMAGEN, PUERTO_DEFECTO, RAMPA_CONTRACCION_MS,
                             RAMPA_RETENCION_MS,
                             SONIDO_HABILITADO, SONIDO_HZ, SONIDO_MS,
-                            POSICIONES_BRAZO, TEXTO_MOVIMIENTO_LENTO,
+                            POSICIONES_BRAZO, TEXTO_COLOCAR_BRAZO,
+                            TEXTO_MOVIMIENTO_LENTO,
                             TEXTO_POSICION)
 from protocolo import (TIPO_CALIBRACION, TIPO_CONTRACCION, TIPO_PREPARACION,
                        TIPO_REPOSO, NOMBRES_GESTOS)
@@ -137,6 +138,10 @@ class VentanaParticipante(tk.Toplevel):
             c.grid(row=0, column=i, padx=6)
             self._casillas.append((pos, c))
         self._pos_actual = None
+        # Si el marco de posiciones esta a la vista. Se lleva aparte y no
+        # se pregunta a winfo_ismapped(), que responde que no siempre que
+        # la ventana este oculta y deja el marco pegado en pantalla.
+        self._pos_visible = False
         self._marco_pos.pack_forget()       # oculto salvo en dinamicas
 
         # Hueco para el pictograma del gesto. Las imagenes van en
@@ -256,17 +261,32 @@ class VentanaParticipante(tk.Toplevel):
         Se llama en cada refresco, asi que el cambio de casilla ocurre en
         el mismo instante en el que la posicion cambia en el CSV: las dos
         cosas salen de bloque.posicion_en().
+
+        EN LA PREPARACION DE UNA REPETICION DINAMICA se ilumina la
+        PRIMERA posicion del recorrido, con el aviso de llevar el brazo
+        ahi con la mano relajada. El gesto empieza recien con el fondo
+        verde. Antes las casillas aparecian junto con la contraccion, asi
+        que el participante gastaba el primer tramo, 3.3 s de los 10, en
+        llevar el brazo a su sitio con el gesto ya hecho, y ese tramo
+        quedaba etiquetado con una posicion en la que todavia no estaba.
         """
-        if bloque.tipo != TIPO_CONTRACCION or not bloque.orden_posiciones:
-            if self._pos_actual is not None:
+        con_recorrido = bool(bloque.orden_posiciones) and bloque.tipo in (
+            TIPO_PREPARACION, TIPO_CONTRACCION)
+        if not con_recorrido:
+            if self._pos_visible:
                 self._marco_pos.pack_forget()
-                self._pos_actual = None
+                self._pos_visible = False
+            self._pos_actual = None
             return
 
-        if not self._marco_pos.winfo_ismapped():
+        if not self._pos_visible:
             self._marco_pos.pack(after=self._posicion, pady=4)
+            self._pos_visible = True
 
-        actual = bloque.posicion_en(bloque.t_inicio_ms + transcurrido_ms)
+        if bloque.tipo == TIPO_PREPARACION:
+            actual = bloque.orden_posiciones[0]
+        else:
+            actual = bloque.posicion_en(bloque.t_inicio_ms + transcurrido_ms)
         for pos, casilla in self._casillas:
             activa = pos == actual
             casilla.configure(
@@ -275,6 +295,14 @@ class VentanaParticipante(tk.Toplevel):
                 text=("> " if activa else "  ")
                      + TEXTO_POSICION.get(pos, pos)
                      + (" <" if activa else "  "))
+
+        # El tono de cambio de posicion solo tiene sentido dentro de la
+        # contraccion. En la preparacion se deja _pos_actual en None para
+        # que la entrada al primer tramo, que es la misma casilla que ya
+        # estaba iluminada, no suene como si fuera un cambio.
+        if bloque.tipo != TIPO_CONTRACCION:
+            self._pos_actual = None
+            return
         if actual != self._pos_actual:
             if self._pos_actual is not None:
                 sonar("posicion")
@@ -311,9 +339,17 @@ class VentanaParticipante(tk.Toplevel):
         if bloque.tipo not in (TIPO_PREPARACION, TIPO_CONTRACCION):
             self._posicion.config(text="")
         elif bloque.condicion_postural == CONDICION_DINAMICA:
-            self._posicion.config(
-                text=f"{TEXTO_CONDICION[CONDICION_DINAMICA]}"
-                     f"\n{TEXTO_MOVIMIENTO_LENTO}")
+            # En la preparacion se pide COLOCAR el brazo, todavia sin
+            # gesto. El recorrido se explica ya en la contraccion, que
+            # es cuando hay que hacerlo.
+            if bloque.tipo == TIPO_PREPARACION:
+                self._posicion.config(
+                    text=f"{TEXTO_CONDICION[CONDICION_DINAMICA]}"
+                         f"\n{TEXTO_COLOCAR_BRAZO}")
+            else:
+                self._posicion.config(
+                    text=f"{TEXTO_CONDICION[CONDICION_DINAMICA]}"
+                         f"\n{TEXTO_MOVIMIENTO_LENTO}")
         elif bloque.condicion_postural == CONDICION_ESTATICA:
             self._posicion.config(text=TEXTO_CONDICION[CONDICION_ESTATICA])
         else:

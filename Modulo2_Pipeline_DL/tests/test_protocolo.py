@@ -91,12 +91,45 @@ def test_las_tres_fases_de_una_repeticion_comparten_condicion():
 
 
 def test_solo_las_dinamicas_recorren_posiciones():
+    # La preparacion de una repeticion dinamica tambien lleva el orden,
+    # porque la pantalla ilumina en ella la posicion de partida, y tiene
+    # que ser LA MISMA que la del primer tramo de su contraccion.
     for b in p.construir_sesion(1):
-        if b.tipo == p.TIPO_CONTRACCION and b.condicion_postural == p.CONDICION_DINAMICA:
+        dinamica = (b.condicion_postural == p.CONDICION_DINAMICA
+                    and b.tipo in (p.TIPO_CONTRACCION, p.TIPO_PREPARACION))
+        if dinamica:
             assert len(b.orden_posiciones) == len(p.POSICIONES_BRAZO)
             assert set(b.orden_posiciones) == set(p.POSICIONES_BRAZO)
         else:
             assert b.orden_posiciones == ()
+
+
+def test_la_preparacion_dinamica_anuncia_la_posicion_de_partida():
+    bloques = [b for b in p.construir_sesion(3)
+               if b.tipo != p.TIPO_CALIBRACION]
+    vistas = 0
+    for i in range(0, len(bloques), 3):
+        prep, contr, _ = bloques[i:i + 3]
+        if contr.condicion_postural != p.CONDICION_DINAMICA:
+            continue
+        vistas += 1
+        assert prep.orden_posiciones == contr.orden_posiciones
+        # Lo que se ilumina en la preparacion es donde empieza el
+        # recorrido de la contraccion que viene.
+        assert prep.orden_posiciones[0] == contr.posicion_en(
+            contr.t_inicio_ms + 1)
+    assert vistas == 12          # 4 gestos por 3 repeticiones dinamicas
+
+
+def test_la_preparacion_no_escribe_posicion_en_el_csv():
+    # Llevar el orden en la preparacion es solo para la pantalla. Si
+    # posicion_en() empezara a devolver algo aqui, la columna
+    # posicion_brazo diria que el brazo ya estaba colocado durante los
+    # 3 s en los que todavia lo esta llevando.
+    prep = next(b for b in p.construir_sesion(3)
+                if b.tipo == p.TIPO_PREPARACION and b.orden_posiciones)
+    for t in (0, prep.duracion_ms // 2, prep.duracion_ms - 1):
+        assert prep.posicion_en(prep.t_inicio_ms + t) == p.POSICION_NINGUNA
 
 
 def test_la_posicion_avanza_en_tres_tramos_iguales():
