@@ -23,8 +23,14 @@ import sys
 import time
 from datetime import datetime
 
-# anotar_fases.py vive en Modulo2_Pipeline_DL, un nivel arriba.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# anotar_fases.py vive en produccion/, no en la raiz del Modulo 2: se movio
+# alli en la reorganizacion y sin esta ruta la anotacion de fases al cerrar
+# la sesion fallaba con "No module named 'anotar_fases'". El CSV quedaba
+# bien, pero sin la columna fase y habia que anotarla a mano despues.
+_M2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+for _d in (_M2, os.path.join(_M2, "produccion")):
+    if _d not in sys.path:
+        sys.path.insert(0, _d)
 
 from config_captura import (DIR_IMAGENES, DIR_IMAGENES_ALT,
                             DIR_SALIDA_DEFECTO, DUR_CALIBRACION_MS,

@@ -207,7 +207,20 @@ class VentanaParticipante(tk.Toplevel):
             w.configure(bg=color)
 
     def _dibujar_rampa(self, bloque, transcurrido_ms: float):
-        """Barra que se llena durante el primer segundo de la contraccion."""
+        """
+        Barra que se llena durante el primer segundo de la contraccion.
+
+        El aviso de texto aparece YA EN LA PREPARACION, sin barra. Solo
+        durante el segundo de la rampa apenas da tiempo a leerlo, y lo que
+        se pide es algo que hay que saber ANTES de empezar a contraer.
+        """
+        if bloque.tipo == TIPO_PREPARACION:
+            self._rampa.coords(self._rampa_relleno, 2, 2, 2, 24)
+            self._rampa.itemconfigure(self._rampa_marco, state="hidden")
+            self._rampa_txt.config(
+                text="Al empezar, suba la fuerza poco a poco, sin golpe")
+            return
+
         if bloque.tipo != TIPO_CONTRACCION or transcurrido_ms > RAMPA_CONTRACCION_MS:
             self._rampa.coords(self._rampa_relleno, 2, 2, 2, 24)
             self._rampa.itemconfigure(self._rampa_marco, state="hidden")
@@ -268,14 +281,21 @@ class VentanaParticipante(tk.Toplevel):
             self._instruccion.config(text="Ejecute y mantenga")
             self._gesto.config(text=bloque.nombre_gesto.upper())
 
-        # Condicion de la repeticion. Se anuncia ya en la preparacion,
-        # para que el participante sepa si va a tener que moverse antes de
-        # empezar a contraer.
-        if bloque.condicion_postural == CONDICION_DINAMICA:
-            texto = TEXTO_CONDICION[CONDICION_DINAMICA]
-            if bloque.tipo in (TIPO_PREPARACION, TIPO_CONTRACCION):
-                texto += f"\n{TEXTO_MOVIMIENTO_LENTO}"
-            self._posicion.config(text=texto)
+        # Condicion de la repeticion. Se anuncia en la preparacion, para
+        # que el participante sepa si va a tener que moverse antes de
+        # empezar a contraer, y se mantiene durante la contraccion.
+        #
+        # EN EL REPOSO NO SE MUESTRA. El bloque de reposo hereda la
+        # condicion de su repeticion solo como etiqueta del CSV, pero al
+        # participante no se le pide nada: descansa con el brazo donde
+        # quiera. Mostrar "BRAZO EN MOVIMIENTO" junto a "Relaje la mano"
+        # hacia creer que habia que seguir moviendose durante el descanso.
+        if bloque.tipo not in (TIPO_PREPARACION, TIPO_CONTRACCION):
+            self._posicion.config(text="")
+        elif bloque.condicion_postural == CONDICION_DINAMICA:
+            self._posicion.config(
+                text=f"{TEXTO_CONDICION[CONDICION_DINAMICA]}"
+                     f"\n{TEXTO_MOVIMIENTO_LENTO}")
         elif bloque.condicion_postural == CONDICION_ESTATICA:
             self._posicion.config(text=TEXTO_CONDICION[CONDICION_ESTATICA])
         else:
