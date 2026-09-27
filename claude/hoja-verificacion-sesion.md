@@ -8,13 +8,8 @@ Participante `S____`  ·  subject_id `____`  ·  Fecha `__________`  ·  Hora in
 
 - [ ] Laptop cargada y enchufada, Windows sin actualizaciones pendientes
 - [ ] ESP32 conectado, LED de la placa encendido
+- [ ] El puerto COM no esta abierto en el IDE de Arduino ni en otro programa
 - [ ] Brazalete y correa a la mano, piel del antebrazo limpia y seca
-- [ ] Monitor serie a **921600** muestra `[FW] version=M1-2026.09.24` y `[READY]`
-- [ ] Autocalibración: enviar **`A`** con el brazo en reposo, esperar unos 10 s
-  - [ ] Reposo de cada canal entre **500 y 900 mV** (objetivo 700, el 35 % de 2000)
-  - [ ] Ningún canal marcado **DEBIL**
-  - [ ] Dispersión max/min **menor que 1.5**
-- [ ] **Cerrar el monitor serie** antes de abrir la app, el puerto no se comparte
 
 ## Arranque de la app
 
@@ -26,6 +21,21 @@ python Modulo2_Pipeline_DL\captura_sesion.py --puerto COM__ --participante S__
 - [ ] Carpeta de salida `Modulo2_Pipeline_DL\sesiones`
 - [ ] Datos del participante: edad `___`  sexo `___`  mano dominante `_______`
       circunferencia antebrazo `____` cm  posición del brazalete `____` cm
+
+## Con el brazalete ya puesto, botones de "Antes de iniciar"
+
+Solo una vez al día, con el participante fuera:
+
+- [ ] **Autotest del ciclo (T)**: el registro dice `OK` y el ciclo cabe en 10 ms
+
+Con **cada** participante, brazalete colocado y ajustado:
+
+- [ ] **Autocalibrar LED (A)**, con el brazo en reposo. Tarda unos 15 s
+  - [ ] Cuando el registro pida contracción máxima, pedírsela durante 3 s
+  - [ ] Reposo de cada canal entre **500 y 900 mV** (objetivo 700, el 35 % de 2000)
+  - [ ] Ningún canal marcado **DEBIL**
+  - [ ] Dispersión max/min **menor que 1.5**
+  - [ ] El registro termina con "Puerto libre"
 
 ## Prueba de conexión (botón Probar conexión)
 

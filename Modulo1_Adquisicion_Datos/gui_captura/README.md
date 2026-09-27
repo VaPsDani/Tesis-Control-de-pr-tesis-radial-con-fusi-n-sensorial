@@ -69,9 +69,17 @@ en el marco aparece un recuadro vacío, pero el operador ve un aviso al iniciar.
 python Modulo2_Pipeline_DL/captura_sesion.py --puerto COM3 --participante S01
 ```
 
-4. Con el participante en reposo, autocalibre los LED mandando `A` por un
-   monitor serie, o hágalo antes de abrir la app. La autocalibración es
-   bloqueante y dura unos 10 s.
+4. Una vez al día, con nadie puesto el brazalete, pulse **Autotest del ciclo
+   (T)**. Confirma que el muestreo cabe en los 10 ms de los 100 Hz.
+5. Con el participante ya con el brazalete puesto y en reposo, pulse
+   **Autocalibrar LED (A)**. Dura unos 15 s y al final pide una contracción
+   máxima de 3 s, que hay que pedirle en voz alta cuando aparezca el aviso.
+
+Los dos botones abren el puerto, mandan el comando al firmware, muestran su
+respuesta en el registro del operador y **cierran el puerto al terminar**, de
+modo que ya no hace falta el monitor serie del IDE de Arduino. Se
+deshabilitan mientras la sesión corre, porque el puerto no se puede abrir dos
+veces.
 
 ## Paso a paso de la sesión
 

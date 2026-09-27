@@ -559,15 +559,26 @@ class VentanaOperador(tk.Tk):
             self.var_salida.set(ruta)
 
     def _construir_controles(self):
+        # Fila 1: lo que se hace ANTES de iniciar, contra el firmware.
+        # Evita tener que abrir el monitor serie del IDE de Arduino, que
+        # ademas obliga a cerrarlo despues porque el puerto no se comparte.
+        f0 = ttk.LabelFrame(self, text="Antes de iniciar")
+        f0.pack(fill="x", padx=8, pady=4)
+        self.btn_autocal  = ttk.Button(f0, text="Autocalibrar LED (A)")
+        self.btn_autotest = ttk.Button(f0, text="Autotest del ciclo (T)")
+        self.btn_probar   = ttk.Button(f0, text="Probar conexion")
+        for b in (self.btn_autocal, self.btn_autotest, self.btn_probar):
+            b.pack(side="left", padx=4, pady=4)
+
+        # Fila 2: la sesion.
         f = ttk.Frame(self)
         f.pack(fill="x", padx=8, pady=4)
-        self.btn_probar   = ttk.Button(f, text="Probar conexion")
         self.btn_iniciar  = ttk.Button(f, text="Iniciar")
         self.btn_pausa    = ttk.Button(f, text="Pausar", state="disabled")
         self.btn_descartar = ttk.Button(f, text="Descartar repeticion",
                                         state="disabled")
         self.btn_abortar  = ttk.Button(f, text="Abortar", state="disabled")
-        for b in (self.btn_probar, self.btn_iniciar, self.btn_pausa,
+        for b in (self.btn_iniciar, self.btn_pausa,
                   self.btn_descartar, self.btn_abortar):
             b.pack(side="left", padx=4)
 

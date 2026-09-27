@@ -74,17 +74,139 @@ class Sesion:
         # Se marcan en el CSV al cerrar y quedan siempre en el JSON.
         self.descartadas = []
 
+        # Comando del firmware en curso: autocalibracion o autotest.
+        self._cmd = None
+        self._after_cmd = None
+
         # Prueba de conexion previa a la sesion.
         self.prueba = None
         self.lector_prueba = None
         self.cola_prueba = queue.Queue(maxsize=20000)
 
+        self.op.btn_autocal.config(command=self.autocalibrar)
+        self.op.btn_autotest.config(command=self.autotest)
         self.op.btn_probar.config(command=self.probar_conexion)
         self.op.btn_iniciar.config(command=self.iniciar)
         self.op.btn_pausa.config(command=self.alternar_pausa)
         self.op.btn_descartar.config(command=self.descartar_repeticion)
         self.op.btn_abortar.config(command=self.abortar)
         self.op.protocol("WM_DELETE_WINDOW", self.abortar)
+
+    # ---------- comandos del firmware (A y T) ----------
+    def autocalibrar(self):
+        """
+        Autocalibracion optica: ajusta la corriente de cada LED.
+
+        Con AUTOCAL_VERIFICAR_GESTO_MAX activo, el firmware pide ademas
+        una contraccion maxima de 3 s para comprobar que nada recorta. El
+        aviso aparece en este mismo registro, hay que leerselo en voz
+        alta al participante cuando salga.
+        """
+        self._comando_firmware(
+            "A", "AUTOCALIBRACION DE LOS LED", limite_s=90,
+            aviso="Participante en REPOSO. Cuando el firmware lo pida, "
+                  "pidale una contraccion MAXIMA de 3 s.")
+
+    def autotest(self):
+        """Mide el ciclo de muestreo real y dice si cabe en 10 ms."""
+        self._comando_firmware(
+            "T", "AUTOTEST DEL CICLO DE MUESTREO", limite_s=30,
+            aviso="No hace falta que el participante haga nada.")
+
+    def _comando_firmware(self, comando: str, titulo: str,
+                          limite_s: float, aviso: str = ""):
+        """
+        Abre el puerto, envia un comando y muestra en vivo lo que el
+        firmware responde.
+
+        El puerto no se puede compartir, asi que esto solo corre con la
+        sesion detenida y con la prueba de conexion cerrada. Al terminar
+        se cierra el puerto, para que Iniciar lo encuentre libre.
+
+        No hay forma fiable de saber que el firmware termino, porque no
+        emite ninguna marca de fin. Se da por terminado cuando pasan
+        SILENCIO_FIN_S sin una linea nueva, o al llegar al limite.
+        """
+        SILENCIO_FIN_S = 6.0
+
+        if self.corriendo:
+            self.op.log("Detenga la sesion antes de mandar comandos al "
+                        "firmware.")
+            return
+        if self.prueba is not None or self.lector_prueba is not None:
+            self.op.log("Cierre la prueba de conexion primero: el puerto "
+                        "no se puede abrir dos veces.")
+            return
+        if self.op.var_simulado.get():
+            self.op.log(f"{titulo}: no disponible en modo simulado, no hay "
+                        f"firmware al otro lado.")
+            return
+
+        self.lector_prueba = LectorSerie(
+            self.op.var_puerto.get(), self.cola_prueba,
+            baudios=self.op.baudios(), simulado=False)
+        try:
+            self.lector_prueba.abrir()
+        except Exception as e:
+            self.op.log(f"ERROR abriendo el puerto: {e}")
+            self.lector_prueba = None
+            return
+
+        self.lector_prueba.start()
+        self.lector_prueba.enviar(comando)
+        self._cmd = {"titulo": titulo, "vistas": 0, "t0": time.monotonic(),
+                     "t_ultima": time.monotonic(), "limite": limite_s,
+                     "silencio": SILENCIO_FIN_S}
+        self.op.log("")
+        self.op.log(f"--- {titulo} ---")
+        if aviso:
+            self.op.log(f"    {aviso}")
+        for b in (self.op.btn_autocal, self.op.btn_autotest,
+                  self.op.btn_probar, self.op.btn_iniciar):
+            b.config(state="disabled")
+        self._tick_comando()
+
+    def _tick_comando(self):
+        if self.lector_prueba is None or self._cmd is None:
+            return
+        cmd = self._cmd
+        ahora = time.monotonic()
+
+        lineas = self.lector_prueba.info
+        while cmd["vistas"] < len(lineas):
+            self.op.log("    " + lineas[cmd["vistas"]])
+            cmd["vistas"] += 1
+            cmd["t_ultima"] = ahora
+
+        # Se vacia la cola: durante estos comandos el firmware no emite
+        # muestras, pero si el operador dejo 'L' activo podrian llegar.
+        while True:
+            try:
+                self.cola_prueba.get_nowait()
+            except queue.Empty:
+                break
+
+        callado = ahora - cmd["t_ultima"]
+        vencido = ahora - cmd["t0"] > cmd["limite"]
+        if (cmd["vistas"] and callado > cmd["silencio"]) or vencido:
+            self._terminar_comando(vencido and not cmd["vistas"])
+            return
+        self._after_cmd = self.op.after(REFRESCO_MS, self._tick_comando)
+
+    def _terminar_comando(self, sin_respuesta: bool):
+        titulo = self._cmd["titulo"] if self._cmd else "COMANDO"
+        if self.lector_prueba:
+            self.lector_prueba.detener()
+            self.lector_prueba = None
+        self._cmd = None
+        if sin_respuesta:
+            self.op.log(f"--- {titulo}: el firmware no respondio. Revise el "
+                        f"puerto y que la placa este encendida.")
+        else:
+            self.op.log(f"--- {titulo}: terminado. Puerto libre.")
+        for b in (self.op.btn_autocal, self.op.btn_autotest,
+                  self.op.btn_probar, self.op.btn_iniciar):
+            b.config(state="normal")
 
     # ---------- prueba de conexion ----------
     def probar_conexion(self):
@@ -196,8 +318,9 @@ class Sesion:
         self.t0 = time.monotonic()
         self.t_pausa_acum = 0.0
         self.corriendo = True
-        self.op.btn_probar.config(state="disabled")
-        self.op.btn_iniciar.config(state="disabled")
+        for _b in (self.op.btn_autocal, self.op.btn_autotest,
+                   self.op.btn_probar, self.op.btn_iniciar):
+            _b.config(state="disabled")
         self.op.btn_pausa.config(state="normal")
         self.op.btn_descartar.config(state="normal")
         self.op.btn_abortar.config(state="normal")

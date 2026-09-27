@@ -143,6 +143,11 @@ class LectorSerie(threading.Thread):
         # Lineas de arranque del firmware, para el JSON de la sesion.
         self.banner: List[str] = []
         self.version_firmware: Optional[str] = None
+        # TODAS las lineas informativas, en orden, para poder mostrarlas en
+        # vivo en la ventana del operador mientras corre un comando del
+        # firmware como la autocalibracion. banner se queda corto a
+        # proposito, porque va al JSON; esto es para la pantalla.
+        self.info: List[str] = []
         # Lineas [OPTICA_*] del firmware: config del ADC, duty de cada LED
         # y reposo por canal en mV (S-barra-r del indice de rendimiento).
         self.optica: dict = {}
@@ -219,6 +224,13 @@ class LectorSerie(threading.Thread):
     def _procesar(self, texto: str):
         if not texto:
             return
+
+        # Cualquier linea informativa se guarda en orden para poder
+        # mostrarla en vivo. Las de sincronizacion no, que son una por
+        # bloque y no dicen nada al operador.
+        if texto.startswith("[") and not texto.startswith("[MARK]"):
+            if len(self.info) < 400:
+                self.info.append(texto)
 
         if texto.startswith("[MARK]"):
             try:
