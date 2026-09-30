@@ -75,6 +75,10 @@ python Modulo2_Pipeline_DL/banco_modulos/banco.py capturar --variante PRUEBA --r
 
 Los CSV y los JSON quedan en `banco_modulos/pruebas/`.
 
+Para instalar todo desde cero en la computadora de la universidad, ver
+`Modulo1_Adquisicion_Datos/gui_captura/README.md`, sección "Puesta en marcha
+en otra computadora". Es la misma instalación para los dos programas.
+
 **El análisis necesita pandas y matplotlib**, que están en el entorno de
 análisis (`~/venv-tesis`), no necesariamente en el Python que usas para
 capturar. La captura solo necesita pyserial.

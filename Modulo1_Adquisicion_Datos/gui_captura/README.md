@@ -21,10 +21,87 @@ esquemas distintos habrían partido el dataset en dos.
 | `captura/sesion.py` | Orquestador |
 | `Modulo1_Adquisicion_Datos/gui_captura/assets/` | Imágenes de los gestos |
 
-## Instalación
+## Puesta en marcha en otra computadora, desde cero
+
+Los **dos** programas que se llevan a la universidad viven en este mismo
+repositorio y comparten instalación:
+
+| Programa | Para qué | Cuándo |
+|---|---|---|
+| `Modulo2_Pipeline_DL/captura_sesion.py` | Sesiones de los 10 participantes | La campaña |
+| `Modulo2_Pipeline_DL/banco_modulos/banco.py` | Elegir entre las 6 variantes del PCB | Antes de la campaña |
+
+Cinco pasos. Python 3.12 desde python.org, marcando **Add python.exe to
+PATH** en el instalador.
+
+```bash
+git clone https://github.com/<tu-usuario>/Tesis-Control-de-pr-tesis-radial-con-fusi-n-sensorial.git
+```
+
+```bash
+cd Tesis-Control-de-pr-tesis-radial-con-fusi-n-sensorial
+```
+
+```bash
+python -m venv .venv
+```
+
+```bash
+.venv\Scripts\activate
+```
+
+```bash
+pip install -r Modulo2_Pipeline_DL/requirements-captura.txt
+```
+
+Eso instala pyserial, numpy, pandas y matplotlib, y **nada más**. TensorFlow
+no se instala: ni la sesión ni el banco lo usan. Tkinter ya viene con Python
+en Windows. En Linux hace falta `sudo apt install python3-tk`.
+
+**No uses Docker.** Los dos programas necesitan el puerto COM del ESP32, una
+ventana gráfica y el altavoz. Docker Desktop en Windows no pasa puertos USB al
+contenedor, así que habría que resolver tres problemas para no ahorrar
+ninguno.
+
+### Comprobación antes de salir de casa
+
+Las dos deben correr sin hardware conectado. Si fallan aquí, fallan allá.
+
+```bash
+python Modulo2_Pipeline_DL/captura_sesion.py --simulado
+```
+
+```bash
+python Modulo2_Pipeline_DL/banco_modulos/banco.py capturar --variante PRUEBA --ronda 1 --simulado --escala 0.5
+```
+
+```bash
+python -m pytest Modulo2_Pipeline_DL/tests -q
+```
+
+Los tests necesitan `pip install pytest`, que no está en el requirements de
+captura a propósito.
+
+### Ya en la universidad
+
+Conecta el ESP32 y averigua el puerto. En Windows sale en el Administrador de
+dispositivos, bajo Puertos (COM y LPT), como COM3, COM4 y demás.
+
+```bash
+python Modulo2_Pipeline_DL/captura_sesion.py --puerto COM3 --participante S01
+```
+
+```bash
+python Modulo2_Pipeline_DL/banco_modulos/banco.py capturar --variante SMD_11mm --ronda 1 --puerto COM3
+```
+
+Cada vez que abras una consola nueva hay que volver a activar el entorno con
+`.venv\Scripts\activate`.
+
+## Instalación mínima, si solo quieres la app de captura
 
 Python 3.12. Tkinter viene con la biblioteca estándar, así que la única
-dependencia es pyserial.
+dependencia para grabar es pyserial.
 
 ```bash
 pip install pyserial
@@ -41,6 +118,10 @@ Prueba de que todo está en su sitio, sin hardware.
 ```bash
 python Modulo2_Pipeline_DL/captura_sesion.py --simulado
 ```
+
+Ojo: así no se instala pandas, y sin pandas la sesión graba bien pero **no
+puede anotar la columna `fase` al cerrar** ni correr `verificar_piloto.py`.
+Para una sesión de verdad, usa el requirements de arriba.
 
 ## Imágenes de los gestos
 

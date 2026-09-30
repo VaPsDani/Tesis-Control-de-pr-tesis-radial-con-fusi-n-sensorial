@@ -1,0 +1,25 @@
+# Dependencias de la COMPUTADORA DE CAPTURA, la que se lleva a la
+# universidad con el ESP32. Python 3.12.
+#
+#   python -m venv .venv
+#   .venv\Scripts\activate          (Windows)
+#   pip install -r Modulo2_Pipeline_DL/requirements-captura.txt
+#
+# NO incluye TensorFlow ni nada de entrenamiento. Nada de lo que corre
+# durante una sesion lo necesita, y son 600 MB que no hacen falta en una
+# maquina prestada. Para entrenar, requirements.txt.
+#
+# Tkinter no se instala con pip: viene con Python en Windows. En Linux,
+# sudo apt install python3-tk.
+
+# Puerto serie del ESP32. Solo la captura.
+pyserial==3.5
+
+# anotar_fases.py y fases.py, que corren al cerrar cada sesion, y
+# verificar_piloto.py, que se corre despues de cada participante.
+numpy==1.26.4
+pandas==3.0.5
+
+# Grafico del banco de variantes (banco_modulos/banco.py analizar).
+# Si solo vas a capturar sesiones, no hace falta.
+matplotlib==3.11.1
