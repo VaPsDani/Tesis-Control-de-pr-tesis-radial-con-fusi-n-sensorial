@@ -73,7 +73,24 @@ Probar el flujo sin hardware, con el tiempo acortado.
 python Modulo2_Pipeline_DL/banco_modulos/banco.py capturar --variante PRUEBA --ronda 1 --simulado --escala 0.5
 ```
 
-Los CSV y los JSON quedan en `banco_modulos/pruebas/`.
+Al capturar se abre una **ventana a pantalla completa** con la fase en
+grande, el color de fondo, la foto del gesto y la cuenta atrás, igual que la
+app de captura, y suena un tono en cada cambio. Está pensada para leerse a un
+metro, con una mano ocupada en el gesto. **Escape** sale de pantalla completa
+y cerrar la ventana aborta la prueba.
+
+| Fondo | Qué toca |
+|---|---|
+| Azul | Reposo |
+| Verde | Puño o pinza |
+| Ámbar | Mover el brazo sin gesto |
+
+Con `--sin-ventana` guía solo por consola, que es también lo que hace por su
+cuenta si no hay entorno gráfico.
+
+Los CSV y los JSON quedan en `banco_modulos/pruebas/`. Una prueba abortada deja
+su CSV incompleto: bórralo antes de analizar, porque `analizar` lee todo lo
+que haya en la carpeta.
 
 Para instalar todo desde cero en la computadora de la universidad, ver
 `Modulo1_Adquisicion_Datos/gui_captura/README.md`, sección "Puesta en marcha

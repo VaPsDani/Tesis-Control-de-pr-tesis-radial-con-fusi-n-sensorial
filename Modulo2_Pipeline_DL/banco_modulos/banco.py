@@ -54,7 +54,10 @@ for _d in (_M2, os.path.join(_M2, "captura")):
 # protocolo de la tesis para la contraccion, y por el mismo motivo: el
 # primer segundo se va en la reaccion y en la subida de fuerza, y el
 # ultimo medio segundo en soltar. Medir ahi mezcla transicion con meseta.
-from config_captura import MARGEN_CONTRACCION      # noqa: E402
+from config_captura import (                       # noqa: E402
+    MARGEN_CONTRACCION, COLOR_CONTRACCION, COLOR_REPOSO, COLOR_PREPARACION,
+    COLOR_FIN, COLOR_TEXTO, FUENTE_FASE, FUENTE_INSTRUCCION, FUENTE_CUENTA,
+    FUENTE_PIE, DIR_IMAGENES)
 
 DIR_SALIDA = os.path.join(AQUI, "pruebas")
 
@@ -86,6 +89,16 @@ INSTRUCCION = {
     FASE_MOVIMIENTO: "MUEVA EL BRAZO. SIN hacer ningun gesto, mano relajada.",
 }
 
+# Lo que se ve en pantalla en cada fase: titulo, color de fondo e imagen.
+# Los colores y las fotos son los de la app de captura, para que el
+# banco se lea igual que una sesion.
+ASPECTO = {
+    FASE_REPOSO: ("REPOSO", COLOR_REPOSO, "Rest"),
+    FASE_PUNO: ("PUNO", COLOR_CONTRACCION, "Power"),
+    FASE_PINZA: ("PINZA", COLOR_CONTRACCION, "Pinch"),
+    FASE_MOVIMIENTO: ("MUEVA EL BRAZO", COLOR_PREPARACION, "Rest"),
+}
+
 # Umbral de saturacion. El fondo de escala util son 2000 mV y la
 # autocalibracion del firmware ya no deja pasar del 95%, o sea 1900 mV
 # (AUTOCAL_LIMITE_FRAC y FONDO_ESCALA_UTIL_MV en Modulo1/config.h). Una
@@ -105,6 +118,98 @@ CAMPOS_CSV = (["variante", "ronda", "canal", "t_esp32_ms", "ts_pc_ms", "fase"]
 # ============================================================
 # CAPTURA
 # ============================================================
+class Pantalla:
+    """
+    Ventana a pantalla completa que guia la prueba.
+
+    Hace falta porque la prueba se hace sobre el propio antebrazo, con
+    una mano ocupada en el gesto y la vista a un metro de la laptop: una
+    linea de consola no se lee desde ahi. Escape sale de pantalla
+    completa.
+
+    Si no hay entorno grafico, abrir() devuelve None y el banco sigue
+    por consola, que es como corre en una terminal sin ventanas.
+    """
+
+    @staticmethod
+    def abrir(titulo):
+        try:
+            return Pantalla(titulo)
+        except Exception as e:
+            print(f"(sin ventana: {e}. Sigo por consola.)")
+            return None
+
+    def __init__(self, titulo):
+        import tkinter as tk
+        self.tk = tk
+        self.root = tk.Tk()
+        self.root.title(titulo)
+        self.root.attributes("-fullscreen", True)
+        self.root.bind("<Escape>",
+                       lambda e: self.root.attributes("-fullscreen", False))
+        self.cerrada = False
+        self.root.protocol("WM_DELETE_WINDOW", self._al_cerrar)
+
+        def etiqueta(fuente):
+            l = tk.Label(self.root, fg=COLOR_TEXTO, font=fuente,
+                         wraplength=1400, justify="center")
+            l.pack(pady=10)
+            return l
+
+        self._pie = etiqueta(FUENTE_PIE)
+        self._fase = etiqueta(FUENTE_FASE)
+        self._img = tk.Label(self.root)
+        self._img.pack(pady=10)
+        self._instruccion = etiqueta(FUENTE_INSTRUCCION)
+        self._cuenta = etiqueta(FUENTE_CUENTA)
+        self._partes = [self.root, self._pie, self._fase, self._img,
+                        self._instruccion, self._cuenta]
+
+        self._imagenes = {}
+        for nombre in {a[2] for a in ASPECTO.values()}:
+            ruta = os.path.join(DIR_IMAGENES, f"{nombre}.png")
+            if os.path.exists(ruta):
+                try:
+                    self._imagenes[nombre] = tk.PhotoImage(file=ruta)
+                except Exception:
+                    pass
+        self._fase_actual = None
+
+    def _al_cerrar(self):
+        self.cerrada = True
+
+    def mostrar(self, fase, idx, total, restante_s):
+        if fase != self._fase_actual:
+            titulo, color, imagen = ASPECTO[fase]
+            for p in self._partes:
+                p.configure(bg=color)
+            self._fase.config(text=titulo)
+            self._instruccion.config(text=INSTRUCCION[fase])
+            self._pie.config(text=f"Bloque {idx + 1} de {total}")
+            img = self._imagenes.get(imagen)
+            self._img.config(image=img if img is not None else "")
+            self._fase_actual = fase
+        self._cuenta.config(text=f"{max(0, int(restante_s + 0.999))}")
+        self.root.update()
+
+    def fin(self, texto):
+        for p in self._partes:
+            p.configure(bg=COLOR_FIN)
+        self._fase.config(text=texto)
+        self._instruccion.config(text="")
+        self._cuenta.config(text="")
+        self._img.config(image="")
+        self._pie.config(text="")
+        self.root.attributes("-fullscreen", False)
+        self.root.update()
+
+    def cerrar(self):
+        try:
+            self.root.destroy()
+        except Exception:
+            pass
+
+
 def autocalibrar(lector, limite_s=90.0, silencio_s=6.0):
     """
     Manda 'A' y muestra la respuesta del firmware hasta que se calle.
@@ -170,15 +275,26 @@ def capturar(args):
     w = csv.writer(f)
     w.writerow(CAMPOS_CSV)
     filas = 0
-    t0 = time.monotonic()
     limites = []            # (t_inicio, t_fin, fase) en segundos desde t0
     t = 0.0
     for fase, dur in PROTOCOLO:
         limites.append((t, t + dur * args.escala, fase))
         t += dur * args.escala
 
-    def volcar(hasta_fase):
-        """Saca de la cola lo que haya y lo escribe con su fase."""
+    pantalla = None if args.sin_ventana else Pantalla.abrir(
+        f"Banco LMG - {args.variante} ronda {args.ronda}")
+    # El reloj arranca DESPUES de abrir la ventana, que tarda lo suyo.
+    t0 = time.monotonic()
+
+    def volcar():
+        """
+        Saca de la cola lo que haya y lo escribe con su fase.
+
+        Lo que cae FUERA del horario se tira: son las muestras que
+        llegaron mientras se abria la ventana, antes de empezar, y las
+        que siguen llegando despues del ultimo bloque. Etiquetarlas con
+        la fase vecina seria inventarles una condicion que nadie pidio.
+        """
         nonlocal filas
         while True:
             try:
@@ -186,44 +302,63 @@ def capturar(args):
             except queue.Empty:
                 return
             rel = m.t_pc - t0
-            fase = hasta_fase
-            for ini, fin, nombre in limites:
-                if ini <= rel < fin:
-                    fase = nombre
-                    break
+            fase = next((nombre for ini, fin, nombre in limites
+                         if ini <= rel < fin), None)
+            if fase is None:
+                continue
             w.writerow([args.variante, args.ronda, args.canal, m.t_esp32,
                         m.ts_pc_ms, fase]
                        + [f"{v:.4f}" for v in m.valores[:8]])
             filas += 1
 
+    abortada = False
     try:
-        for i, (fase, dur) in enumerate(PROTOCOLO):
+        for i, (fase, _) in enumerate(PROTOCOLO):
+            # El fin de cada fase sale del HORARIO ABSOLUTO, el mismo con
+            # el que se etiquetan las muestras, y no de sumar duraciones.
+            # El tono bloquea unos 120 ms: sumando, la pantalla acababa
+            # 1.7 s por detras de las etiquetas al final de las 14 fases,
+            # un tercio de un bloque de 5 s.
+            fin = t0 + limites[i][1]
+            if pantalla:
+                pantalla.mostrar(fase, i, len(PROTOCOLO),
+                                 (fin - time.monotonic()) / args.escala)
             sonar(TONO[fase])
             print(f"[{i + 1:2d}/{len(PROTOCOLO)}] {INSTRUCCION[fase]}")
-            fin = time.monotonic() + dur * args.escala
             while time.monotonic() < fin:
-                volcar(fase)
+                volcar()
                 restante = fin - time.monotonic()
-                print(f"\r     {restante:5.1f} s   ", end="", flush=True)
-                time.sleep(min(0.1, max(0.0, restante)))
-            print("\r" + " " * 20)
+                if pantalla:
+                    if pantalla.cerrada:
+                        raise KeyboardInterrupt
+                    pantalla.mostrar(fase, i, len(PROTOCOLO),
+                                     restante / args.escala)
+                else:
+                    print(f"\r     {restante:5.1f} s   ", end="", flush=True)
+                time.sleep(min(0.05, max(0.0, restante)))
+            if not pantalla:
+                print("\r" + " " * 20)
     except KeyboardInterrupt:
+        abortada = True
         print("\nABORTADA por el operador.")
     finally:
-        volcar(FASE_MOVIMIENTO)
+        volcar()
         lector.enviar("S")
         time.sleep(0.2)
-        volcar(FASE_MOVIMIENTO)
+        volcar()
         lector.detener()
         f.close()
 
     sonar("aviso")
+    if pantalla:
+        pantalla.fin("ABORTADA" if abortada else "LISTO")
     meta = {
         "variante": args.variante,
         "ronda": args.ronda,
         "canal": args.canal,
         "fecha": datetime.now().isoformat(timespec="seconds"),
         "filas": filas,
+        "abortada": abortada,
         "simulado": bool(args.simulado),
         "escala_tiempo": args.escala,
         "protocolo_s": [[fa, d] for fa, d in PROTOCOLO],
@@ -245,6 +380,12 @@ def capturar(args):
     if filas < 0.8 * 100 * sum(d for _, d in PROTOCOLO) * args.escala:
         print("  AVISO: llegaron muchas menos muestras de las esperadas. "
               "Revise el enlace antes de dar la prueba por buena.")
+    if abortada:
+        print("  PRUEBA ABORTADA: el CSV esta incompleto. Borrelo o repita "
+              "la prueba, porque 'analizar' lo va a leer igual.")
+    if pantalla:
+        time.sleep(2.0)             # que se alcance a leer el final
+        pantalla.cerrar()
 
 
 # ============================================================
@@ -477,6 +618,8 @@ def main(argv=None):
                    help="sin hardware, para probar el flujo")
     c.add_argument("--sin-autocal", action="store_true",
                    help="no mandar 'A' antes de medir. Solo si ya calibro")
+    c.add_argument("--sin-ventana", action="store_true",
+                   help="guiar solo por consola, sin la pantalla completa")
     c.add_argument("--escala", type=float, default=1.0,
                    help="factor de tiempo. Solo para probar, 1.0 en las "
                         "mediciones de verdad")
