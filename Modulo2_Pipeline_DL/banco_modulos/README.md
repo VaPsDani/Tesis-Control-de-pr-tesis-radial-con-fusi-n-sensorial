@@ -53,6 +53,31 @@ El bloque final es el que separa una variante que mide músculo de una que mide
 el módulo bailando sobre la piel. Sin él, una variante con mal acoplamiento
 mecánico puede dar buen SNR y aun así ser la peor en uso real.
 
+### Cómo se hace el bloque de movimiento
+
+La ventana ilumina tres posiciones, una tras otra, con un tono en cada cambio.
+Son **las mismas de la condición dinámica de la tesis**, en su orden y a su
+ritmo.
+
+| Segundos | Posición |
+|---|---|
+| 0 a 3.3 | Abajo, al costado |
+| 3.3 a 6.7 | Al frente, codo a 90 |
+| 6.7 a 10 | Arriba, sobre el hombro |
+
+Se pasa de una a otra sin parar, a velocidad normal y sin sacudir. La mano va
+relajada todo el tiempo, con los dedos sueltos, **y sin girar la muñeca**:
+rotar el antebrazo cambia la forma de los músculos justo debajo del sensor y
+mediría otra cosa.
+
+Se usan esas tres por dos motivos. El artefacto que interesa es el del
+movimiento que harán los participantes, no el de uno cualquiera. Y un
+recorrido fijo hace comparable la métrica: es una división entre cuánto se
+mueve la señal al mover el brazo y cuánto en reposo, así que si con una
+variante mueves el brazo con más ganas, esa variante sale peor por tu culpa y
+no por el PCB. **Mismo recorrido, misma velocidad y misma amplitud en las 12
+corridas.**
+
 ## Cómo correr
 
 Capturar, una vez por variante y ronda. Son 12 corridas de 80 s.

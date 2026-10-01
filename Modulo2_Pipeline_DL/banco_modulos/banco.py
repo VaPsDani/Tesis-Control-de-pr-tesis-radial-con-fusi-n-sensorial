@@ -57,7 +57,8 @@ for _d in (_M2, os.path.join(_M2, "captura")):
 from config_captura import (                       # noqa: E402
     MARGEN_CONTRACCION, COLOR_CONTRACCION, COLOR_REPOSO, COLOR_PREPARACION,
     COLOR_FIN, COLOR_TEXTO, FUENTE_FASE, FUENTE_INSTRUCCION, FUENTE_CUENTA,
-    FUENTE_PIE, DIR_IMAGENES)
+    FUENTE_PIE, FUENTE_POSICION, COLOR_RAMPA, DIR_IMAGENES,
+    POSICIONES_BRAZO, TEXTO_POSICION)
 
 DIR_SALIDA = os.path.join(AQUI, "pruebas")
 
@@ -79,15 +80,33 @@ TONO = {
     FASE_REPOSO: "reposo",
     FASE_PUNO: "contraccion",
     FASE_PINZA: "contraccion",
-    FASE_MOVIMIENTO: "posicion",
+    FASE_MOVIMIENTO: "preparacion",
 }
 
 INSTRUCCION = {
     FASE_REPOSO: "REPOSO. Mano relajada, brazo quieto.",
     FASE_PUNO: "PUNO. Cierre la mano con fuerza media y mantenga.",
     FASE_PINZA: "PINZA. Indice contra pulgar, fuerza media, mantenga.",
-    FASE_MOVIMIENTO: "MUEVA EL BRAZO. SIN hacer ningun gesto, mano relajada.",
+    FASE_MOVIMIENTO: "Lleve el brazo a la posicion marcada. Mano relajada, "
+                     "sin gesto y sin girar la muneca.",
 }
+
+
+def posicion_en(frac):
+    """
+    Posicion del brazo pedida en el bloque de movimiento, segun la
+    fraccion transcurrida del bloque, de 0 a 1.
+
+    Son las tres posiciones de la condicion dinamica de la tesis, en su
+    orden y a su ritmo, 3.3 s cada una. Dos motivos. El artefacto que
+    interesa es el del movimiento que haran los participantes, no el de
+    uno cualquiera. Y un recorrido fijo hace comparable la metrica entre
+    las 12 corridas: si el movimiento quedara a criterio de quien mide,
+    una variante saldria peor solo por haber movido el brazo con mas
+    ganas.
+    """
+    n = len(POSICIONES_BRAZO)
+    return POSICIONES_BRAZO[min(int(max(frac, 0.0) * n), n - 1)]
 
 # Lo que se ve en pantalla en cada fase: titulo, color de fondo e imagen.
 # Los colores y las fotos son los de la app de captura, para que el
@@ -161,9 +180,17 @@ class Pantalla:
         self._img = tk.Label(self.root)
         self._img.pack(pady=10)
         self._instruccion = etiqueta(FUENTE_INSTRUCCION)
+        self._marco_pos = tk.Frame(self.root)
+        self._casillas = []
+        for pos in POSICIONES_BRAZO:
+            c = tk.Label(self._marco_pos, text=TEXTO_POSICION.get(pos, pos),
+                         font=FUENTE_POSICION, padx=14, pady=8,
+                         highlightbackground=COLOR_TEXTO, highlightthickness=2)
+            c.pack(side="left", padx=6)
+            self._casillas.append((pos, c))
         self._cuenta = etiqueta(FUENTE_CUENTA)
         self._partes = [self.root, self._pie, self._fase, self._img,
-                        self._instruccion, self._cuenta]
+                        self._instruccion, self._cuenta, self._marco_pos]
 
         self._imagenes = {}
         for nombre in {a[2] for a in ASPECTO.values()}:
@@ -178,9 +205,18 @@ class Pantalla:
     def _al_cerrar(self):
         self.cerrada = True
 
-    def mostrar(self, fase, idx, total, restante_s):
+    def mostrar(self, fase, idx, total, restante_s, posicion=None):
+        titulo, color, imagen = ASPECTO[fase]
+        if posicion:
+            if not self._marco_pos.winfo_manager():
+                self._marco_pos.pack(before=self._cuenta, pady=6)
+            for pos, c in self._casillas:
+                activa = pos == posicion
+                c.configure(bg=COLOR_RAMPA if activa else color,
+                            fg="#000000" if activa else COLOR_TEXTO)
+        elif self._marco_pos.winfo_manager():
+            self._marco_pos.pack_forget()
         if fase != self._fase_actual:
-            titulo, color, imagen = ASPECTO[fase]
             for p in self._partes:
                 p.configure(bg=color)
             self._fase.config(text=titulo)
@@ -319,20 +355,31 @@ def capturar(args):
             # El tono bloquea unos 120 ms: sumando, la pantalla acababa
             # 1.7 s por detras de las etiquetas al final de las 14 fases,
             # un tercio de un bloque de 5 s.
-            fin = t0 + limites[i][1]
+            ini, fin = t0 + limites[i][0], t0 + limites[i][1]
+            con_pos = fase == FASE_MOVIMIENTO
+            pos = posicion_en(0.0) if con_pos else None
             if pantalla:
                 pantalla.mostrar(fase, i, len(PROTOCOLO),
-                                 (fin - time.monotonic()) / args.escala)
+                                 (fin - time.monotonic()) / args.escala, pos)
             sonar(TONO[fase])
             print(f"[{i + 1:2d}/{len(PROTOCOLO)}] {INSTRUCCION[fase]}")
+            if con_pos:
+                print(f"        > {TEXTO_POSICION[pos]}")
             while time.monotonic() < fin:
                 volcar()
                 restante = fin - time.monotonic()
+                if con_pos:
+                    nueva = posicion_en(
+                        (time.monotonic() - ini) / (fin - ini))
+                    if nueva != pos:
+                        pos = nueva
+                        sonar("posicion")
+                        print(f"        > {TEXTO_POSICION[pos]}")
                 if pantalla:
                     if pantalla.cerrada:
                         raise KeyboardInterrupt
                     pantalla.mostrar(fase, i, len(PROTOCOLO),
-                                     restante / args.escala)
+                                     restante / args.escala, pos)
                 else:
                     print(f"\r     {restante:5.1f} s   ", end="", flush=True)
                 time.sleep(min(0.05, max(0.0, restante)))

@@ -92,6 +92,18 @@ def test_una_muestra_suelta_en_1900_no_descalifica(tmp_path):
     assert m["n_saturadas"] == 3 and not m["satura"]
 
 
+# ---------- bloque de movimiento ----------
+def test_el_movimiento_recorre_las_tres_posiciones_de_la_tesis():
+    from config_captura import POSICIONES_BRAZO
+    # Un tercio del bloque por posicion, en el orden de la condicion
+    # dinamica, y sin salirse de la lista en los extremos.
+    assert [b.posicion_en(f) for f in (0.0, 0.2, 0.34, 0.5, 0.67, 0.99)] == [
+        POSICIONES_BRAZO[0], POSICIONES_BRAZO[0], POSICIONES_BRAZO[1],
+        POSICIONES_BRAZO[1], POSICIONES_BRAZO[2], POSICIONES_BRAZO[2]]
+    assert b.posicion_en(1.0) == POSICIONES_BRAZO[-1]
+    assert b.posicion_en(-0.1) == POSICIONES_BRAZO[0]
+
+
 # ---------- regla de decision ----------
 def _resumen(filas):
     import pandas as pd
