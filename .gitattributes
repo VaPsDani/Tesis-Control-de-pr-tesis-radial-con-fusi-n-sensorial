@@ -1,0 +1,3 @@
+# Los scripts de shell se ejecutan en WSL: con fin de linea CRLF fallan
+# ("$'\r': command not found"). Siempre LF, tambien en checkouts de Windows.
+*.sh text eol=lf
