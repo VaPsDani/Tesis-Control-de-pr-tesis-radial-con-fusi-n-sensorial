@@ -24,6 +24,18 @@
  *   se limitaba a imprimir un mensaje, porque ya no habia nada que
  *   frenar. El umbral FSR se detectaba y se descartaba.
  *
+ * ACCION POR CLASE (A25 del articulo):
+ *   Reposo     mantenerPosicion(): los dedos se quedan donde estan. Asi
+ *              la mano sostiene un objeto mientras el usuario relaja el
+ *              antebrazo, que es justo cuando el modelo predice Reposo.
+ *   Extension  abre la mano: los cinco a ANGULO_EXTENSION.
+ *   Pinza      pulgar e indice avanzan hacia el cierre.
+ *   Tripode    pulgar, indice y medio.
+ *   Puno       los cinco.
+ *   En los gestos de cierre cada dedo avanza por rampa y se detiene al
+ *   llegar al umbral de su FSR, o al angulo del gesto si no encuentra
+ *   nada.
+ *
  * LAZO CERRADO CON FSR:
  *   Cuando un servo se esta cerrando y su FSR supera el umbral,
  *   frenarServo() congela el objetivo en el angulo comandado en ese
@@ -54,14 +66,24 @@ public:
     // Fija el objetivo de cada servo. NO salta: la rampa se encarga.
     void ejecutarGesto(uint8_t gesto_id);
 
+    // Reposo (A25): congela el objetivo de los cinco servos en el angulo
+    // comandado ahora mismo. La mano no se abre ni se cierra.
+    void mantenerPosicion();
+
+    // Solo para medir latencia (A26): escribe YA en el PCA9685 el pulso
+    // comandado de los cinco servos, sin esperar a la rampa. No mueve
+    // nada que la rampa no fuera a mover: repite los pulsos vigentes.
+    void escribirOrdenAhora();
+
     // Avanza la rampa hacia los objetivos. Llamar periodicamente desde
     // el bucle principal; respeta RAMPA_PERIODO_MS internamente y solo
     // escribe en el PCA9685 los servos cuyo angulo cambio, de modo que
     // mantener una postura no cuesta trafico I2C.
     void actualizarRampa(unsigned long ahora_ms);
 
-    // Congela el objetivo en el angulo comandado ahora mismo.
-    void frenarServo(uint8_t servo_id);
+    // Congela el objetivo en el angulo comandado ahora mismo. Devuelve
+    // true si el servo se freno en esta llamada, false si ya lo estaba.
+    bool frenarServo(uint8_t servo_id);
 
     // True si el servo sigue avanzando hacia su objetivo.
     bool enMovimiento(uint8_t servo_id) const;

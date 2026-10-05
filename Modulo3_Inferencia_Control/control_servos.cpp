@@ -72,6 +72,21 @@ void ControlServos::ejecutarGesto(uint8_t gesto_id) {
     }
 }
 
+void ControlServos::mantenerPosicion() {
+    for (int i = 0; i < NUM_SERVOS; i++) {
+        _objetivo[i] = (uint8_t)lroundf(_comandado[i]);
+    }
+    Serial.println("[SERVO] Reposo: la mano mantiene su posicion");
+}
+
+void ControlServos::escribirOrdenAhora() {
+    for (int i = 0; i < NUM_SERVOS; i++) {
+        const uint8_t a = (uint8_t)lroundf(_comandado[i]);
+        _escribirPulso(i, _anguloAPulso(a));
+        _ultimo_escrito[i] = a;
+    }
+}
+
 void ControlServos::actualizarRampa(unsigned long ahora_ms) {
     if (!_inicializado) return;
 
@@ -104,17 +119,17 @@ void ControlServos::actualizarRampa(unsigned long ahora_ms) {
     }
 }
 
-void ControlServos::frenarServo(uint8_t servo_id) {
-    if (servo_id >= NUM_SERVOS) return;
+bool ControlServos::frenarServo(uint8_t servo_id) {
+    if (servo_id >= NUM_SERVOS) return false;
 
     // Congelar el objetivo donde esta el comando AHORA. A partir de
     // aqui la rampa no tiene a donde avanzar y el dedo deja de apretar.
     const uint8_t aqui = (uint8_t)lroundf(_comandado[servo_id]);
     if (_objetivo[servo_id] != aqui) {
         _objetivo[servo_id] = aqui;
-        Serial.printf("[FSR] Servo %d frenado en %d grados\n",
-                      servo_id, aqui);
+        return true;
     }
+    return false;
 }
 
 bool ControlServos::enMovimiento(uint8_t servo_id) const {

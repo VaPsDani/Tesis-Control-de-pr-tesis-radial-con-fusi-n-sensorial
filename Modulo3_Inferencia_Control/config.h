@@ -297,6 +297,8 @@
 // el movimiento pero anade ~375 us al presupuesto de muestreo, que ya
 // va justo.
 #define RAMPA_PERIODO_MS     20
+// Medicion de latencia (A26): numero de inferencias consecutivas.
+#define N_LATENCIA         1000
 
 // ======================== VENTANA DESLIZANTE ========================
 // Frecuencia de muestreo: 100 Hz (cada 10 ms)
@@ -447,6 +449,9 @@ static_assert(TAMANO_VENTANA == 20,
 // Muestras promediadas por lectura. El condensador de 100 nF en cada pin
 // ya filtra el ruido; el promedio quita el del propio ADC del ESP32.
 #define FSR_MUESTRAS       4
+// Calibracion de los FSR en newtons (A27): con una masa conocida sobre el
+// sensor, 'F' promedia esta cantidad de lecturas, una cada 10 ms (1 s).
+#define FSR_CAL_LECTURAS   100
 #define FSR_US_POR_MUESTRA 25   // estimado para el presupuesto; el autotest mide
 
 // El FSR va de 3.3 V al punto medio, y del punto medio una resistencia

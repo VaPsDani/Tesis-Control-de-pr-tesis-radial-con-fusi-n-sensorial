@@ -37,6 +37,7 @@
  */
 
 #include <Wire.h>
+#include <algorithm>
 #include "config.h"
 #include "adc_lmg.h"
 #include "optica_lmg.h"
@@ -92,6 +93,23 @@ uint32_t      nResultadoVisto = 0;
 // calibracion no se aplican: se clasificaron con otra senal.
 uint32_t      ventanaValidaDesde = 1;
 ResultadoInferencia ultimoResultado;
+
+// ======================== MEDICION DE LATENCIA (A26) ========================
+// 'L' mide N_LATENCIA inferencias consecutivas. En cada una, al leer el
+// resultado, se escribe YA la orden al PCA9685 (los pulsos de los cinco
+// servos) y se mide desde el CIERRE de la ventana, que es el instante en
+// que entra su ultima muestra, antes de armarla y normalizarla. Incluye
+// por tanto: armado y normalizacion (nucleo 0), espera y copia en el
+// nucleo 1, Reset + Invoke, la espera hasta que el nucleo 0 lee el
+// resultado al empezar su siguiente ciclo, y la escritura I2C de la orden.
+// NO incluye la rampa: en uso normal la orden sale en el siguiente paso de
+// la rampa, hasta RAMPA_PERIODO_MS despues, y eso se reporta aparte.
+static uint32_t latCierreOrdenUs[N_LATENCIA];
+static uint32_t latInferenciaUs[N_LATENCIA];
+uint16_t nLatencia        = 0;
+bool     midiendoLatencia = false;
+uint32_t latUltimoN       = 0;     // n del ultimo resultado medido
+uint32_t latNoVistos      = 0;     // resultados que el nucleo 0 no llego a leer
 
 // ======================== VARIABLES DE ESTADO ========================
 uint8_t gestoActual       = GESTO_REST;
@@ -356,7 +374,7 @@ void atenderComandos() {
                   ventanaValidaDesde = intercambio.ultimaVentana() + 1;
                   Serial.println("[CMD] Sistema DETENIDO - Servos en reposo");
                   break;
-        case '1': gestoActual = GESTO_REST; servos.ejecutarGesto(GESTO_REST); break;
+        case '1': gestoActual = GESTO_REST; servos.mantenerPosicion(); break;
         case '2': gestoActual = GESTO_PINCH; servos.ejecutarGesto(GESTO_PINCH); break;
         case '3': gestoActual = GESTO_TRIPOD; servos.ejecutarGesto(GESTO_TRIPOD); break;
         case '4': gestoActual = GESTO_POWER; servos.ejecutarGesto(GESTO_POWER); break;
@@ -390,6 +408,17 @@ void atenderComandos() {
             break;
         case 'T': autotestTemporal(); cicloInterrumpido = true; break;
         case 'I': calibrador.info(); optica.info(); reportarLatencias(); break;
+        case 'L':
+            if (!sistemaActivo) {
+                Serial.println("[LATENCIA A26] Active antes el control con 'G'.");
+                break;
+            }
+            nLatencia = 0; latNoVistos = 0; latUltimoN = 0;
+            midiendoLatencia = true;
+            Serial.printf("[LATENCIA A26] Midiendo %d inferencias consecutivas...\n",
+                          N_LATENCIA);
+            break;
+        case 'F': calibracionFSR(); cicloInterrumpido = true; break;
     }
 }
 
@@ -428,10 +457,13 @@ void atenderResultado(unsigned long ahoraUs) {
                       gestoActual);
 
         // Solo fija el objetivo: el movimiento lo hace la rampa, en este
-        // mismo nucleo y en cada ciclo.
-        servos.ejecutarGesto(gestoActual);
+        // mismo nucleo y en cada ciclo. Reposo no mueve nada (A25).
+        if (gestoActual == GESTO_REST) servos.mantenerPosicion();
+        else                           servos.ejecutarGesto(gestoActual);
         gestoAnterior = gestoActual;
     }
+
+    if (midiendoLatencia) registrarLatencia(r);
 
     // ========== LAZO CERRADO: solo traza ==========
     // Ni la lectura ni la frenada ocurren aqui: viven en el ciclo de 10 ms.
@@ -456,6 +488,76 @@ void atenderResultado(unsigned long ahoraUs) {
             }
         }
     }
+}
+
+// ======================== NUCLEO 0: LATENCIA (A26) ========================
+static uint32_t percentil(uint32_t *v, uint16_t n, float q) {
+    // v ya ordenado. Percentil por rango mas cercano.
+    uint16_t k = (uint16_t)ceilf(q * n);
+    if (k < 1) k = 1;
+    return v[k - 1];
+}
+
+void imprimirLatencia() {
+    static uint32_t a[N_LATENCIA], b[N_LATENCIA];
+    memcpy(a, latCierreOrdenUs, sizeof(a));
+    memcpy(b, latInferenciaUs, sizeof(b));
+    std::sort(a, a + N_LATENCIA);
+    std::sort(b, b + N_LATENCIA);
+    const uint32_t medA = (a[N_LATENCIA / 2 - 1] + a[N_LATENCIA / 2]) / 2;
+    const uint32_t medB = (b[N_LATENCIA / 2 - 1] + b[N_LATENCIA / 2]) / 2;
+    Serial.printf("[LATENCIA A26] %d inferencias consecutivas, %lu resultados "
+                  "no leidos por el nucleo 0\n", N_LATENCIA,
+                  (unsigned long)latNoVistos);
+    Serial.printf("[LATENCIA A26] Cierre de ventana -> orden al PCA9685: "
+                  "mediana %lu us, p95 %lu us, maximo %lu us\n",
+                  (unsigned long)medA, (unsigned long)percentil(a, N_LATENCIA, 0.95f),
+                  (unsigned long)a[N_LATENCIA - 1]);
+    Serial.printf("[LATENCIA A26] Inferencia (Reset + Invoke): mediana %lu us, "
+                  "p95 %lu us, maximo %lu us\n", (unsigned long)medB,
+                  (unsigned long)percentil(b, N_LATENCIA, 0.95f),
+                  (unsigned long)b[N_LATENCIA - 1]);
+    Serial.printf("[LATENCIA A26] Criterio < 150 ms: %s (maximo %.1f ms)\n",
+                  a[N_LATENCIA - 1] < 150000UL ? "CUMPLE" : "NO CUMPLE",
+                  a[N_LATENCIA - 1] / 1000.0f);
+    Serial.printf("[LATENCIA A26] Aparte, la rampa: en uso normal la orden sale "
+                  "en el siguiente paso, hasta %d ms despues, y cada dedo avanza "
+                  "a %d grados/s (%.1f grados por paso)\n", RAMPA_PERIODO_MS,
+                  RAMPA_GRADOS_POR_S, RAMPA_GRADOS_POR_S * RAMPA_PERIODO_MS / 1000.0f);
+}
+
+void registrarLatencia(const ResultadoInferencia &r) {
+    servos.escribirOrdenAhora();
+    const uint32_t ahora = micros();
+    if (nLatencia > 0 && r.n != latUltimoN + 1) {
+        latNoVistos += r.n - latUltimoN - 1;
+    }
+    latUltimoN = r.n;
+    latCierreOrdenUs[nLatencia] = ahora - r.tVentanaUs;
+    latInferenciaUs[nLatencia]  = r.tInferenciaUs;
+    if (++nLatencia >= N_LATENCIA) {
+        midiendoLatencia = false;
+        imprimirLatencia();
+    }
+}
+
+// ======================== NUCLEO 0: CALIBRACION DE FSR (A27) ========================
+// Con una masa conocida sobre UN sensor: promedia FSR_CAL_LECTURAS
+// lecturas de los cinco, una cada 10 ms, e imprime una linea. El operador
+// anota la masa y la lectura de ese sensor; produccion/calibrar_fsr.py
+// ajusta la curva lectura -> newtons de cada sensor. Bloquea ~1 s.
+void calibracionFSR() {
+    float suma[NUM_FSR] = {0};
+    for (uint16_t k = 0; k < FSR_CAL_LECTURAS; k++) {
+        for (uint8_t d = 0; d < NUM_FSR; d++) suma[d] += FeedbackFSR::leerMv(d);
+        delay(10);
+    }
+    Serial.printf("[FSR_CAL] P=%.1f I=%.1f M=%.1f A=%.1f Mn=%.1f "
+                  "(mV, media de %d lecturas en %d ms)\n",
+                  suma[0] / FSR_CAL_LECTURAS, suma[1] / FSR_CAL_LECTURAS,
+                  suma[2] / FSR_CAL_LECTURAS, suma[3] / FSR_CAL_LECTURAS,
+                  suma[4] / FSR_CAL_LECTURAS, FSR_CAL_LECTURAS,
+                  FSR_CAL_LECTURAS * 10);
 }
 
 // ======================== NUCLEO 0: CICLO DE 10 ms ========================
@@ -522,11 +624,18 @@ void cicloTiempoReal() {
     const uint8_t activos = FeedbackFSR::dedosActivos(gestoActual);
     if (activos) {
         const uint8_t frenar = feedback.verificarUmbrales(activos);
-        if (frenar & 0x01) servos.frenarServo(SERVO_PULGAR);
-        if (frenar & 0x02) servos.frenarServo(SERVO_INDICE);
-        if (frenar & 0x04) servos.frenarServo(SERVO_MEDIO);
-        if (frenar & 0x08) servos.frenarServo(SERVO_ANULAR);
-        if (frenar & 0x10) servos.frenarServo(SERVO_MENIQUE);
+        const uint8_t servoDe[NUM_FSR] = {SERVO_PULGAR, SERVO_INDICE,
+                                          SERVO_MEDIO, SERVO_ANULAR,
+                                          SERVO_MENIQUE};
+        for (uint8_t d = 0; d < NUM_FSR; d++) {
+            if ((frenar & (1 << d)) && servos.frenarServo(servoDe[d])) {
+                // La lectura con que se detuvo el dedo y su umbral, para el
+                // MAE en newtons (A27, produccion/calibrar_fsr.py).
+                Serial.printf("[FSR_STOP] dedo=%u lectura_mv=%.1f umbral_mv=%.1f "
+                              "angulo=%u\n", d, feedback.getUltimoValor(d),
+                              feedback.umbrales[d], servos.getAnguloActual(servoDe[d]));
+            }
+        }
     }
 
     // ========== MODO CALIBRACION ==========
@@ -542,6 +651,9 @@ void cicloTiempoReal() {
     // --- Insertar en buffer circular ---
     ventana.addSample(muestra);
     contadorMuestras++;
+    // Cierre de la ventana: acaba de entrar su ultima muestra. La
+    // latencia se mide desde aqui, asi que incluye armarla y normalizarla.
+    const unsigned long tCierreUs = micros();
 
     // ========== PUBLICAR VENTANA PARA EL NUCLEO 1 (cada STRIDE) ==========
     if (contadorMuestras >= STRIDE && ventana.isFull()) {
@@ -557,7 +669,7 @@ void cicloTiempoReal() {
         calibrador.normalizar(ventanaCompleta);
 
         // Copia atomica y aviso al nucleo 1
-        intercambio.publicarVentana(ventanaCompleta, micros());
+        intercambio.publicarVentana(ventanaCompleta, tCierreUs);
         xTaskNotifyGive(tareaInferencia);
     }
 }
@@ -649,7 +761,9 @@ void setup() {
                    "  'X' → Borrar la calibracion guardada\n"
                    "  'A' → Autocalibrar la corriente de los LED\n"
                    "  'T' → Autotest del ciclo de muestreo\n"
-                   "  'I' → Info de calibracion y desglose de latencias\n");
+                   "  'I' → Info de calibracion y desglose de latencias\n"
+                   "  'L' → Medir latencia sobre 1000 inferencias (A26)\n"
+                   "  'F' → Leer los FSR 1 s para calibrarlos con una masa (A27)\n");
 
     xSemaphoreGive(semModeloListo);   // el nucleo 0 empieza a muestrear
 }
