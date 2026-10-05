@@ -44,7 +44,8 @@ from config_captura import (BAUDIOS_DEFECTO, CONDICION_DINAMICA,
                             POSICIONES_BRAZO, TEXTO_COLOCAR_BRAZO,
                             TEXTO_COLOCAR_BRAZO_REPOSO,
                             TEXTO_MOVIMIENTO_LENTO, TEXTO_MOVIMIENTO_REPOSO,
-                            TEXTO_POSICION, TEXTO_POSTURA_REFERENCIA)
+                            TEXTO_POSICION, TEXTO_POSTURA_REFERENCIA,
+                            INDICACION_GESTO)
 from protocolo import (TIPO_CALIBRACION, TIPO_CONTRACCION, TIPO_PREPARACION,
                        TIPO_REPOSO, TIPO_REPOSO_DINAMICO, TIPOS_CON_RECORRIDO,
                        LABEL_REST, NOMBRES_GESTOS)
@@ -332,7 +333,10 @@ class VentanaParticipante(tk.Toplevel):
                 text="Ahora viene: reposo con el brazo en movimiento")
             self._gesto.config(text="SIN GESTO")
         elif bloque.tipo == TIPO_PREPARACION:
-            self._instruccion.config(text="Ahora viene este gesto")
+            indicacion = INDICACION_GESTO.get(bloque.nombre_gesto)
+            self._instruccion.config(
+                text=f"Ahora viene este gesto: {indicacion.lower()}"
+                if indicacion else "Ahora viene este gesto")
             self._gesto.config(text=bloque.nombre_gesto.upper())
         elif bloque.tipo == TIPO_REPOSO_DINAMICO:
             self._instruccion.config(
@@ -351,8 +355,10 @@ class VentanaParticipante(tk.Toplevel):
                     text=f"Relaje la mano. {TEXTO_POSTURA_REFERENCIA}")
             self._gesto.config(text="REPOSO")
         else:
+            indicacion = INDICACION_GESTO.get(bloque.nombre_gesto)
             self._instruccion.config(
-                text="Ejecute y mantenga, con fuerza moderada")
+                text="Ejecute y mantenga, con fuerza moderada"
+                     + (f". {indicacion}" if indicacion else ""))
             self._gesto.config(text=bloque.nombre_gesto.upper())
 
         # Condicion de la repeticion. Se anuncia en la preparacion, para

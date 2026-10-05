@@ -63,8 +63,8 @@ AQUI = os.path.dirname(os.path.abspath(__file__))
 if AQUI not in sys.path:
     sys.path.insert(0, AQUI)
 
-from fases import (FASES_VERSION, ParametrosFases, estadisticas_base,  # noqa: E402
-                   etiquetar_fases, firma)
+from fases import (FASE_DESCARTADA, FASES_VERSION, ParametrosFases,  # noqa: E402
+                   estadisticas_base, etiquetar_fases, firma)
 
 COLUMNAS_LMG = ["v1", "v2", "v3", "v4", "v5"]
 COLUMNAS_IMU = ["ax", "ay", "az", "gx", "gy", "gz"]
@@ -112,6 +112,10 @@ def anotar_df(df: pd.DataFrame, p: Optional[ParametrosFases] = None,
     fs = 1000.0 / periodo
     base_cal, imu_cal = _base_calibracion(df, x, imu)
     rep = df["repetition_id"].to_numpy() if "repetition_id" in df.columns else None
+    # Con el tipo de bloque, la preparacion y el reposo en movimiento se
+    # tratan aparte (fases.py, version 3).
+    tipo = (df["bloque_tipo"].astype(str).to_numpy()
+            if "bloque_tipo" in df.columns else None)
 
     fase = np.empty(len(df), dtype=object)
     informes = []
@@ -120,7 +124,8 @@ def anotar_df(df: pd.DataFrame, p: Optional[ParametrosFases] = None,
             x[a:z], lab[a:z], fs, p,
             imu=None if imu is None else imu[a:z],
             base_global=base_cal, imu_base_global=imu_cal,
-            modo_base=modo_base)
+            modo_base=modo_base,
+            tipo=None if tipo is None else tipo[a:z])
         fase[a:z] = f
         for d in inf:
             d["tramo"] = s
@@ -129,6 +134,16 @@ def anotar_df(df: pd.DataFrame, p: Optional[ParametrosFases] = None,
             if rep is not None:
                 d["repetition_id"] = int(rep[d["inicio"]])
         informes.extend(inf)
+
+    # Repeticiones descartadas por el operador. Las fases se calculan con
+    # ellas dentro, porque la continuidad de la senal importa para la base
+    # y la relajacion de lo que viene despues, pero sus filas quedan con
+    # fase "descartada", que nunca entra al entrenamiento, y sus gestos
+    # salen del resumen de inicios.
+    if "descartada" in df.columns:
+        desc = df["descartada"].fillna(0).to_numpy() == 1
+        fase[desc] = FASE_DESCARTADA
+        informes = [d for d in informes if not desc[d["inicio"]]]
     return fase, informes, fs
 
 

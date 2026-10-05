@@ -119,6 +119,13 @@ TEXTO_CONDICION = {
 # hacia arriba".
 TEXTO_POSTURA_REFERENCIA = "Antebrazo sobre la mesa, palma hacia abajo"
 
+# Indicacion explicita para los gestos que la foto sola no deja clara. La
+# extension del protocolo es de DEDOS Y MUNECA, como en la foto: extender
+# solo los dedos activa otros musculos del antebrazo y seria otro gesto.
+INDICACION_GESTO = {
+    "Finger_Ext": "Extienda dedos y muñeca",
+}
+
 # Posiciones del brazo de la condicion dinamica. En una repeticion
 # dinamica el participante recorre LAS TRES durante los 10 s de
 # contraccion, o sea 3.3 s por posicion, manteniendo el gesto todo el

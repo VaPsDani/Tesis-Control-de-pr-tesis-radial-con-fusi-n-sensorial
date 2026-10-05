@@ -14,6 +14,8 @@ POR QUE NO BASTA UN MARGEN FIJO:
   Aqui el inicio del movimiento se detecta en la propia senal.
 
 FASES:
+  Preparacion (solo con bloque_tipo, desde la version 3):
+    preparacion  los 3 s en que se anuncia el gesto. No entra nunca.
   Bloques de gesto:
     reaccion   desde la senal visual hasta el onset detectado. La mano
                sigue en reposo aunque la etiqueta ya diga "gesto".
@@ -91,7 +93,11 @@ import numpy as np
 
 # Cambiar este numero cuando cambie la logica: invalida las caches que
 # guardan fases calculadas con una version anterior del detector.
-FASES_VERSION = 2
+FASES_VERSION = 3
+# Version 3: con la columna bloque_tipo, la preparacion es un bloque propio
+# que no entra al entrenamiento, el gesto empieza en la indicacion de
+# contraccion, el reposo en movimiento es Reposo entero, y las filas de
+# las repeticiones descartadas quedan con fase "descartada".
 
 FASE_REACCION   = "reaccion"
 FASE_DINAMICA   = "dinamica"
@@ -99,6 +105,12 @@ FASE_MESETA     = "meseta"
 FASE_RELAJACION = "relajacion"
 FASE_REPOSO     = "reposo"
 FASE_RECORTE    = "recorte"
+# Preparacion de la captura: el participante ve el gesto que viene pero
+# todavia no lo hace. Nunca entra al entrenamiento.
+FASE_PREPARACION = "preparacion"
+# Filas de una repeticion que el operador descarto. Las pone
+# anotar_fases.py, no este modulo, porque es un dato del CSV.
+FASE_DESCARTADA = "descartada"
 
 FASES_GESTO = (FASE_REACCION, FASE_DINAMICA, FASE_MESETA)
 
@@ -259,18 +271,51 @@ def detectar_fin_relajacion(x_reposo: np.ndarray, base: tuple, fs: float,
     return len(D) if i is None else int(i)
 
 
+def _clase_de_bloque(tipo) -> str:
+    """
+    Agrupa el bloque_tipo de la captura en las cuatro clases de bloque que
+    distingue el detector. La calibracion se trata como un periodo de
+    reposo mas, que es lo que es.
+    """
+    return {"calibracion": "reposo", "reposo": "reposo",
+            "preparacion": "preparacion", "contraccion": "gesto",
+            "reposo_dinamico": "reposo_dinamico"}.get(str(tipo), "")
+
+
 def etiquetar_fases(x: np.ndarray, etiquetas: np.ndarray, fs: float,
                     p: ParametrosFases = None,
                     etiqueta_reposo: int = 0,
                     imu: Optional[np.ndarray] = None,
                     base_global: Optional[tuple] = None,
                     imu_base_global: Optional[np.ndarray] = None,
-                    modo_base: str = "local"):
+                    modo_base: str = "local",
+                    tipo: Optional[np.ndarray] = None):
     """
     Asigna una fase a cada muestra de una grabacion continua.
 
     base_global / imu_base_global: base de respaldo (y la unica en
     modo_base="calibracion"), p. ej. el bloque de calibracion.
+
+    tipo: el bloque_tipo de cada muestra, si la grabacion es de la app de
+    captura. Con el, los bloques se cortan tambien donde cambia el tipo,
+    y eso permite tres cosas que la etiqueta sola no permite:
+
+      - La PREPARACION es un bloque propio, con fase "preparacion", que
+        nunca entra al entrenamiento. Lleva la etiqueta del gesto que
+        anuncia, asi que sin el tipo quedaba unida a la contraccion en un
+        solo bloque de 13 s: el inicio se buscaba desde el comienzo de la
+        preparacion y, si el brazo se movia para colocarse, esas muestras
+        con la mano relajada salian etiquetadas como gesto.
+      - El gesto empieza en la indicacion de CONTRACCION, que es la
+        referencia del tiempo de reaccion. La busqueda del inicio sigue
+        empezando busqueda_previa_ms antes, dentro de la preparacion, para
+        detectar la anticipacion.
+      - El REPOSO EN MOVIMIENTO no pasa por el detector de inicio: sus
+        10 s son Reposo completos. Lleva label Rest, asi que sin el tipo
+        se fundia con los reposos de alrededor.
+
+    Sin tipo, que es el caso de los datasets publicos, los bloques se
+    cortan solo por la etiqueta, como en la version 2.
 
     Returns:
         fase: array de str, una por muestra
@@ -283,12 +328,24 @@ def etiquetar_fases(x: np.ndarray, etiquetas: np.ndarray, fs: float,
     fase = np.empty(n, dtype=object)
     informe = []
 
-    cambios = np.flatnonzero(np.diff(etiquetas) != 0) + 1
+    if tipo is not None:
+        clase_muestra = np.array([_clase_de_bloque(t) for t in tipo], dtype=object)
+        cambio = (np.diff(etiquetas) != 0) | (clase_muestra[1:] != clase_muestra[:-1])
+        cambios = np.flatnonzero(cambio) + 1
+    else:
+        cambios = np.flatnonzero(np.diff(etiquetas) != 0) + 1
     limites = np.concatenate([[0], cambios, [n]])
     bloques = [(int(limites[i]), int(limites[i + 1]))
                for i in range(len(limites) - 1)]
-    es_reposo = [etiquetas[a] == etiqueta_reposo for a, _ in bloques]
 
+    def clase(b):
+        a = bloques[b][0]
+        if tipo is not None and clase_muestra[a]:
+            return clase_muestra[a]
+        return "reposo" if etiquetas[a] == etiqueta_reposo else "gesto"
+
+    clases = [clase(b) for b in range(len(bloques))]
+    es_reposo = [c == "reposo" for c in clases]
     ms = lambda v: int(round(v * fs / 1000.0))          # noqa: E731
     rec_ini, rec_fin = ms(p.recorte_reposo_ini_ms), ms(p.recorte_reposo_fin_ms)
     n_base, n_base_min = ms(p.base_ms), ms(p.base_min_ms)
@@ -305,11 +362,20 @@ def etiquetar_fases(x: np.ndarray, etiquetas: np.ndarray, fs: float,
             derivas[b] = deriva_base(x[ini_b:fin_b], bases[b])
             rangos[b] = (ini_b, fin_b)
 
-    # ---- 2. Periodos de reposo ----
+    # ---- 2. Preparacion y reposo en movimiento: sin deteccion ----
+    for b, (a, z) in enumerate(bloques):
+        if clases[b] == "preparacion":
+            fase[a:z] = FASE_PREPARACION
+        elif clases[b] == "reposo_dinamico":
+            fase[a:z] = FASE_REPOSO
+
+    # ---- 3. Periodos de reposo ----
     for b, (a, z) in enumerate(bloques):
         if not es_reposo[b]:
             continue
-        viene_de_gesto = b > 0 and not es_reposo[b - 1]
+        # Hay relajacion si antes hubo un gesto o un reposo en movimiento:
+        # en los dos casos la senal vuelve de un estado distinto.
+        viene_de_gesto = b > 0 and clases[b - 1] in ("gesto", "reposo_dinamico")
         if not viene_de_gesto:
             i_rel = 0
         elif b in bases:
@@ -323,12 +389,17 @@ def etiquetar_fases(x: np.ndarray, etiquetas: np.ndarray, fs: float,
             fase[ini:min(z, ini + rec_ini)] = FASE_RECORTE
             fase[max(ini, z - rec_fin):z] = FASE_RECORTE
 
-    # ---- 3. Bloques de gesto: onset contra la base del reposo previo ----
+    # ---- 4. Bloques de gesto: inicio contra la base del reposo previo ----
     for b, (a, z) in enumerate(bloques):
-        if es_reposo[b]:
+        if clases[b] != "gesto":
             continue
         lab = int(etiquetas[a])
-        previo = b - 1 if b > 0 and es_reposo[b - 1] else None
+        # El reposo previo es el ultimo periodo de reposo antes del gesto,
+        # saltando su preparacion.
+        previo = b - 1
+        while previo >= 0 and clases[previo] == "preparacion":
+            previo -= 1
+        previo = previo if previo >= 0 and es_reposo[previo] else None
         if modo_base == "calibracion" and base_global is not None:
             base, deriva, imu_base = base_global, None, imu_base_global
             origen = "calibracion"
@@ -336,8 +407,7 @@ def etiquetar_fases(x: np.ndarray, etiquetas: np.ndarray, fs: float,
             base = bases.get(previo)
             deriva = derivas.get(previo)
             # La IMU se compara contra la MISMA ventana de reposo que la
-            # optica. Antes se pasaba None y la confirmacion no se
-            # calculaba nunca.
+            # optica.
             imu_base = (imu[slice(*rangos[previo])]
                         if imu is not None and previo in rangos else None)
             origen = "local"
@@ -353,32 +423,28 @@ def etiquetar_fases(x: np.ndarray, etiquetas: np.ndarray, fs: float,
                                 confirmado_imu=None, deriva_base=None,
                                 base=None))
             continue
-
         pre = min(ms(p.busqueda_previa_ms), a)
         imu_b = imu[a - pre:z] if imu is not None else None
         r = detectar_onset(x[a - pre:z], base, fs, p, imu_b, imu_base,
                            offset_muestras=pre)
-
         if r.idx_onset is None:
             fase[a:z] = FASE_REACCION
         else:
             on, me = r.idx_onset - pre, r.idx_meseta - pre
-            # Las muestras PREVIAS a la etiqueta no se reetiquetan: el
-            # dataset las marco como reposo y el recorte final del reposo
-            # ya las excluye de Rest. Darles la clase del gesto seria
-            # fabricar etiquetas. Con onset anticipado, el bloque no
-            # tiene reaccion y la dinamica arranca en la propia etiqueta.
+            # Las muestras PREVIAS a la indicacion no se reetiquetan:
+            # conservan su fase (preparacion o reposo). Darles la clase del
+            # gesto seria fabricar etiquetas. Con inicio anticipado, el
+            # bloque no tiene reaccion y la dinamica arranca en la propia
+            # indicacion.
             on_c, me_c = max(on, 0), max(me, 0)
             fase[a:a + on_c] = FASE_REACCION
             fase[a + on_c:a + me_c] = FASE_DINAMICA
             fase[a + me_c:z] = FASE_MESETA
-
         motivo, sosp = r.motivo, r.sospechoso
         if deriva is not None and deriva > p.k:
             sosp = True
             motivo = "; ".join(filter(None, [
                 motivo, f"base inestable (deriva {deriva:.1f} sigma_D)"]))
-
         informe.append(dict(
             bloque=b, label=lab, inicio=a, fin=z,
             onset_ms=r.onset_ms, anticipado=r.anticipado,
@@ -388,7 +454,6 @@ def etiquetar_fases(x: np.ndarray, etiquetas: np.ndarray, fs: float,
             confirmado_imu=r.confirmado_imu, deriva_base=deriva,
             base=origen,
         ))
-
     return fase, informe
 
 

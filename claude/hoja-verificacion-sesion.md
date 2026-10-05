@@ -72,6 +72,8 @@ Pedir **3 contracciones fuertes** y mirar la ventana.
 - [ ] "Tres veces la pantalla dirá **SIN GESTO** con fondo verde. Ahí recorra
       las posiciones igual, pero **con la mano relajada**, sin hacer nada con
       ella."
+- [ ] Practicar los 4 gestos antes de iniciar. **Extensión = dedos y muñeca
+      extendidos a la vez**, como en la foto, no solo los dedos
 - [ ] "Si se equivoca de gesto, dígalo y siga. Yo lo marco."
 
 ## Durante la grabación (9.7 min)

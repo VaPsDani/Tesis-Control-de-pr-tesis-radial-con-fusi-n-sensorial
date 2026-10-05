@@ -15,7 +15,7 @@ DISENO FACTORIAL 2x2:
 
 LO UNICO QUE CAMBIA ENTRE CELDAS son las columnas de entrada (A) y las
 repeticiones sobre las que se mide (B). Arquitectura, hiperparametros,
-ventana, stride, submuestreo de Rest, particion y semilla son identicos,
+ventana, stride, pesos por clase, particion y semilla son identicos,
 y verificar_identidad_de_configuracion() lo comprueba en vez de confiar
 en que asi sea.
 
@@ -73,9 +73,18 @@ VALIDACION:
   common/validacion.py y su autotest. Cada pliegue entrena con validacion
   interna y reentreno, nunca mirando el test.
 
-NORMALIZACION:
-  Por sujeto, con la media y la desviacion de SU bloque de calibracion,
-  que es lo unico que el firmware puede medir antes de empezar.
+PREPROCESAMIENTO (A18):
+  Exactamente el de produccion, porque es la misma funcion:
+  produccion/preprocesamiento.py, preparar_sesiones(). Fases del
+  detector (la preparacion y la reaccion quedan fuera), repeticiones
+  descartadas fuera, y normalizacion con la calibracion de cada sesion:
+  LMG en z, acelerometro en g menos la media de la calibracion.
+
+DESBALANCE (A13):
+  Pesos por clase, total / (5 x ventanas de la clase), calculados en
+  cada pliegue solo con las ventanas con que se entrena. Los datos de
+  prueba no se tocan. Antes se recortaba Rest al azar antes de repartir
+  los pliegues, y eso quitaba ventanas tambien a los sujetos de prueba.
 
 USO:
   python ablacion_imu.py --sesiones "../../sesiones/*.csv"
@@ -135,8 +144,9 @@ def configuracion_de_celda(args, composicion: str, condicion: str) -> dict:
         "lr": args.lr,
         "early_stopping_start": args.early_stopping_start,
         "semilla": args.seed,
-        "normalizacion": "sujeto_calibracion",
-        "submuestreo_rest": args.ratio_rest,
+        "normalizacion": "calibracion: lmg z, acelerometro g - media",
+        "fases": "dinamica_meseta",
+        "desbalance": "pesos por clase del train de cada pliegue",
         "entrenamiento": args.entrenamiento,
         "num_clases": D.NUM_CLASES,
     }
@@ -189,15 +199,10 @@ def entrenar_composicion(v: D.Ventanas, composicion: str, args) -> dict:
     """
     from entrenamiento import entrenar_con_validacion_interna   # carga TF
 
-    cols = D.indices_de_canales(composicion)
-    stats = D.estadisticas_de_calibracion(v)
-
-    # El entrenamiento y la evaluacion excluyen la calibracion: es reposo
-    # basal, ya se uso para normalizar, y dejarla dentro inflaria Rest.
-    uso = v.es_calibracion == 0
-    vu = v.subconjunto(uso)
+    # Las ventanas llegan ya normalizadas y sin calibracion: lo hace
+    # preparar_sesiones(), igual que para produccion.
+    vu = v
     X = D.seleccionar_canales(vu, composicion)
-    X = D.normalizar_por_calibracion(X, vu.sujeto, stats, cols)
     Y = np.eye(D.NUM_CLASES, dtype=np.float32)[vu.y]
 
     print(autotest_verificador(vu.sujeto, seed=args.seed))
@@ -221,7 +226,7 @@ def entrenar_composicion(v: D.Ventanas, composicion: str, args) -> dict:
                     args.epochs, args.batch_size, args.lr,
                     early_stopping_start=args.early_stopping_start,
                     seed=args.seed, num_clases=D.NUM_CLASES,
-                    nombres_clases=D.NOMBRES_GESTOS)
+                    nombres_clases=D.NOMBRES_GESTOS, pesos_por_clase=True)
                 prob[m_te] = p
                 pliegue_de[m_te] = k
         elif args.entrenamiento == "estatica_a_dinamica":
@@ -250,7 +255,7 @@ def entrenar_composicion(v: D.Ventanas, composicion: str, args) -> dict:
                 args.epochs, args.batch_size, args.lr,
                 early_stopping_start=args.early_stopping_start,
                 seed=args.seed, num_clases=D.NUM_CLASES,
-                nombres_clases=D.NOMBRES_GESTOS)
+                nombres_clases=D.NOMBRES_GESTOS, pesos_por_clase=True)
             prob[te] = p
             pliegue_de[te] = k
         else:
@@ -259,7 +264,7 @@ def entrenar_composicion(v: D.Ventanas, composicion: str, args) -> dict:
                 args.epochs, args.batch_size, args.lr,
                 early_stopping_start=args.early_stopping_start,
                 seed=args.seed, num_clases=D.NUM_CLASES,
-                nombres_clases=D.NOMBRES_GESTOS)
+                nombres_clases=D.NOMBRES_GESTOS, pesos_por_clase=True)
             prob[te] = p
             pliegue_de[te] = k
 
@@ -393,11 +398,8 @@ def desplazamiento_de_distribucion(v: D.Ventanas, args,
     Se mide sobre los valores YA NORMALIZADOS, que son los que entran al
     modelo, y por canal del acelerometro.
     """
-    stats = D.estadisticas_de_calibracion(v)
-    vu = v.subconjunto(v.es_calibracion == 0)
-    cols = D.indices_de_canales("lmg_imu")
-    X = D.normalizar_por_calibracion(
-        D.seleccionar_canales(vu, "lmg_imu"), vu.sujeto, stats, cols)
+    vu = v
+    X = D.seleccionar_canales(vu, "lmg_imu")
     idx_imu = [D.COMPOSICIONES["lmg_imu"].index(c) for c in D.CANALES_IMU]
 
     entrena = X[vu.condicion == D.CONDICION_ESTATICA]
@@ -463,7 +465,6 @@ def main():
     p.add_argument("--batch_size", type=int, default=32)
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--early_stopping_start", type=int, default=10)
-    p.add_argument("--ratio_rest", type=float, default=1.0)
     p.add_argument("--entrenamiento",
                    choices=["mixto", "por_condicion", "estatica_a_dinamica"],
                    default="mixto",
@@ -490,12 +491,13 @@ def main():
     print(verificar_identidad_de_configuracion(configs))
 
     # ---------- datos, comunes a las 4 celdas ----------
-    df = D.cargar_sesiones(patron)
-    v = D.ventanear(df, args.ventana_ms, args.stride_ms)
-    v = D.submuestrear_rest(v, semilla=args.seed, ratio=args.ratio_rest)
+    v = D.cargar(patron, ventana=args.ventana_ms // D.PERIODO_MS,
+                 paso=max(1, args.stride_ms // D.PERIODO_MS))
 
-    reparto = {c: int(((v.condicion == c) & (v.es_calibracion == 0)).sum())
-               for c in CONDICIONES}
+    reparto = {c: int((v.condicion == c).sum()) for c in CONDICIONES}
+    por_clase = {D.NOMBRES_GESTOS[k]: int((v.y == k).sum())
+                 for k in range(D.NUM_CLASES)}
+    print(f"[DATOS] Ventanas por clase: {por_clase}")
     print(f"[DATOS] Ventanas por condicion: {reparto}")
 
     # ---------- las cuatro celdas ----------

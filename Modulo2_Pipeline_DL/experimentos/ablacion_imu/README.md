@@ -22,7 +22,7 @@ el mismo protocolo en todas las celdas.
   recorre tres posiciones durante la contracción sin soltar el gesto.
 
 Las cuatro celdas salen del **mismo conjunto de datos**, con las mismas
-ventanas, el mismo submuestreo de Rest, la misma partición y la misma semilla.
+ventanas, los mismos pesos por clase, la misma partición y la misma semilla.
 `verificar_identidad_de_configuracion()` compara la configuración de las cuatro
 y falla si algo que debería ser idéntico difiere. Se comprueba en vez de
 confiar, porque este es el tipo de fallo que no da ningún síntoma.
@@ -80,7 +80,11 @@ siempre la distancia dentro de una misma corrida.
 |---|---|
 | Validación | GroupKFold por sujeto, k = 5, con verificación de fuga y autotest |
 | Selección de época | Validación interna sobre un sujeto separado del train, nunca del test, y reentreno con todo el train |
-| Normalización | Por sujeto, con la media y la desviación de **su bloque de calibración** |
+| Preprocesamiento | El **mismo de producción**, porque es la misma función: `produccion/preprocesamiento.py`, `preparar_sesiones()` |
+| Fases | Variante `dinamica_meseta`: la preparación y la reacción quedan fuera, el reposo entra solo estable, y el reposo en movimiento entra entero como Rest |
+| Normalización | Con **el bloque de calibración de cada sesión**: LMG en z, acelerómetro en g menos la media, sin dividir. Igual que el firmware |
+| Desbalance | Pesos por clase, total / (5 × ventanas de la clase), calculados en cada pliegue solo con las ventanas de entrenamiento |
+| Repeticiones descartadas | Fuera |
 | Ventana y stride | 200 ms y 20 ms |
 | Semilla | 42 |
 
@@ -90,6 +94,12 @@ antes de empezar. Normalizar con todo el train supondría conocer de antemano
 los gestos de ese sujeto, que en uso real no se tienen. Además, el bloque de
 calibración no entra ni al entrenamiento ni a la evaluación, así que usarlo
 para normalizar no filtra nada del test.
+
+**Por qué ya no se recorta Rest:** antes se quitaban ventanas de Rest al azar
+hasta igualar la media de las clases activas, y se hacía antes de repartir los
+pliegues, así que también se quitaban ventanas a los sujetos de prueba. Los
+pesos por clase corrigen el desbalance en la pérdida sin tocar los datos de
+prueba.
 
 ## Qué se reporta
 
@@ -148,7 +158,7 @@ lleva el modo en una columna pero los archivos se sobrescriben.
 
 | Archivo | Qué hace |
 |---|---|
-| `datos.py` | Carga los CSV, ventanea con metadatos, submuestrea Rest y normaliza por calibración |
+| `datos.py` | Composiciones del factor A, selección de canales y generador de sesiones sintéticas. La carga viene de `produccion/preprocesamiento.py` |
 | `ablacion_imu.py` | Corre las cuatro celdas y guarda métricas, matrices y predicciones |
 | `estadistica.py` | Efectos principales, interacción y contrastes pareados |
 

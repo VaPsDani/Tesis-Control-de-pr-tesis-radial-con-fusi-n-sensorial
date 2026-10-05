@@ -226,6 +226,12 @@ Antes de pulsar Iniciar, explique:
 - En **DESCANSE** relaje la mano del todo. Después de una repetición con
   movimiento, **primero suelte el gesto y después vuelva el antebrazo a la
   mesa**. Al revés, la vuelta a la mesa quedaría grabada todavía con el gesto.
+- La **extensión es de dedos y muñeca a la vez**, como en la foto: la mano
+  se abre y se dobla hacia atrás. La pantalla lo recuerda con "Extienda dedos
+  y muñeca". Extender solo los dedos es otro gesto, porque activa otros
+  músculos del antebrazo.
+- Antes de pulsar Iniciar, **practique los cuatro gestos con el
+  participante**, y en especial la extensión, hasta que la haga siempre igual.
 - Si se equivoca de gesto, que lo diga y siga. No hay que disimular.
 
 Explique además las dos clases de repetición, porque van mezcladas en la misma

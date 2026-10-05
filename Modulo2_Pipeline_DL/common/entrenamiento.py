@@ -42,6 +42,21 @@ def nombres_por_defecto(num_clases: int):
     return [f"clase_{i}" for i in range(num_clases)]
 
 
+def pesos_de_clase(y_onehot: np.ndarray, num_clases: int) -> np.ndarray:
+    """
+    Peso de cada clase, total de ventanas / (clases x ventanas de la
+    clase), que es la formula del articulo (A13).
+
+    Se calcula con las ventanas con que se ENTRENA, nunca con las de
+    validacion ni las de prueba. Una clase ausente recibe peso 0, porque
+    no hay nada que pesar.
+    """
+    n_c = np.asarray(y_onehot).sum(axis=0).astype(np.float64)
+    total = n_c.sum()
+    pesos = np.where(n_c > 0, total / (num_clases * np.maximum(n_c, 1.0)), 0.0)
+    return pesos.astype(np.float32)
+
+
 def augmentar_muestra(X, y):
     """
     Data augmentation ligero sobre cada ventana de entrenamiento.
@@ -91,9 +106,15 @@ def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
                      seed=None, determinismo=False,
                      X_test=None, y_test=None, lr_por_epoca=None,
                      num_clases=None, nombres_clases=None,
-                     guardar_modelo_en=None):
+                     guardar_modelo_en=None, pesos_por_clase=False):
     """
     Construye, entrena y evalua el modelo en un pliegue.
+
+    pesos_por_clase: si es True, cada ventana de entrenamiento pesa en la
+    perdida segun su clase (pesos_de_clase), calculado con X_train e
+    y_train, que son exactamente las que se usan para ajustar. Apagado
+    por defecto para que los experimentos ya publicados den lo mismo si
+    se vuelven a correr.
     Retorna (history, y_pred, metricas_dict).
 
     guardar_modelo_en: ruta .keras opcional donde guardar el modelo evaluado
@@ -186,8 +207,20 @@ def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
             RegistroLR(),
         ]
 
-    train_ds = tf.data.Dataset.from_tensor_slices((X_train, y_train))
-    train_ds = train_ds.map(augmentar_muestra, num_parallel_calls=tf.data.AUTOTUNE)
+    pesos = pesos_de_clase(y_train, num_clases) if pesos_por_clase else None
+    if pesos is not None:
+        # El peso viaja con cada ventana como sample_weight. Funciona igual
+        # en Keras 2 y en Keras 3, a diferencia de class_weight con tf.data.
+        w = pesos[np.asarray(y_train).argmax(axis=1)]
+        print(f"  Pesos por clase (train): {np.round(pesos, 3).tolist()}")
+        train_ds = tf.data.Dataset.from_tensor_slices((X_train, y_train, w))
+        train_ds = train_ds.map(
+            lambda x, y, peso: (*augmentar_muestra(x, y), peso),
+            num_parallel_calls=tf.data.AUTOTUNE)
+    else:
+        train_ds = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+        train_ds = train_ds.map(augmentar_muestra,
+                                num_parallel_calls=tf.data.AUTOTUNE)
     train_ds = train_ds.shuffle(1024).batch(batch_size).prefetch(tf.data.AUTOTUNE)
     if reentreno:
         val_ds = None
@@ -266,6 +299,7 @@ def entrenar_pliegue(X_train, y_train, X_val, y_val, fold_idx,
         "n_train": int(X_train.shape[0]),
         "lr_por_epoca": registro_lr,
         "reentreno": bool(reentreno),
+        "pesos_por_clase": None if pesos is None else pesos.tolist(),
     }
 
     if guardar_modelo_en:
@@ -285,7 +319,8 @@ def entrenar_con_validacion_interna(X_train, y_train, grupos_train,
                                     determinismo=False, modo="interna",
                                     val_grupos=1, reentrenar=True, n_max=None,
                                     num_clases=None, nombres_clases=None,
-                                    guardar_modelo_en=None):
+                                    guardar_modelo_en=None,
+                                    pesos_por_clase=False):
     """
     El mismo mecanismo para entrenamiento_cv.py y para los scripts de
     experimentos/: nadie debe volver a pasar el test como validation_data.
@@ -351,6 +386,7 @@ def entrenar_con_validacion_interna(X_train, y_train, grupos_train,
         X_test=X_eval, y_test=y_eval,
         num_clases=num_clases, nombres_clases=nombres_clases,
         guardar_modelo_en=None if reentrenar else guardar_modelo_en,
+        pesos_por_clase=pesos_por_clase,
     )
     metricas["validacion"] = modo
     metricas["grupos_validacion"] = list(grupos_val)
@@ -368,6 +404,7 @@ def entrenar_con_validacion_interna(X_train, y_train, grupos_train,
             X_test=X_test, y_test=y_test, lr_por_epoca=calendario,
             num_clases=num_clases, nombres_clases=nombres_clases,
             guardar_modelo_en=guardar_modelo_en,
+            pesos_por_clase=pesos_por_clase,
         )
         metricas_final["validacion"] = "interna+reentreno"
         metricas_final["grupos_validacion"] = list(grupos_val)

@@ -36,6 +36,13 @@
  *   Al cerrar se precalcula inv_sd = 1/(sd + EPS) para que normalizar
  *   una ventana sea una multiplicacion y no una division.
  *
+ * QUE SE NORMALIZA Y COMO (desde M3-2026.10.04):
+ *   LMG: z por canal, con la media y la desviacion de la calibracion.
+ *   Acelerometro: solo se resta la media de la calibracion, en g, sin
+ *   dividir (inv_sd = 1). Es exactamente lo que hace el entrenamiento
+ *   (preprocesamiento.py, normalizar). Si uno de los dos lados cambia y
+ *   el otro no, el modelo recibe una escala que nunca vio.
+ *
  * SEGMENTACION, IGUAL QUE EN EL PIPELINE:
  *   preprocesamiento.py no deja que una ventana cruce el limite de un
  *   bloque, porque mezclaria dos regimenes de senal. Aqui se aplica el

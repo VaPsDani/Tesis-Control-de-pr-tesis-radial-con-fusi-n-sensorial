@@ -69,10 +69,11 @@ ESTRUCTURA DE SALIDA:
 
 import json
 import os
+from dataclasses import dataclass, field
+from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
-from typing import Tuple
 
 # ============================================================
 # ESQUEMA DEL CSV
@@ -97,6 +98,238 @@ COLUMNAS_METADATOS = [
 CONDICIONES_POSTURALES = ("estatica", "dinamica")
 
 NUM_CANALES_MODELO = len(COLUMNAS_MODELO)   # 8
+
+
+# ============================================================
+# NUCLEO COMPARTIDO: CARGA, NORMALIZACION Y VENTANEO
+# ============================================================
+# La ablacion de la IMU, el entrenamiento de produccion y la conversion
+# INT8 pasan por estas funciones y por ninguna otra. Si dos caminos
+# preprocesaran distinto, el modelo que se evalua en el articulo no seria
+# el que se despliega en el ESP32.
+
+CANALES_LMG = COLUMNAS_MODELO[:5]       # v1..v5
+CANALES_ACC = COLUMNAS_MODELO[5:]       # ax, ay, az
+PERIODO_MS = 10
+VENTANA_MUESTRAS = 20                   # 200 ms a 100 Hz
+PASO_MUESTRAS = 2                       # 20 ms
+# El mismo epsilon que CALIB_EPSILON en el firmware del Modulo 3.
+EPS_CALIBRACION = 1e-8
+# El firmware rechaza una calibracion con menos de 30 ventanas de 20.
+MIN_MUESTRAS_CALIBRACION = 30 * VENTANA_MUESTRAS
+# Un segmento cambia cuando cambia cualquiera de estas columnas.
+CLAVES_SEGMENTO = ("subject_id", "repetition_id", "label", "bloque_tipo",
+                   "condicion_postural")
+
+
+def cargar_sesion(ruta: str) -> pd.DataFrame:
+    """
+    Lee el CSV de una sesion con la columna fase VIGENTE.
+
+    La fase se recalcula si falta, si no hay JSON lateral que diga con
+    que version del detector se calculo, o si la version es otra. Se
+    calcula sobre la sesion ENTERA, antes de filtrar nada, porque la base
+    de cada gesto y la relajacion necesitan la senal continua.
+    """
+    from fases import FASES_VERSION
+    df = pd.read_csv(ruta)
+    vigente = False
+    ruta_json = os.path.splitext(ruta)[0] + "_fases.json"
+    if "fase" in df.columns and os.path.exists(ruta_json):
+        with open(ruta_json, encoding="utf-8") as f:
+            vigente = json.load(f).get("fases_version") == FASES_VERSION
+    if not vigente:
+        from anotar_fases import anotar_df
+        base = df.drop(columns="fase") if "fase" in df.columns else df
+        fase, _, _ = anotar_df(base)
+        df = base.assign(fase=fase)
+        print(f"[PREPROC] {os.path.basename(ruta)}: columna fase ausente u "
+              f"obsoleta, calculada al vuelo (version {FASES_VERSION}).")
+    return df
+
+
+def estadisticas_calibracion(df: pd.DataFrame):
+    """
+    Media y desviacion por canal del bloque de calibracion de 15 s.
+
+    REPLICA EXACTAMENTE AL FIRMWARE (Modulo3, calibracion.cpp):
+      - las muestras fuera de los margenes del bloque, 1000 ms al entrar y
+        500 ms al salir, que es lo que marca en_margen,
+      - solo bloques completos de 20 muestras, porque el firmware pliega
+        las muestras a los acumuladores ventana a ventana y descarta la
+        incompleta del final,
+      - desviacion poblacional, var = E[x^2] - E[x]^2.
+
+    El bloque de calibracion solo aporta estas estadisticas: nunca entra
+    al entrenamiento ni a la evaluacion (A10).
+    """
+    m = df["es_calibracion"].to_numpy() == 1
+    if "en_margen" in df.columns:
+        m &= df["en_margen"].to_numpy() == 0
+    x = df.loc[m, COLUMNAS_MODELO].to_numpy(np.float64)
+    n = (len(x) // VENTANA_MUESTRAS) * VENTANA_MUESTRAS
+    if n < MIN_MUESTRAS_CALIBRACION:
+        raise ValueError(
+            f"Solo hay {n} muestras utiles de calibracion, por debajo de las "
+            f"{MIN_MUESTRAS_CALIBRACION} que exige el firmware. La sesion no "
+            f"se puede normalizar.")
+    x = x[:n]
+    return x.mean(axis=0).astype(np.float32), x.std(axis=0).astype(np.float32)
+
+
+def normalizar(X: np.ndarray, mu: np.ndarray, sd: np.ndarray) -> np.ndarray:
+    """
+    La normalizacion del articulo, igual que en el firmware.
+
+      LMG (A8)            z por canal: (x - media) / desviacion, ambas de
+                          la calibracion.
+      Acelerometro (A9)   (x - media de la calibracion), en g. NO se
+                          divide: el firmware ya entrega el acelerometro en
+                          g (16384 LSB/g en +/-2 g), y dividir entre la
+                          desviacion de un brazo quieto, que es casi solo
+                          ruido, inflaria la escala sin sentido fisico.
+
+    X: (..., 8) en el orden de COLUMNAS_MODELO.
+    """
+    Xn = np.asarray(X, dtype=np.float32) - mu
+    k = len(CANALES_LMG)
+    Xn[..., :k] = Xn[..., :k] / (sd[:k] + EPS_CALIBRACION)
+    return Xn.astype(np.float32)
+
+
+def filas_de_entrenamiento(df: pd.DataFrame,
+                           variante_fases: str = "dinamica_meseta") -> np.ndarray:
+    """
+    Filas que pueden dar ventanas: las de la variante de fases (por
+    defecto dinamica y meseta como gesto, y el reposo estable como Rest),
+    fuera de la calibracion y fuera de las repeticiones descartadas. La
+    preparacion queda fuera por su propia fase.
+    """
+    from fases import mascara_entrenamiento
+    m = mascara_entrenamiento(df["fase"].astype(str).to_numpy(),
+                              df["label"].to_numpy(), variante_fases)
+    m &= df["es_calibracion"].to_numpy() == 0
+    if "descartada" in df.columns:
+        m &= df["descartada"].fillna(0).to_numpy() != 1
+    return m
+
+
+def segmentos(df: pd.DataFrame, periodo_ms: float = PERIODO_MS) -> np.ndarray:
+    """
+    Identificador de tramo contiguo por fila. Ninguna ventana cruza de un
+    tramo a otro: un tramo cambia cuando cambia la repeticion, la clase,
+    el tipo de bloque o la condicion, o cuando el timestamp salta mas de
+    3 periodos, que es una pausa o una fila filtrada.
+    """
+    cambio = np.zeros(len(df), dtype=bool)
+    if len(df):
+        cambio[0] = True
+    for c in CLAVES_SEGMENTO:
+        if c in df.columns:
+            # fillna antes de comparar: la condicion viene vacia en la
+            # calibracion y NaN nunca es igual a si mismo.
+            col = df[c].fillna("")
+            cambio |= col.ne(col.shift()).to_numpy()
+    if "timestamp_ms" in df.columns:
+        dt = df["timestamp_ms"].diff().to_numpy()
+        cambio |= np.nan_to_num(dt, nan=0.0) > 3 * periodo_ms
+    return np.cumsum(cambio)
+
+
+@dataclass
+class Ventanas:
+    """Ventanas con lo que hace falta saber de cada una."""
+    X: np.ndarray                  # (N, pasos, 8)
+    y: np.ndarray                  # (N,) entero
+    sujeto: np.ndarray             # (N,)
+    repeticion: np.ndarray         # (N,)
+    condicion: np.ndarray          # (N,) estatica o dinamica
+    bloque_tipo: np.ndarray        # (N,) contraccion, reposo o reposo_dinamico
+    canales: List[str] = field(default_factory=lambda: list(COLUMNAS_MODELO))
+
+    def __len__(self):
+        return len(self.y)
+
+    def subconjunto(self, mascara):
+        return Ventanas(self.X[mascara], self.y[mascara],
+                        self.sujeto[mascara], self.repeticion[mascara],
+                        self.condicion[mascara], self.bloque_tipo[mascara],
+                        list(self.canales))
+
+    @staticmethod
+    def concatenar(lista):
+        return Ventanas(
+            np.concatenate([v.X for v in lista]),
+            np.concatenate([v.y for v in lista]),
+            np.concatenate([v.sujeto for v in lista]),
+            np.concatenate([v.repeticion for v in lista]),
+            np.concatenate([v.condicion for v in lista]),
+            np.concatenate([v.bloque_tipo for v in lista]),
+            list(lista[0].canales))
+
+
+def ventanear(df: pd.DataFrame, ventana: int = VENTANA_MUESTRAS,
+              paso: int = PASO_MUESTRAS) -> Ventanas:
+    """
+    Ventana deslizante sobre las filas que se le pasan, sin cruzar nunca
+    de un tramo contiguo a otro. No normaliza: devuelve la senal tal cual.
+    """
+    seg = segmentos(df)
+    datos = df[COLUMNAS_MODELO].to_numpy(np.float32)
+    etiquetas = df["label"].to_numpy(np.int64)
+    sujetos = df["subject_id"].to_numpy()
+    reps = df["repetition_id"].to_numpy()
+    cond = df["condicion_postural"].fillna("").astype(str).to_numpy()
+    tipos = df["bloque_tipo"].astype(str).to_numpy()
+
+    idx = []
+    if len(seg):
+        cortes = np.flatnonzero(np.diff(seg)) + 1
+        for a, z in zip(np.r_[0, cortes], np.r_[cortes, len(seg)]):
+            idx.extend(range(a, z - ventana + 1, paso))
+    idx = np.asarray(idx, dtype=np.int64)
+    if not len(idx):
+        vacio = np.zeros(0)
+        return Ventanas(np.zeros((0, ventana, len(COLUMNAS_MODELO)), np.float32),
+                        vacio.astype(np.int64), vacio, vacio,
+                        vacio.astype(object), vacio.astype(object))
+    fin = idx + ventana - 1
+    X = np.stack([datos[i:i + ventana] for i in idx])
+    # La etiqueta es constante dentro del tramo por construccion.
+    return Ventanas(X, etiquetas[idx], sujetos[fin], reps[fin],
+                    cond[fin].astype(object), tipos[fin].astype(object))
+
+
+def preparar_sesion(ruta: str, variante_fases: str = "dinamica_meseta",
+                    ventana: int = VENTANA_MUESTRAS,
+                    paso: int = PASO_MUESTRAS) -> Ventanas:
+    """
+    Una sesion de principio a fin: fases, filas de entrenamiento,
+    ventanas y normalizacion con SU calibracion. Es la unica puerta de
+    entrada de los datos propios al modelo.
+    """
+    df = cargar_sesion(ruta)
+    mu, sd = estadisticas_calibracion(df)
+    util = df[filas_de_entrenamiento(df, variante_fases)].reset_index(drop=True)
+    v = ventanear(util, ventana, paso)
+    v.X = normalizar(v.X, mu, sd)
+    return v
+
+
+def preparar_sesiones(rutas, variante_fases: str = "dinamica_meseta",
+                      ventana: int = VENTANA_MUESTRAS,
+                      paso: int = PASO_MUESTRAS) -> Ventanas:
+    """Varias sesiones, cada una normalizada con su propia calibracion."""
+    import glob
+    if isinstance(rutas, str):
+        rutas = sorted(glob.glob(rutas))
+    if not rutas:
+        raise FileNotFoundError("No hay ningun CSV de sesion que cargar.")
+    lista = [preparar_sesion(r, variante_fases, ventana, paso) for r in rutas]
+    v = Ventanas.concatenar(lista)
+    print(f"[PREPROC] {len(rutas)} sesiones, {len(v)} ventanas, "
+          f"{len(np.unique(v.sujeto))} sujetos")
+    return v
 
 
 class SlidingWindowPreprocessor:
@@ -162,29 +395,17 @@ class SlidingWindowPreprocessor:
             DataFrame filtrado. self.feature_cols queda fijado a las 8
             columnas del modelo.
         """
-        df = pd.read_csv(ruta)
-
-        # Las fases se calculan sobre la sesion ENTERA, antes de filtrar:
-        # necesitan el bloque de calibracion como base de respaldo y la
-        # continuidad temporal de los reposos.
+        # Las fases se calculan sobre la sesion ENTERA, antes de filtrar,
+        # con la misma funcion que usa todo lo demas (cargar_sesion).
         mascara_fases = None
-        if variante_fases is not None and "label" in df.columns:
-            from fases import FASES_VERSION, mascara_entrenamiento
-            vigente = "fase" in df.columns
-            ruta_json = os.path.splitext(ruta)[0] + "_fases.json"
-            if vigente and os.path.exists(ruta_json):
-                with open(ruta_json, encoding="utf-8") as f:
-                    vigente = json.load(f).get("fases_version") == FASES_VERSION
-            if not vigente:
-                from anotar_fases import anotar_df
-                base = df.drop(columns="fase") if "fase" in df.columns else df
-                fase, _, _ = anotar_df(base)
-                df = base.assign(fase=fase)
-                print("[PREPROC] Columna fase ausente u obsoleta: calculada "
-                      "al vuelo (anotar_fases.py la deja en el CSV).")
+        if variante_fases is not None:
+            df = cargar_sesion(ruta)
+            from fases import mascara_entrenamiento
             mascara_fases = mascara_entrenamiento(
                 df["fase"].astype(str).values, df["label"].values,
                 variante_fases)
+        else:
+            df = pd.read_csv(ruta)
         if excluir_margenes is None:
             excluir_margenes = mascara_fases is None
 
@@ -213,6 +434,9 @@ class SlidingWindowPreprocessor:
             conservar &= df["es_calibracion"].values == 0
         if excluir_margenes and "en_margen" in df.columns:
             conservar &= df["en_margen"].values == 0
+        # Repeticiones que el operador descarto: no entran nunca.
+        if "descartada" in df.columns:
+            conservar &= df["descartada"].fillna(0).values != 1
         df = df[conservar]
 
         if len(df) != n_inicial:
@@ -259,26 +483,7 @@ class SlidingWindowPreprocessor:
         # cruza de uno a otro. Un segmento cambia cuando cambia
         # cualquiera de las claves de bloque, o cuando el timestamp da un
         # salto mayor a 3 periodos de muestreo.
-        claves = [c for c in ("subject_id", "repetition_id", "label",
-                              "bloque_tipo", "condicion_postural")
-                  if c in df.columns]
-        if claves:
-            cambio = np.zeros(len(df), dtype=bool)
-            for c in claves:
-                # fillna antes de comparar: condicion_postural viene
-                # vacia en la calibracion y NaN nunca es igual a si
-                # mismo, asi que sin esto cada fila seria un segmento.
-                col = df[c].fillna("")
-                cambio |= col.ne(col.shift()).values
-            if "timestamp_ms" in df.columns:
-                dt = df["timestamp_ms"].diff().values
-                periodo = 1000.0 / self.sampling_rate_hz
-                cambio |= np.nan_to_num(dt, nan=0.0) > 3 * periodo
-            segmento_id = np.cumsum(cambio)
-        else:
-            # CSV sin metadatos de bloque: un unico segmento, que es el
-            # comportamiento historico.
-            segmento_id = np.zeros(len(df), dtype=np.int64)
+        segmento_id = segmentos(df, 1000.0 / self.sampling_rate_hz)
 
         ventanas_X = []
         ventanas_y = []

@@ -65,7 +65,7 @@ def test_la_composicion_solo_cambia_los_canales():
         y=np.zeros(n, dtype=int), sujeto=np.ones(n, dtype=int),
         repeticion=np.ones(n, dtype=int),
         condicion=np.array(["estatica"] * n, dtype=object),
-        es_calibracion=np.zeros(n, dtype=int))
+        bloque_tipo=np.array(["contraccion"] * n, dtype=object))
     solo = D.seleccionar_canales(v, "solo_lmg")
     con = D.seleccionar_canales(v, "lmg_imu")
     assert solo.shape == (n, 20, 5)

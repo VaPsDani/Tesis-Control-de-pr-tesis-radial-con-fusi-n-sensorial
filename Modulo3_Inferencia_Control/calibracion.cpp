@@ -1,4 +1,15 @@
 #include "calibracion.h"
+
+// Factor que multiplica a (x - media) en cada canal. Es la normalizacion
+// del articulo y la misma de produccion/preprocesamiento.py, normalizar():
+//   LMG (canales 0 a NUM_LMG-1)   z = (x - media) / sd           (A8)
+//   Acelerometro (el resto)       x - media, en g, sin dividir   (A9)
+// El acelerometro ya llega en g. Dividirlo entre la desviacion de un
+// brazo quieto, que es casi solo ruido, inflaria su escala sin sentido
+// fisico.
+static float factorEscala(int canal, float sd) {
+    return canal < NUM_LMG ? 1.0f / (sd + CALIB_EPSILON) : 1.0f;
+}
 #include <Preferences.h>
 #include <math.h>
 
@@ -216,7 +227,7 @@ bool Calibrador::finalizar() {
 
         _media[i] = (float)media;
         _sd[i]    = (float)sqrt(var);
-        _invSd[i] = 1.0f / (_sd[i] + CALIB_EPSILON);
+        _invSd[i] = factorEscala(i, _sd[i]);
     }
 
     _calibrado = true;
@@ -325,7 +336,7 @@ bool Calibrador::_cargarNVS() {
     if (!ok) return false;
 
     for (int i = 0; i < NUM_FEATURES; i++) {
-        _invSd[i] = 1.0f / (_sd[i] + CALIB_EPSILON);
+        _invSd[i] = factorEscala(i, _sd[i]);
     }
     _calibrado = true;
     Serial.println("[CALIB] Calibracion recuperada de NVS:");

@@ -339,17 +339,17 @@ def main():
         print(f"  {NOMBRES[c]:<14}{n:>12}{100*n/len(yi):>8.1f}%")
     activas = [conteo[NOMBRES[c]] for c in range(1, 5)]
     ratio = conteo["Rest"] / np.mean(activas) if np.mean(activas) else 0
-    # El 1.63:1 que promete el protocolo suponia el filtrado por MARGEN
-    # FIJO. Con el criterio de fases, del reposo se descuentan ademas la
-    # relajacion (detectada por senal, tan larga como dure la hiperemia) y
-    # los bordes recortados, asi que el ratio baja por construccion. CUANTO
-    # baja es una medida del asentamiento post-contraccion, que es justo lo
-    # que el piloto tiene que averiguar: se informa siempre, y solo es un
-    # problema si Rest queda inutilizable para entrenar la clase.
-    print(f"\n  Ratio Rest:activa = {ratio:.2f}:1  (el protocolo preve "
-          f"~1.63 con margen fijo; con fases baja segun dure la relajacion)")
+    # Con fases y con los 3 reposos en movimiento, el protocolo deja Rest
+    # en unas 3.4 veces cada clase activa (datos sinteticos). Es esperado:
+    # el entrenamiento lo compensa con pesos por clase. De Rest se
+    # descuentan la relajacion, tan larga como dure la hiperemia, y los
+    # bordes recortados, asi que CUANTO baja respecto de eso es una medida
+    # del asentamiento post-contraccion: se informa siempre, y solo es un
+    # problema si Rest queda tan corto o tan largo que la clase no sirve.
+    print(f"\n  Ratio Rest:activa = {ratio:.2f}:1  (esperado ~3.4 con el "
+          f"protocolo actual; lo compensan los pesos por clase)")
     informe["balance"] = {"conteo": conteo, "ratio_rest": round(float(ratio), 2)}
-    if not (0.3 <= ratio <= 3.0):
+    if not (0.3 <= ratio <= 6.0):
         problemas.append(f"Ratio Rest:activa {ratio:.2f}: Rest queda "
                          f"inutilizable para entrenar")
 
