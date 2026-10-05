@@ -81,6 +81,24 @@ Comprobación de que la GPU se ve.
 python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
 ```
 
+## Qué modelo se despliega (A22)
+
+Se despliega la configuración, A (`solo_lmg`) o B (`lmg_imu`), con **mayor F1
+macro fuera de línea**. Ese número es, para cada configuración, la media sobre
+los participantes de prueba del F1 macro de 5 clases calculado con todas sus
+ventanas de evaluación, las de las dos condiciones juntas, en la corrida mixta
+de `experimentos/ablacion_imu` (GroupKFold k = 5 por sujeto). Si las dos medias
+coinciden en cuatro decimales, gana la de menos canales.
+
+La regla está en código, no solo aquí: `regla_de_despliegue()` en
+`ablacion_imu.py` la aplica y deja el resultado en `regla_de_despliegue` del
+JSON de la ablación. Después, `produccion/entrenar_modelo.py --modo final
+--composicion <la elegida>` entrena el modelo que se convierte a INT8.
+
+La regla se fijó antes de ver resultados con datos propios. El desempate por
+número de canales es una propuesta de la sesión de implementación que el
+artículo no menciona.
+
 ## Datos
 
 | Dataset | Dónde va | Nota |

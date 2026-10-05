@@ -37,7 +37,8 @@ import numpy as np
 import pandas as pd
 
 from preprocesamiento import (CANALES_ACC, CANALES_LMG,  # noqa: F401
-                              COLUMNAS_MODELO, CONDICIONES_POSTURALES,
+                              COLUMNAS_MODELO, COMPOSICIONES,
+                              CONDICIONES_POSTURALES, NOMBRES_CLASES,
                               Ventanas, preparar_sesiones)
 
 # Niveles del factor B, tal como se escriben en el CSV.
@@ -45,13 +46,9 @@ CONDICION_ESTATICA, CONDICION_DINAMICA = CONDICIONES_POSTURALES
 
 CANALES_IMU = CANALES_ACC
 
-# Niveles del factor A: que alimenta al modelo.
-COMPOSICIONES = {
-    "solo_lmg": CANALES_LMG,
-    "lmg_imu": CANALES_LMG + CANALES_IMU,
-}
-
-NOMBRES_GESTOS = ["Rest", "Pinch", "Tripod", "Power", "Finger_Ext"]
+# Niveles del factor A (COMPOSICIONES) y nombres de las clases vienen del
+# nucleo compartido, igual que para produccion.
+NOMBRES_GESTOS = NOMBRES_CLASES
 NUM_CLASES = len(NOMBRES_GESTOS)
 LABEL_REST = 0
 

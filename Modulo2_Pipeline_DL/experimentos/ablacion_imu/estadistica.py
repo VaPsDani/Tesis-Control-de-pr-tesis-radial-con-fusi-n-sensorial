@@ -417,7 +417,8 @@ def main():
     p = argparse.ArgumentParser(description="Contrastes del 2x2")
     p.add_argument("--csv", type=str, required=True)
     p.add_argument("--metricas", nargs="+",
-                   default=["accuracy", "f1_macro", "auc"])
+                   default=["accuracy", "f1_macro", "f1_macro_activos",
+                            "precision_macro", "recall_macro", "auc"])
     p.add_argument("--salida", type=str, default=None)
     args = p.parse_args()
 

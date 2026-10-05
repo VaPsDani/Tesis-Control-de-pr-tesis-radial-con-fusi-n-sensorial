@@ -209,6 +209,23 @@ def entrenar_composicion(v: D.Ventanas, composicion: str, args) -> dict:
 
     prob = np.zeros((len(vu), D.NUM_CLASES), dtype=np.float32)
     pliegue_de = np.full(len(vu), -1, dtype=np.int16)
+    roles = []
+
+    def anotar_roles(k, idx_tr, idx_te, m, condicion="todas"):
+        """
+        Que sujeto hizo que en cada pliegue (A14). Se comprueba aqui
+        mismo, no se supone: la validacion sale del train y ningun
+        sujeto de prueba aparece en otro rol.
+        """
+        val = sorted(int(s) for s in m.get("grupos_validacion", []))
+        tr = sorted(set(int(s) for s in np.unique(vu.sujeto[idx_tr])) - set(val))
+        te = sorted(int(s) for s in np.unique(vu.sujeto[idx_te]))
+        assert not set(te) & (set(tr) | set(val)), (k, tr, val, te)
+        assert set(val) <= set(int(s) for s in np.unique(vu.sujeto[idx_tr]))
+        roles.append({"pliegue": int(k), "condicion_entrenamiento": condicion,
+                      "entrenamiento": tr, "validacion": val, "prueba": te,
+                      "epocas_reentreno": m.get("epochs"),
+                      "pesos_por_clase": m.get("pesos_por_clase")})
     for k, (tr, te) in enumerate(generar_particiones(
             X, vu.y, vu.repeticion, vu.sujeto, "sujeto",
             n_splits=args.folds, seed=args.seed)):
@@ -220,7 +237,7 @@ def entrenar_composicion(v: D.Ventanas, composicion: str, args) -> dict:
                 m_te = te[vu.condicion[te] == cond]
                 if not len(m_tr) or not len(m_te):
                     continue
-                _, p, _ = entrenar_con_validacion_interna(
+                _, p, met = entrenar_con_validacion_interna(
                     X[m_tr], Y[m_tr], vu.sujeto[m_tr],
                     X[m_te], Y[m_te], vu.sujeto[m_te], k,
                     args.epochs, args.batch_size, args.lr,
@@ -229,6 +246,7 @@ def entrenar_composicion(v: D.Ventanas, composicion: str, args) -> dict:
                     nombres_clases=D.NOMBRES_GESTOS, pesos_por_clase=True)
                 prob[m_te] = p
                 pliegue_de[m_te] = k
+                anotar_roles(k, m_tr, m_te, met, cond)
         elif args.entrenamiento == "estatica_a_dinamica":
             # PRUEBA DE GENERALIZACION ENTRE POSTURAS.
             #
@@ -249,7 +267,7 @@ def entrenar_composicion(v: D.Ventanas, composicion: str, args) -> dict:
                 raise ValueError(
                     f"El pliegue {k} no tiene repeticiones estaticas en "
                     f"train: revise el reparto de condiciones del CSV.")
-            _, p, _ = entrenar_con_validacion_interna(
+            _, p, met = entrenar_con_validacion_interna(
                 X[m_tr], Y[m_tr], vu.sujeto[m_tr],
                 X[te], Y[te], vu.sujeto[te], k,
                 args.epochs, args.batch_size, args.lr,
@@ -258,8 +276,9 @@ def entrenar_composicion(v: D.Ventanas, composicion: str, args) -> dict:
                 nombres_clases=D.NOMBRES_GESTOS, pesos_por_clase=True)
             prob[te] = p
             pliegue_de[te] = k
+            anotar_roles(k, m_tr, te, met, D.CONDICION_ESTATICA)
         else:
-            _, p, _ = entrenar_con_validacion_interna(
+            _, p, met = entrenar_con_validacion_interna(
                 X[tr], Y[tr], vu.sujeto[tr], X[te], Y[te], vu.sujeto[te], k,
                 args.epochs, args.batch_size, args.lr,
                 early_stopping_start=args.early_stopping_start,
@@ -267,8 +286,10 @@ def entrenar_composicion(v: D.Ventanas, composicion: str, args) -> dict:
                 nombres_clases=D.NOMBRES_GESTOS, pesos_por_clase=True)
             prob[te] = p
             pliegue_de[te] = k
+            anotar_roles(k, tr, te, met)
 
-    return {"ventanas": vu, "prob": prob, "pliegue": pliegue_de}
+    return {"ventanas": vu, "prob": prob, "pliegue": pliegue_de,
+            "roles": roles}
 
 
 def medir_celda(salida: dict, condicion: str) -> dict:
@@ -282,11 +303,15 @@ def medir_celda(salida: dict, condicion: str) -> dict:
     prob = salida["prob"][m]
     y_pred = prob.argmax(axis=1)
 
-    global_ = metricas(y_true, y_pred, D.NOMBRES_GESTOS)
+    # todas_las_clases: F1 macro de las 5 clases aunque un sujeto no
+    # tenga alguna, que es la definicion del articulo (A19), y ademas
+    # precision, recall y F1 de los gestos activos.
+    global_ = metricas(y_true, y_pred, D.NOMBRES_GESTOS, todas_las_clases=True)
     global_["auc"] = auc_seguro(y_true, prob)
 
     sujetos = vu.sujeto[m]
-    por_suj = por_sujeto(y_true, y_pred, sujetos, D.NOMBRES_GESTOS)
+    por_suj = por_sujeto(y_true, y_pred, sujetos, D.NOMBRES_GESTOS,
+                         todas_las_clases=True)
     for s in por_suj:
         ms = sujetos == s
         por_suj[s]["auc"] = auc_seguro(y_true[ms], prob[ms])
@@ -296,7 +321,7 @@ def medir_celda(salida: dict, condicion: str) -> dict:
     for k in sorted(set(pliegues.tolist())):
         mk = pliegues == k
         por_pliegue[int(k)] = metricas(y_true[mk], y_pred[mk],
-                                       D.NOMBRES_GESTOS)
+                                       D.NOMBRES_GESTOS, todas_las_clases=True)
 
     return {
         "global": global_,
@@ -304,6 +329,10 @@ def medir_celda(salida: dict, condicion: str) -> dict:
         "por_pliegue": por_pliegue,
         "matriz_confusion": confusion_matrix(
             y_true, y_pred, labels=list(range(D.NUM_CLASES))).tolist(),
+        # Normalizada por filas: cada fila es el recall de su clase real.
+        "matriz_confusion_normalizada": np.nan_to_num(
+            confusion_matrix(y_true, y_pred, labels=list(range(D.NUM_CLASES)),
+                             normalize="true")).round(4).tolist(),
         "n_ventanas": int(m.sum()),
     }
 
@@ -450,6 +479,31 @@ def desplazamiento_de_distribucion(v: D.Ventanas, args,
     }
 
 
+def regla_de_despliegue(salidas: dict) -> dict:
+    """
+    A22: se despliega la configuracion con mayor F1 macro fuera de linea.
+
+    "F1 macro fuera de linea" es, para cada configuracion, la media sobre
+    los participantes de prueba del F1 macro de 5 clases calculado con
+    TODAS sus ventanas de evaluacion, las de las dos condiciones juntas,
+    en la corrida mixta. Si las dos medias coinciden en cuatro decimales,
+    gana la de menos canales, que es mas barata de mantener y no depende
+    de la IMU.
+    """
+    medias = {}
+    for c, sal in salidas.items():
+        vu, m = sal["ventanas"], sal["pliegue"] >= 0
+        ps = por_sujeto(vu.y[m], sal["prob"][m].argmax(axis=1), vu.sujeto[m],
+                        D.NOMBRES_GESTOS, todas_las_clases=True)
+        medias[c] = float(np.mean([v["f1_macro"] for v in ps.values()]))
+    elegida = max(medias, key=lambda c: (round(medias[c], 4),
+                                         -len(D.COMPOSICIONES[c])))
+    return {"f1_macro_media_por_sujeto": medias, "elegida": elegida,
+            "regla": "mayor F1 macro de 5 clases, media por participante de "
+                     "prueba, las dos condiciones juntas, corrida mixta. "
+                     "Empate a 4 decimales: la de menos canales."}
+
+
 def main():
     p = argparse.ArgumentParser(description="Ablacion de la IMU (2x2)")
     p.add_argument("--sesiones", type=str,
@@ -461,6 +515,8 @@ def main():
     p.add_argument("--ventana_ms", type=int, default=200)
     p.add_argument("--stride_ms", type=int, default=20)
     p.add_argument("--folds", type=int, default=5)
+    p.add_argument("--loso", action="store_true",
+                   help="un pliegue por sujeto, complemento de k = 5 (A14)")
     p.add_argument("--epochs", type=int, default=100)
     p.add_argument("--batch_size", type=int, default=32)
     p.add_argument("--lr", type=float, default=1e-3)
@@ -493,6 +549,11 @@ def main():
     # ---------- datos, comunes a las 4 celdas ----------
     v = D.cargar(patron, ventana=args.ventana_ms // D.PERIODO_MS,
                  paso=max(1, args.stride_ms // D.PERIODO_MS))
+    if args.loso:
+        args.folds = int(len(np.unique(v.sujeto)))
+        configs = {f"{c}|{k}": configuracion_de_celda(args, c, k)
+                   for c in COMPOSICIONES for k in CONDICIONES}
+        print(f"[LOSO] Un pliegue por sujeto: {args.folds} pliegues")
 
     reparto = {c: int((v.condicion == c).sum()) for c in CONDICIONES}
     por_clase = {D.NOMBRES_GESTOS[k]: int((v.y == k).sum())
@@ -506,6 +567,14 @@ def main():
     for composicion in COMPOSICIONES:
         print(f"\n{'=' * 70}\n  FACTOR A = {composicion}\n{'=' * 70}")
         salidas[composicion] = entrenar_composicion(v, composicion, args)
+        print(f"\n  ROLES POR PLIEGUE ({composicion}): entrenamiento + "
+              f"validacion + prueba")
+        for r in salidas[composicion]["roles"]:
+            print(f"    pliegue {r['pliegue'] + 1} "
+                  f"[{r['condicion_entrenamiento']}]: "
+                  f"{len(r['entrenamiento'])} + {len(r['validacion'])} + "
+                  f"{len(r['prueba'])}   prueba {r['prueba']}   "
+                  f"validacion {r['validacion']}")
         for condicion in CONDICIONES:
             nombre = f"{composicion}|{condicion}"
             celdas[nombre] = medir_celda(salidas[composicion], condicion)
@@ -521,7 +590,7 @@ def main():
     # ---------- caida por cambio de postura ----------
     caidas = caida_entre_posturas(celdas)
     print(f"\n{'=' * 70}")
-    print("  CAIDA AL PASAR DE ESTATICA A DINAMICA")
+    print("  [EXPLORATORIO] CAIDA AL PASAR DE ESTATICA A DINAMICA")
     if args.entrenamiento == "estatica_a_dinamica":
         print("  El modelo SOLO vio repeticiones estaticas. Esto mide que")
         print("  ocurre cuando el entrenamiento no incluye variacion postural,")
@@ -543,6 +612,14 @@ def main():
         d = caidas["diferencia_de_caidas"]
         print(f"  {d['definicion']} = {d['absoluta']:+.4f}")
         print(f"  {d['lectura']}")
+
+    # ---------- regla de despliegue (A22), solo con entrenamiento mixto ----------
+    despliegue = None
+    if args.entrenamiento == "mixto":
+        despliegue = regla_de_despliegue(salidas)
+        print(f"\n[DESPLIEGUE] F1 macro medio por sujeto: "
+              f"{ {c: round(v, 4) for c, v in despliegue['f1_macro_media_por_sujeto'].items()} }"
+              f"  ->  se despliega {despliegue['elegida']}")
 
     # ---------- rango del acelerometro: train frente a test ----------
     deriva = desplazamiento_de_distribucion(v, args)
@@ -573,6 +650,9 @@ def main():
         "celdas": celdas,
         "caida_entre_posturas": caidas,
         "rango_acelerometro_train_vs_test": deriva,
+        "roles_por_pliegue": {c: salidas[c]["roles"] for c in COMPOSICIONES},
+        "regla_de_despliegue": despliegue,
+        "loso": bool(args.loso),
     }
     ruta_json = os.path.join(args.output, "ablacion_imu.json")
     with open(ruta_json, "w", encoding="utf-8") as f:
@@ -585,6 +665,9 @@ def main():
             filas.append({"composicion": composicion, "condicion": condicion,
                           "sujeto": s, "accuracy": m["accuracy"],
                           "f1_macro": m["f1_macro"], "auc": m["auc"],
+                          "f1_macro_activos": m["f1_macro_activos"],
+                          "precision_macro": m["precision_macro"],
+                          "recall_macro": m["recall_macro"],
                           "n": m["n"], "entrenamiento": args.entrenamiento})
     ruta_csv = os.path.join(args.output, "ablacion_imu_por_sujeto.csv")
     pd.DataFrame(filas).to_csv(ruta_csv, index=False)

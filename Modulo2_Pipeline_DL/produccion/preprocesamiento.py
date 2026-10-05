@@ -110,6 +110,13 @@ NUM_CANALES_MODELO = len(COLUMNAS_MODELO)   # 8
 
 CANALES_LMG = COLUMNAS_MODELO[:5]       # v1..v5
 CANALES_ACC = COLUMNAS_MODELO[5:]       # ax, ay, az
+# Configuraciones del articulo (A16): A con los 5 canales LMG, B con los
+# 5 LMG y los 3 del acelerometro. Mismas ventanas, mismas etiquetas.
+COMPOSICIONES = {
+    "solo_lmg": CANALES_LMG,
+    "lmg_imu": CANALES_LMG + CANALES_ACC,
+}
+NOMBRES_CLASES = ["Rest", "Pinch", "Tripod", "Power", "Finger_Ext"]
 PERIODO_MS = 10
 VENTANA_MUESTRAS = 20                   # 200 ms a 100 Hz
 PASO_MUESTRAS = 2                       # 20 ms
@@ -536,34 +543,9 @@ class SlidingWindowPreprocessor:
 
         return X, y_onehot
 
-    def train_test_split_secuencial(
-        self, X: np.ndarray, y: np.ndarray, test_ratio: float = 0.2
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Division entrenamiento/prueba RESPETANDO el orden temporal.
-        NO se usa shuffle aleatorio porque los datos son temporales.
-        """
-        n = X.shape[0]
-        split_idx = int(n * (1 - test_ratio))
-
-        X_train = X[:split_idx]
-        y_train = y[:split_idx]
-        X_test = X[split_idx:]
-        y_test = y[split_idx:]
-
-        print(f"[SPLIT] Train: {X_train.shape[0]} | Test: {X_test.shape[0]}")
-        return X_train, X_test, y_train, y_test
-
 
 if __name__ == "__main__":
-    # Ejemplo de uso
-    preproc = SlidingWindowPreprocessor(
-        window_size_ms=200, stride_ms=20, sampling_rate_hz=100
-    )
-
-    df = preproc.cargar_csv("dataset_gestos.csv")
-    X, y = preproc.generar_ventanas(df)
-
-    X_train, X_test, y_train, y_test = preproc.train_test_split_secuencial(
-        X, y, test_ratio=0.2
-    )
+    # Una sesion de principio a fin, por el mismo camino que el modelo.
+    import sys
+    v = preparar_sesion(sys.argv[1])
+    print(f"{len(v)} ventanas, forma {v.X.shape}")

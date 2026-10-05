@@ -18,6 +18,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import (accuracy_score, confusion_matrix, f1_score,
+                             precision_score, recall_score,
                              precision_recall_fscore_support)
 
 RESULTADOS_DIR = "resultados_cv"
@@ -27,30 +28,66 @@ def nombres_por_defecto(num_clases: int):
     return [f"clase_{i}" for i in range(num_clases)]
 
 
-def metricas(y_true, y_pred, nombres_clases=None) -> dict:
+def metricas(y_true, y_pred, nombres_clases=None,
+             todas_las_clases: bool = False) -> dict:
     """
     Exactitud, F1 macro y F1 por clase de un vector de predicciones.
 
     Es la funcion que usaban los experimentos del dataset publico de LMG,
     traida aqui para que todos midan igual.
+
+    todas_las_clases: con nombres_clases, fija las clases a 0..K-1 aunque
+    alguna no aparezca en este sujeto, que es la definicion del articulo
+    (A19): "F1 macro de 5 clases". Anade ademas precision y recall por
+    clase y macro, el F1 macro de las clases activas (todas menos la 0,
+    que es Rest) y la matriz de confusion. Apagado por defecto para que
+    los experimentos ya publicados midan exactamente lo mismo que
+    midieron: alli el macro se promediaba sobre las clases presentes.
+
+    La exactitud es la multiclase: diagonal de la matriz de confusion
+    entre el total de ventanas, no un promedio de exactitudes binarias.
     """
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)
-    n_clases = int(max(y_true.max(), y_pred.max())) + 1
+    if todas_las_clases and nombres_clases:
+        n_clases = len(nombres_clases)
+    else:
+        n_clases = int(max(y_true.max(), y_pred.max())) + 1
     nombres = nombres_clases or nombres_por_defecto(n_clases)
+    clases = list(range(n_clases))
     f1_clases = f1_score(y_true, y_pred, average=None,
-                         labels=list(range(n_clases)), zero_division=0)
-    return {
+                         labels=clases, zero_division=0)
+    salida = {
         "accuracy": float(accuracy_score(y_true, y_pred)),
         "f1_macro": float(f1_score(y_true, y_pred, average="macro",
+                                   labels=clases if todas_las_clases else None,
                                    zero_division=0)),
         "f1_por_clase": {nombres[i]: float(f1_clases[i])
                          for i in range(min(len(nombres), n_clases))},
         "n": int(len(y_true)),
     }
+    if todas_las_clases:
+        cm = confusion_matrix(y_true, y_pred, labels=clases)
+        # Comprobacion de la definicion de A19: la exactitud que da
+        # sklearn es la traza entre el total.
+        assert abs(salida["accuracy"] - np.trace(cm) / max(cm.sum(), 1)) < 1e-9
+        prec = precision_score(y_true, y_pred, average=None, labels=clases,
+                               zero_division=0)
+        rec = recall_score(y_true, y_pred, average=None, labels=clases,
+                           zero_division=0)
+        salida.update({
+            "precision_macro": float(np.mean(prec)),
+            "recall_macro": float(np.mean(rec)),
+            "precision_por_clase": {nombres[i]: float(prec[i]) for i in clases},
+            "recall_por_clase": {nombres[i]: float(rec[i]) for i in clases},
+            "f1_macro_activos": float(np.mean(f1_clases[1:])),
+            "matriz_confusion": cm.tolist(),
+        })
+    return salida
 
 
-def por_sujeto(y_true, y_pred, sujetos, nombres_clases=None) -> dict:
+def por_sujeto(y_true, y_pred, sujetos, nombres_clases=None,
+               todas_las_clases: bool = False) -> dict:
     """
     Metricas de cada sujeto por separado.
 
@@ -63,7 +100,8 @@ def por_sujeto(y_true, y_pred, sujetos, nombres_clases=None) -> dict:
     salida = {}
     for s in np.unique(sujetos):
         m = sujetos == s
-        salida[int(s)] = metricas(y_true[m], y_pred[m], nombres_clases)
+        salida[int(s)] = metricas(y_true[m], y_pred[m], nombres_clases,
+                                  todas_las_clases)
     return salida
 
 
