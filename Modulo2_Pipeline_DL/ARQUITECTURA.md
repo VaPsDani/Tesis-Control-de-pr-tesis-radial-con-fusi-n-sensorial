@@ -46,9 +46,13 @@ decodificador que actúe de consulta.
 
 ### Parámetros
 
+Medido con `count_params()` en TensorFlow 2.21 y tf_keras 2.21, y
+coincidente con el cálculo a mano.
+
 | | Configuración A, C = 5 | Configuración B, C = 8 |
 |---|---|---|
 | Total | 76 357 | 76 933 |
+| Entrenables | 75 973 | 76 549 |
 | No entrenables (medias y varianzas de BatchNormalization) | 384 | 384 |
 
 Desglose para C = 8: Conv1D 1 600, BN 256, Conv1D 24 704, BN 512, BiLSTM

@@ -1,46 +1,64 @@
-# Entorno de ANALISIS del Modulo 2
-# ================================
-# Validacion preliminar sobre NinaPro DB5 y analisis del dataset publico de
-# LMG. Keras 3, con GPU. NO se usa para produccion ni para convertir a
-# TFLite: eso va en requirements-produccion.txt, con Keras 2 (tf_keras),
-# porque la LSTM de Keras 3 no cuantiza a INT8.
+# ENTORNO UNICO del Modulo 2 (desde 2026-10-05, A29 del articulo)
+# ================================================================
+# Entrenamiento, validacion, estadistica y conversion a TFLite INT8, todo con
+# TensorFlow 2.21.0 y Keras 2 (tf_keras 2.21.0). Keras 2 porque con Keras 3
+# la LSTM no se convierte en la operacion nativa de TFLite y la
+# cuantizacion INT8 falla (claude/viabilidad-tflite-micro.md).
 #
-# Versiones EXACTAS del entorno con el que se obtuvieron los resultados
-# reportados, tomadas de pip freeze. WSL Ubuntu, Python 3.12.14,
-# CUDA 12.3, cuDNN 8.9.7.29, driver 616.64, GeForce RTX 4060.
+# Versiones EXACTAS del entorno con el que se verifico, tomadas de pip
+# freeze. WSL Ubuntu, Python 3.12.14, GeForce RTX 4060 con driver 616.64.
+# TensorFlow 2.21 esta compilado con CUDA 12.5.1 y cuDNN 9, y usa las
+# librerias CUDA que instala el extra [and-cuda], fijadas abajo.
 #
-#   python3.12 -m venv ~/venv-tesis
-#   ~/venv-tesis/bin/pip install -r requirements.txt
+#   python3.12 -m venv ~/venv-tesis-221
+#   ~/venv-tesis-221/bin/pip install -r Modulo2_Pipeline_DL/requirements.txt
+#   cat Modulo2_Pipeline_DL/herramientas/rutas_cuda_venv.sh >> ~/venv-tesis-221/bin/activate
+#   source ~/venv-tesis-221/bin/activate
 #
-# La GPU solo se ve tras 'source ~/env-tesis.sh', que fija LD_LIBRARY_PATH
-# hacia las librerias CUDA del propio entorno. Sin eso TensorFlow arranca en
-# CPU sin decirlo de forma clara.
+# La tercera linea es imprescindible para la GPU: sin ella TensorFlow no
+# encuentra libcusolver.so.11 y entrena en CPU. Tambien fija Keras 2.
+#
+# Quedan aparte, a proposito:
+#   requirements-tflm.txt     el interprete de TFLite Micro para PC, que
+#                             exige Python 3.13. Solo verifica la conversion.
+#   requirements-captura.txt  la computadora de captura, sin TensorFlow.
+#   requirements-tf216-historico.txt  registro del entorno de los
+#                             resultados preliminares ya publicados.
 
 # --- nucleo ---
-tensorflow==2.16.1
-keras==3.15.1
-numpy==1.26.4
-scipy==1.17.1
-scikit-learn==1.9.0
-pandas==3.0.5
+tensorflow[and-cuda]==2.21.0
+tf_keras==2.21.0
+keras==3.15.1          # dependencia de TF; el proyecto usa tf_keras
+numpy==2.5.3
+ml_dtypes==0.6.0
+protobuf==7.36.2
+h5py==3.14.0
 
-# --- estadistica ---
-# statsmodels lo usan el ANOVA de medidas repetidas de lmg_wavelength (1.b)
-# y la estadistica de la ablacion de la IMU. Faltaba declararlo.
-statsmodels==0.15.0
-patsy==1.0.3
+# --- CUDA del extra [and-cuda], fijadas tal como se probaron ---
+nvidia-cublas-cu12==12.9.2.10
+nvidia-cuda-cupti-cu12==12.9.79
+nvidia-cuda-nvcc-cu12==12.9.86
+nvidia-cuda-nvrtc-cu12==12.9.86
+nvidia-cuda-runtime-cu12==12.9.79
+nvidia-cudnn-cu12==9.27.0.42
+nvidia-cufft-cu12==11.4.1.4
+nvidia-curand-cu12==10.3.10.19
+nvidia-cusolver-cu12==11.7.5.82
+nvidia-cusparse-cu12==12.5.10.65
+nvidia-nccl-cu12==2.32.3
+nvidia-nvjitlink-cu12==12.9.86
 
-# --- figuras ---
-matplotlib==3.11.1
+# --- datos y estadistica ---
+pandas==3.0.6
+scipy==1.18.1          # Wilcoxon, bootstrap BCa
+scikit-learn==1.9.1    # GroupKFold, metricas
+statsmodels==0.15.0    # ANOVA de medidas repetidas (AnovaRM)
+patsy==1.0.3           # dependencia de statsmodels
+
+# --- graficos ---
+matplotlib==3.11.2
 seaborn==0.13.2
 
-# --- utilidades ---
-h5py==3.16.0
+# --- pruebas y captura ---
 pytest==9.1.1
-
-# --- captura de sesiones ---
-# pyserial lo usa SOLO la app de captura (captura/adquisicion.py, con import
-# local dentro de LectorSerie.abrir), que se ejecuta en la PC conectada al
-# ESP32 por el puerto COM, no en WSL. Por eso no esta instalado en este
-# entorno y la app corre igual con --simulado. Instalarlo donde se capture.
-pyserial==3.5
+pyserial==3.5          # solo lo usa la app de captura

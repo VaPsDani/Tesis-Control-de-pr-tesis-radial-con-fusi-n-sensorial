@@ -122,7 +122,7 @@ Para instalar todo desde cero en la computadora de la universidad, ver
 en otra computadora". Es la misma instalación para los dos programas.
 
 **El análisis necesita pandas y matplotlib**, que están en el entorno de
-análisis (`~/venv-tesis`), no necesariamente en el Python que usas para
+proyecto (`~/venv-tesis-221`), no necesariamente en el Python que usas para
 capturar. La captura solo necesita pyserial.
 
 ## Orden de las 12 corridas

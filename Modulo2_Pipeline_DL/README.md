@@ -31,55 +31,49 @@ directamente sin instalar nada ni fijar `PYTHONPATH`.
 
 ## Entorno
 
-Hay dos entornos, y cada resultado se reproduce en el suyo.
-
-| Entorno | Para qué | Keras |
-|---|---|---|
-| `~/venv-tflite-viab`, `requirements-produccion.txt` (versiones exactas) | **Desde 2026-09-25:** todo entrenamiento nuevo de producción y de ablación con datos propios, y la conversión a TFLite INT8 | **Keras 2 (`tf_keras`)**, forzado por `common/keras_legado.py` |
-| `~/venv-tesis`, `requirements.txt` | La validación preliminar sobre NinaPro y los análisis del dataset público de LMG, tal como se obtuvieron | Keras 3 |
-
-El entorno de producción usa Keras 2 porque con Keras 3 la LSTM no se convierte en la operación
-nativa de TFLite y la cuantización INT8 falla. Así, el modelo que se evalúa es el mismo que se
-despliega (`claude/viabilidad-tflite-micro.md`). Por ahora es solo CPU.
-
-```bash
-python3.12 -m venv ~/venv-tflite-viab
-~/venv-tflite-viab/bin/pip install -r Modulo2_Pipeline_DL/requirements-produccion.txt
-```
-
-`requirements-tflm.txt` describe un tercer entorno, solo de validación (Python 3.13), con el
-intérprete oficial de TensorFlow Lite Micro para PC.
-
-### Entorno de la validación preliminar (venv-tesis)
+**Un solo entorno para todo** (A29): entrenamiento, validación, estadística y
+conversión INT8, con TensorFlow 2.21.0 y Keras 2 (`tf_keras` 2.21.0), con GPU.
+Keras 2 porque con Keras 3 la LSTM no se convierte en la operación nativa de
+TFLite y la cuantización INT8 falla (`claude/viabilidad-tflite-micro.md`).
 
 WSL2 con Ubuntu, Python 3.12 y una GPU NVIDIA con controladores recientes.
 
 ```bash
-python -m venv ~/venv-tesis
-source ~/venv-tesis/bin/activate
-pip install -r Modulo2_Pipeline_DL/requirements.txt
+python3.12 -m venv ~/venv-tesis-221
 ```
-
-TensorFlow necesita encontrar las librerías CUDA del propio entorno. Conviene
-dejarlo en un archivo y hacerle `source` en cada sesión.
 
 ```bash
-V=~/venv-tesis/lib/python3.12/site-packages/nvidia
-export LD_LIBRARY_PATH=$V/cuda_runtime/lib:$V/cublas/lib:$V/cudnn/lib:$V/cufft/lib:$V/curand/lib:$V/cusolver/lib:$V/cusparse/lib:$V/nccl/lib:$V/nvjitlink/lib
+~/venv-tesis-221/bin/pip install -r Modulo2_Pipeline_DL/requirements.txt
 ```
-
-Con varios entrenamientos en paralelo sobre la misma GPU hace falta además
-esto, porque si no el primer proceso reserva casi toda la VRAM.
 
 ```bash
-export TF_FORCE_GPU_ALLOW_GROWTH=true
+cat Modulo2_Pipeline_DL/herramientas/rutas_cuda_venv.sh >> ~/venv-tesis-221/bin/activate
 ```
 
-Comprobación de que la GPU se ve.
+```bash
+source ~/venv-tesis-221/bin/activate
+```
+
+El tercer paso se hace una sola vez. Agrega al `activate` del entorno las
+carpetas de CUDA que instala pip y fija Keras 2. Sin él, TensorFlow no
+encuentra `libcusolver.so.11` y entrena en CPU sin avisar más que con un
+warning. Comprobación:
 
 ```bash
 python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
 ```
+
+Con varios entrenamientos en paralelo sobre la misma GPU hace falta además
+`export TF_FORCE_GPU_ALLOW_GROWTH=true`, porque si no el primer proceso reserva
+casi toda la VRAM.
+
+Quedan aparte, a propósito:
+
+| Archivo | Para qué |
+|---|---|
+| `requirements-tflm.txt` | El intérprete de TensorFlow Lite Micro para PC, que exige Python 3.13. Solo verifica la conversión |
+| `requirements-captura.txt` | La computadora de captura, sin TensorFlow |
+| `requirements-tf216-historico.txt` | Registro del entorno con TF 2.16 y Keras 3 con que salieron los resultados preliminares ya publicados. No se mantiene |
 
 ## Qué modelo se despliega (A22)
 

@@ -4,7 +4,7 @@
 Se mide con datos reales antes de tener datos propios.
 
 La respuesta sale del mismo código que genera el modelo del ESP32: `produccion/convertir_tflite.py`,
-con Keras 2 y el entorno de `requirements-produccion.txt`. **No sustituye a la validación
+con Keras 2 y TF 2.21, el entorno de `requirements.txt`. Las cifras de esta página se obtuvieron en CPU con el antiguo `requirements-produccion.txt`, que tenía las mismas versiones de TensorFlow y tf_keras. **No sustituye a la validación
 preliminar** (`validacion_preliminar_emg/`), que sigue tal cual en su entorno original.
 
 ## Qué cambia frente a la validación preliminar, y qué no
@@ -71,8 +71,8 @@ Eso no es lo que se entrenó: en Keras cada ventana empieza de cero.
 ## Reproducir
 
 ```bash
-# entorno de produccion (requirements-produccion.txt)
-P=~/venv-tflite-viab/bin/python
+# entorno unico (requirements.txt)
+P=~/venv-tesis-221/bin/python
 $P entrenar_ninapro_100hz.py --mat ~/data/NinaPro_DB5 --pliegue 0 \
     --cache ~/cache_ninapro_100hz.npz --output_dir resultados
 $P cuantizar_evaluar.py --pliegue 1 --resultados resultados      # --16x8 para forzar el intento

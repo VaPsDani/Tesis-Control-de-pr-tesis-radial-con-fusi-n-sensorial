@@ -13,12 +13,12 @@ POR QUE:
 DESDE 2026-09-25:
   Todo entrenamiento nuevo de produccion y de ablacion con datos propios
   usa tf_keras, para que el modelo evaluado sea el mismo que se despliega.
-  Entorno: requirements-produccion.txt (WSL, TF 2.21 + tf_keras 2.21).
+  Entorno: requirements.txt, el unico del proyecto desde 2026-10-05
+  (WSL, TF 2.21 + tf_keras 2.21, ~/venv-tesis-221).
 
-  NO lo usan la validacion preliminar sobre NinaPro
-  (experimentos/validacion_preliminar_emg) ni los analisis del dataset
-  publico de LMG: quedan reproducibles en su entorno original
-  (venv-tesis, requirements.txt, Keras 3).
+  Los resultados ya publicados de la validacion preliminar sobre NinaPro
+  y de los analisis del dataset publico de LMG se obtuvieron con Keras 3
+  y TF 2.16 (requirements-tf216-historico.txt, que ya no se mantiene).
 
 USO (antes de importar tensorflow en el proceso):
   import keras_legado
@@ -48,7 +48,7 @@ def verificar() -> str:
     except ImportError as e:
         raise RuntimeError(
             "Falta el paquete tf_keras. Use el entorno de "
-            "requirements-produccion.txt.") from e
+            "requirements.txt.") from e
     if not modulo.startswith("tf_keras"):
         raise RuntimeError(
             f"tf.keras no es Keras 2 (LSTM viene de {modulo}). Llame a "

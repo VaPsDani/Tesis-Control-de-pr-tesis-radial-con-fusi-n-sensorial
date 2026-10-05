@@ -157,3 +157,31 @@ def test_una_clase_ausente_pesa_cero():
     from entrenamiento import pesos_de_clase
     y = np.eye(5)[[0, 0, 1, 2, 3]]
     assert pesos_de_clase(y, 5)[4] == 0.0
+
+
+# ---------- A19 y A23 ----------
+def test_el_f1_macro_usa_siempre_las_cinco_clases():
+    from metricas import metricas
+    nombres = ["Rest", "Pinch", "Tripod", "Power", "Finger_Ext"]
+    # Un sujeto sin ninguna ventana de Finger_Ext y con todo bien predicho.
+    y = np.array([0, 0, 1, 2, 3])
+    m = metricas(y, y, nombres, todas_las_clases=True)
+    # La clase ausente cuenta con F1 0: el macro es 4/5 y no 1.
+    assert m["f1_macro"] == pytest.approx(0.8)
+    assert m["f1_macro_activos"] == pytest.approx(0.75)
+    assert m["accuracy"] == 1.0
+    assert np.trace(np.array(m["matriz_confusion"])) == 5
+
+
+def test_la_calibracion_int8_solo_usa_sujetos_de_entrenamiento():
+    from convertir_tflite import ventanas_de_calibracion
+    n = 300
+    X = np.zeros((n, 20, 8), dtype=np.float32)
+    sujeto = np.repeat([1, 2, 3], 100)
+    X[:, :, 0] = sujeto[:, None]                 # el canal 0 dice el sujeto
+    v = P.Ventanas(X, np.zeros(n, int), sujeto, np.ones(n),
+                   np.array(["estatica"] * n, dtype=object),
+                   np.array(["reposo"] * n, dtype=object))
+    cal = ventanas_de_calibracion(v, [1, 2], "lmg_imu", n=150)
+    assert cal.shape == (150, 20, 8)
+    assert set(np.unique(cal[:, 0, 0])) <= {1.0, 2.0}

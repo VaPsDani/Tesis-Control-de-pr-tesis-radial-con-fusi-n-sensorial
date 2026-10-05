@@ -22,7 +22,7 @@ IGUAL QUE EL PROTOCOLO CORREGIDO:
   interna con un sujeto del train + reentreno con todo el train, semilla 42,
   100 epocas maximo, lote 32, lr 1e-3, early_stopping_start 10.
 
-USO (entorno de produccion, requirements-produccion.txt):
+USO (entorno unico, requirements.txt):
   python entrenar_ninapro_100hz.py --mat ~/data/NinaPro_DB5 --pliegue 0 \
       --cache ~/cache_ninapro_100hz.npz --output_dir resultados
 """

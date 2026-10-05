@@ -39,10 +39,14 @@ INT8 cuando sí existía.
 
 ## Cosas del proyecto que conviene no olvidar
 
-- **Tres entornos de Python, no uno.** `requirements.txt` es el de análisis
-  con Keras 3, `requirements-produccion.txt` el de producción con Keras 2
-  (`tf_keras`), que es el único con el que la LSTM cuantiza a INT8, y
-  `requirements-tflm.txt` el del intérprete de TFLite Micro en PC.
+- **Un solo entorno de trabajo** desde 2026-10-05: `requirements.txt`,
+  TensorFlow 2.21 y `tf_keras` 2.21 con GPU, en `~/venv-tesis-221`. Keras 2
+  porque es el único con el que la LSTM cuantiza a INT8. Su `activate` ya
+  agrega las rutas de CUDA y fija Keras 2 (`herramientas/rutas_cuda_venv.sh`).
+  Aparte quedan `requirements-tflm.txt` (intérprete de TFLite Micro en PC,
+  Python 3.13), `requirements-captura.txt` (la PC de captura) y
+  `requirements-tf216-historico.txt`, solo como registro de con qué salieron
+  los resultados preliminares ya publicados.
 - **Toda validación cruzada agrupa por sujeto**, nunca partición aleatoria.
 - **Los callbacks nunca ven el test.** Se entrena con validación interna y
   reentreno, ver `common/entrenamiento.py`.

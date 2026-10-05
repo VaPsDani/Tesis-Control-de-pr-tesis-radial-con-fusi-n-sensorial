@@ -278,12 +278,23 @@ def entrenar_composicion(v: D.Ventanas, composicion: str, args) -> dict:
             pliegue_de[te] = k
             anotar_roles(k, m_tr, te, met, D.CONDICION_ESTATICA)
         else:
+            # Con --guardar_modelos queda el modelo reentrenado de cada
+            # pliegue. La conversion INT8 los usa para medir la perdida por
+            # cuantizacion sobre los MISMOS datos de prueba (A21), con el
+            # representative dataset de los sujetos de entrenamiento del
+            # pliegue (A23), que estan en roles_por_pliegue.
+            ruta_modelo = None
+            if args.guardar_modelos:
+                os.makedirs(os.path.join(args.output, "modelos"), exist_ok=True)
+                ruta_modelo = os.path.join(args.output, "modelos",
+                                           f"{composicion}_pliegue{k}.keras")
             _, p, met = entrenar_con_validacion_interna(
                 X[tr], Y[tr], vu.sujeto[tr], X[te], Y[te], vu.sujeto[te], k,
                 args.epochs, args.batch_size, args.lr,
                 early_stopping_start=args.early_stopping_start,
                 seed=args.seed, num_clases=D.NUM_CLASES,
-                nombres_clases=D.NOMBRES_GESTOS, pesos_por_clase=True)
+                nombres_clases=D.NOMBRES_GESTOS, pesos_por_clase=True,
+                guardar_modelo_en=ruta_modelo)
             prob[te] = p
             pliegue_de[te] = k
             anotar_roles(k, tr, te, met)
@@ -515,6 +526,8 @@ def main():
     p.add_argument("--ventana_ms", type=int, default=200)
     p.add_argument("--stride_ms", type=int, default=20)
     p.add_argument("--folds", type=int, default=5)
+    p.add_argument("--guardar_modelos", action="store_true",
+                   help="guarda el modelo de cada pliegue, para la conversion INT8")
     p.add_argument("--loso", action="store_true",
                    help="un pliegue por sujeto, complemento de k = 5 (A14)")
     p.add_argument("--epochs", type=int, default=100)
