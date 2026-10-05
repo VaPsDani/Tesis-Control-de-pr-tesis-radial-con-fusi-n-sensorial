@@ -91,6 +91,26 @@ def test_el_tiempo_de_reaccion_se_mide_desde_la_contraccion(sesion):
     assert 200 < np.median(onsets) < 800
 
 
+def test_en_las_dinamicas_el_inicio_se_mide_contra_la_preparacion(sesion):
+    # Con la base del reposo previo, sobre la mesa, el cambio de postura de
+    # la preparacion disparaba el detector antes de la indicacion: inicios
+    # negativos falsos en la mitad de las dinamicas. Con la base en el
+    # ultimo segundo de la preparacion, las dinamicas se parecen a las
+    # estaticas y nunca salen negativas.
+    from anotar_fases import anotar_df
+    _, df = sesion
+    _, informes, _ = anotar_df(df.drop(columns="fase"))
+    cond = df["condicion_postural"].fillna("").to_numpy()
+    din = [d for d in informes if cond[d["inicio"]] == "dinamica"]
+    est = [d for d in informes if cond[d["inicio"]] == "estatica"]
+    assert {d["base"] for d in din} == {"preparacion"}
+    assert {d["base"] for d in est} == {"local"}
+    on_din = np.array([d["onset_ms"] for d in din if d["onset_ms"] is not None])
+    on_est = np.array([d["onset_ms"] for d in est if d["onset_ms"] is not None])
+    assert (on_din >= 0).all()
+    assert abs(np.median(on_din) - np.median(on_est)) < 300
+
+
 def test_no_hay_ventanas_de_calibracion_preparacion_ni_cruzadas(sesion):
     ruta, _ = sesion
     v = P.preparar_sesion(ruta)

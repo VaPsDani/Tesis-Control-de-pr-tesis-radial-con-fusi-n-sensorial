@@ -116,6 +116,10 @@ def anotar_df(df: pd.DataFrame, p: Optional[ParametrosFases] = None,
     # tratan aparte (fases.py, version 3).
     tipo = (df["bloque_tipo"].astype(str).to_numpy()
             if "bloque_tipo" in df.columns else None)
+    # Condicion por muestra: el inicio de las dinamicas se mide contra el
+    # final de su preparacion (fases.py, version 4).
+    dinamica = (df["condicion_postural"].fillna("").to_numpy() == "dinamica"
+                if "condicion_postural" in df.columns else None)
 
     fase = np.empty(len(df), dtype=object)
     informes = []
@@ -125,7 +129,8 @@ def anotar_df(df: pd.DataFrame, p: Optional[ParametrosFases] = None,
             imu=None if imu is None else imu[a:z],
             base_global=base_cal, imu_base_global=imu_cal,
             modo_base=modo_base,
-            tipo=None if tipo is None else tipo[a:z])
+            tipo=None if tipo is None else tipo[a:z],
+            dinamica=None if dinamica is None else dinamica[a:z])
         fase[a:z] = f
         for d in inf:
             d["tramo"] = s

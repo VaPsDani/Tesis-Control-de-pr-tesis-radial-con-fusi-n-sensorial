@@ -67,6 +67,25 @@ CRITERIO DE ONSET:
   la MISMA ventana de reposo que la optica. Sin IMU (los datasets
   publicos de LMG no la tienen) solo cuenta la senal optica.
 
+LAS DOS LINEAS BASE DE LA CAPTURA PROPIA (version 4):
+  Inicio del gesto
+    estatica   los base_ms finales del reposo previo, sin su ultimo
+               recorte_reposo_fin_ms (2 s sin el ultimo segundo).
+    dinamica   el ultimo base_preparacion_ms de la PREPARACION (1 s), con
+               el brazo ya en la primera posicion y la mano relajada. La
+               busqueda empieza en la indicacion, sin anticipacion. Con la
+               base del reposo sobre la mesa, el cambio de postura movia
+               la senal antes de la indicacion: en datos sinteticos el
+               57% de las dinamicas daba un inicio negativo falso.
+  Fin de la relajacion, en las dos condiciones
+    la cola del PROPIO reposo en que ocurre (2 s sin el ultimo segundo),
+    ya con el antebrazo sobre la mesa. Comparada en 10 sujetos
+    sinteticos con deriva entre gestos, frente a la cola del reposo
+    previo al gesto y frente al final de la preparacion, es la unica que
+    no se resiente: 0 relajaciones sin detectar y p90 de 570 ms en las
+    dinamicas, frente a 1 y 855 ms con el reposo previo y 8 y 891 ms con
+    la preparacion.
+
 BASE LOCAL O DE CALIBRACION (modo_base):
   "local"        (defecto) la base del reposo inmediatamente previo.
   "calibracion"  la del bloque de calibracion de la sesion (base_global),
@@ -93,7 +112,9 @@ import numpy as np
 
 # Cambiar este numero cuando cambie la logica: invalida las caches que
 # guardan fases calculadas con una version anterior del detector.
-FASES_VERSION = 3
+FASES_VERSION = 4
+# Version 4: en las repeticiones dinamicas, la base del INICIO es el
+# ultimo segundo de la preparacion y la busqueda empieza en la indicacion.
 # Version 3: con la columna bloque_tipo, la preparacion es un bloque propio
 # que no entra al entrenamiento, el gesto empieza en la indicacion de
 # contraccion, el reposo en movimiento es Reposo entero, y las filas de
@@ -138,6 +159,13 @@ class ParametrosFases:
     # Ventana de linea base: los base_ms previos al recorte final.
     base_ms: float = 2000.0
     base_min_ms: float = 500.0      # menos que esto no es una base fiable
+    # Base del inicio en las repeticiones DINAMICAS: el final de la
+    # preparacion, con el brazo ya en la primera posicion y la mano
+    # relajada. La base del reposo previo, sobre la mesa, no sirve: el
+    # cambio de postura mueve la senal optica antes de la indicacion, y
+    # en datos sinteticos el 57% de las dinamicas salia con un inicio
+    # negativo falso.
+    base_preparacion_ms: float = 1000.0
 
 
 @dataclass
@@ -289,7 +317,8 @@ def etiquetar_fases(x: np.ndarray, etiquetas: np.ndarray, fs: float,
                     base_global: Optional[tuple] = None,
                     imu_base_global: Optional[np.ndarray] = None,
                     modo_base: str = "local",
-                    tipo: Optional[np.ndarray] = None):
+                    tipo: Optional[np.ndarray] = None,
+                    dinamica: Optional[np.ndarray] = None):
     """
     Asigna una fase a cada muestra de una grabacion continua.
 
@@ -316,6 +345,13 @@ def etiquetar_fases(x: np.ndarray, etiquetas: np.ndarray, fs: float,
 
     Sin tipo, que es el caso de los datasets publicos, los bloques se
     cortan solo por la etiqueta, como en la version 2.
+
+    dinamica: booleano por muestra, True en las repeticiones de la
+    condicion dinamica. Con el, el INICIO de esos gestos se mide contra
+    el ultimo segundo de su preparacion y se busca solo desde la
+    indicacion, sin anticipacion. La RELAJACION no cambia en ninguna
+    condicion: se mide siempre contra la cola de su propio reposo, que
+    ya ocurre con el antebrazo sobre la mesa.
 
     Returns:
         fase: array de str, una por muestra
@@ -400,9 +436,19 @@ def etiquetar_fases(x: np.ndarray, etiquetas: np.ndarray, fs: float,
         while previo >= 0 and clases[previo] == "preparacion":
             previo -= 1
         previo = previo if previo >= 0 and es_reposo[previo] else None
+        n_prep = ms(p.base_preparacion_ms)
+        en_preparacion = (dinamica is not None and bool(dinamica[a])
+                          and b > 0 and clases[b - 1] == "preparacion"
+                          and a - bloques[b - 1][0] >= n_prep)
         if modo_base == "calibracion" and base_global is not None:
             base, deriva, imu_base = base_global, None, imu_base_global
             origen = "calibracion"
+        elif en_preparacion:
+            tramo = x[a - n_prep:a]
+            base = estadisticas_base(tramo)
+            deriva = deriva_base(tramo, base)
+            imu_base = imu[a - n_prep:a] if imu is not None else None
+            origen = "preparacion"
         else:
             base = bases.get(previo)
             deriva = derivas.get(previo)
@@ -423,7 +469,9 @@ def etiquetar_fases(x: np.ndarray, etiquetas: np.ndarray, fs: float,
                                 confirmado_imu=None, deriva_base=None,
                                 base=None))
             continue
-        pre = min(ms(p.busqueda_previa_ms), a)
+        # Con la base en la preparacion no se busca antes de la
+        # indicacion: esas muestras SON la base.
+        pre = 0 if origen == "preparacion" else min(ms(p.busqueda_previa_ms), a)
         imu_b = imu[a - pre:z] if imu is not None else None
         r = detectar_onset(x[a - pre:z], base, fs, p, imu_b, imu_base,
                            offset_muestras=pre)
