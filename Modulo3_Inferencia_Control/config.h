@@ -37,9 +37,12 @@
 // ======================== VERSION ========================
 // Se emite al arrancar como [FW] version=... SUBIRLA al cambiar algo que
 // altere la senal: pines, asentamiento, trama oscura o ADC.
-#define FIRMWARE_VERSION  "M3-2026.09.24"
+#define FIRMWARE_VERSION  "M3-2026.10.04"
 
 // SESIONES QUE NO SE MEZCLAN SIN COMPROBAR (igual que en Modulo1):
+//   M3-2026.10.04 configura el MPU6050: rango +/-2 g y filtro paso bajo
+//   DLPF_CFG = 4 (21 Hz). Antes el filtro estaba apagado. El acelerometro
+//   de las sesiones anteriores no es comparable con el de las nuevas.
 //   Desde la version 2026.09.24 la cadena optica cambio: sin multiplexor
 //   CD74HC4067, dos ADS1115 y GAIN_TWO en lugar de GAIN_ONE, y el LED 2
 //   en GPIO25 en lugar de GPIO14. Un modelo entrenado con sesiones de
@@ -189,6 +192,20 @@
 
 // ======================== MPU6050 ========================
 #define MPU_ADDR        0x68
+
+// Rango y filtro del MPU6050. Se ESCRIBEN al arrancar y se releen de la
+// placa para confirmarlos (sensor_imu.cpp). Antes no se escribian y
+// quedaban los valores de fabrica: +/-2 g, que coincidia con la escala
+// del codigo, y el filtro paso bajo APAGADO, unos 260 Hz de ancho de
+// banda. Muestreando a 100 Hz, todo lo que pasara de 50 Hz se plegaba
+// sobre la senal.
+//
+// TIENEN QUE SER IGUALES EN EL MODULO 1 Y EN EL MODULO 3. Si el modelo
+// se entrena con el acelerometro filtrado a 21 Hz y la protesis lo lee
+// sin filtro, recibe una senal que nunca vio.
+#define MPU_DLPF_CFG      4   // acelerometro 21 Hz, retardo 8.5 ms. Giroscopio 20 Hz, 8.3 ms
+#define MPU_ACCEL_FS_SEL  0   // +/-2 g, 16384 LSB/g
+#define MPU_GYRO_FS_SEL   0   // +/-250 grados/s, 131 LSB por grado/s
 
 // ======================== PCA9685 ========================
 #define PCA9685_ADDR    0x40

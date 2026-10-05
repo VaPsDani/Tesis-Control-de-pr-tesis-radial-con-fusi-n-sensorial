@@ -20,13 +20,17 @@ python Modulo2_Pipeline_DL\captura_sesion.py --puerto COM__ --participante S__
 - [ ] `subject_id` escrito en la ventana (1 a 10, es la semilla del orden)
 - [ ] Carpeta de salida `Modulo2_Pipeline_DL\sesiones`
 - [ ] Datos del participante: edad `___`  sexo `___`  mano dominante `_______`
+      brazo registrado `derecho`  longitud antebrazo `____` cm
       circunferencia antebrazo `____` cm  posición del brazalete `____` cm
+      punto de cierre de la correa `________`
 
 ## Con el brazalete ya puesto, botones de "Antes de iniciar"
 
 Solo una vez al día, con el participante fuera:
 
 - [ ] **Autotest del ciclo (T)**: el registro dice `OK` y el ciclo cabe en 10 ms
+- [ ] En las líneas que salen antes: `[FW] version=M1-2026.10.04` y la línea
+      `[IMU]` con `DLPF_CFG=4`, `AFS_SEL=0` y `OK`
 
 Con **cada** participante, brazalete colocado y ajustado:
 
@@ -49,20 +53,28 @@ Pedir **3 contracciones fuertes** y mirar la ventana.
 ## Guion de instrucciones al participante
 
 - [ ] "Mire solo la pantalla. Yo no le voy a hablar durante la grabación."
-- [ ] "Primero 15 s quieto, brazo relajado sobre la mesa. No mueva la mano."
+- [ ] Sentar al participante: antebrazo sobre la mesa **con la palma hacia
+      abajo**, codo a 90 grados, mano fuera del borde
+- [ ] "Primero 15 s quieto en esta postura. No mueva la mano."
 - [ ] "Después, cada gesto tiene tres momentos: **PREPÁRESE**, **CONTRAIGA** y
       **DESCANSE**."
-- [ ] "En CONTRAIGA suba la fuerza poco a poco durante el primer segundo,
-      siguiendo la barra amarilla, y manténgala los 10 s."
-- [ ] "Cuando diga **BRAZO QUIETO**, no mueva el brazo."
+- [ ] "En CONTRAIGA haga el gesto **con fuerza moderada**. Suba la fuerza poco
+      a poco durante el primer segundo, siguiendo la barra amarilla, y
+      manténgala los 10 s."
+- [ ] "Cuando diga **BRAZO QUIETO**, no mueva el brazo de la mesa."
 - [ ] "Si en PREPÁRESE se ilumina una posición, lleve el brazo ahí con la
       mano relajada. El gesto empieza recién cuando el fondo se pone verde."
 - [ ] "Cuando diga **BRAZO EN MOVIMIENTO**, recorra las tres posiciones que se
-      iluminan abajo sin soltar el gesto y sin parar. Suena un tono en cada
-      cambio, no hace falta que mire."
+      iluminan abajo sin soltar el gesto, sin parar y **sin girar el
+      antebrazo**. Suena un tono en cada cambio, no hace falta que mire."
+- [ ] "Al terminar una repetición con movimiento, **primero suelte la mano y
+      después vuelva el antebrazo a la mesa**."
+- [ ] "Tres veces la pantalla dirá **SIN GESTO** con fondo verde. Ahí recorra
+      las posiciones igual, pero **con la mano relajada**, sin hacer nada con
+      ella."
 - [ ] "Si se equivoca de gesto, dígalo y siga. Yo lo marco."
 
-## Durante la grabación (8.7 min)
+## Durante la grabación (9.7 min)
 
 Vigilar el panel del operador cada minuto.
 

@@ -195,10 +195,11 @@ void setup() {
 
     Serial.println("[INIT] Inicializando MPU6050...");
     if (!imu.begin()) {
-        Serial.println("[ERROR] MPU6050 no detectado");
+        Serial.println("[ERROR] MPU6050 no detectado o mal configurado");
         while (1) delay(10);
     }
     Serial.println("[OK] MPU6050 listo");
+    imu.imprimirConfig();
 
     autotestTemporal();
     optica.info();
@@ -220,6 +221,10 @@ void loop() {
             // version, la ganancia y el reposo de la sesion aunque se
             // aborte a los dos minutos.
             emitirVersion();
+            // El arranque se pierde: la PC vacia el bufer al abrir el
+            // puerto. Por eso la configuracion leida del MPU6050 se
+            // repite aqui, y asi queda en el JSON de cada sesion.
+            imu.imprimirConfig();
             adcLmg.reiniciarRecortes();
             emitirOptica();
             adquiriendo = true;
@@ -251,9 +256,14 @@ void loop() {
             emitirOptica();
             adquiriendo = estaba;
         } else if (c == 'T') {
+            // La version y los registros del MPU6050 antes del autotest:
+            // es lo que el operador ve en la ventana al pulsar T.
+            emitirVersion();
+            imu.imprimirConfig();
             autotestTemporal();
         } else if (c == 'K') {
             emitirVersion();
+            imu.imprimirConfig();
             emitirOptica();
         }
     }

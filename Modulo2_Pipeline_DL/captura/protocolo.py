@@ -10,8 +10,12 @@ ESTRUCTURA DE LA SESION:
   2. 6 repeticiones. Cada repeticion presenta los 4 gestos activos una
      vez, en orden contrabalanceado.
   3. Cada gesto = PREPARACION (3 s) + CONTRACCION (10 s) + REPOSO (8 s).
+  4. Ademas, 3 REPOSOS EN MOVIMIENTO, con la misma temporizacion: el
+     participante recorre las tres posiciones con la mano relajada. Van
+     etiquetados como Rest, con bloque_tipo "reposo_dinamico", y caen en
+     3 de las 6 repeticiones, en una posicion sorteada dentro de ella.
 
-  Total: 15 + 4*6*(3+10+8) = 519 s = 8.7 min de grabacion.
+  Total: 15 + (4*6 + 3)*(3+10+8) = 582 s = 9.7 min de grabacion.
 
 CONDICION POSTURAL, POR REPETICION Y NO POR SESION:
   De las 6 repeticiones de cada gesto, 3 son ESTATICAS, con el brazo
@@ -110,6 +114,7 @@ from config_captura import (CONDICION_DINAMICA, CONDICION_ESTATICA,  # noqa: E40
                             DUR_PREPARACION_MS, DUR_REPOSO_MS,
                             MARGEN_CALIBRACION, MARGEN_CONTRACCION,
                             MARGEN_PREPARACION, MARGEN_REPOSO, N_REPETICIONES,
+                            N_REPOSO_DINAMICO,
                             POSICION_NINGUNA, POSICIONES_BRAZO,
                             RAMPA_CONTRACCION_MS, REPETICIONES_POR_CONDICION,
                             TRAMO_POSICION_MINIMO_MS)
@@ -118,6 +123,12 @@ TIPO_CALIBRACION = "calibracion"
 TIPO_PREPARACION = "preparacion"
 TIPO_REPOSO      = "reposo"
 TIPO_CONTRACCION = "contraccion"
+# Bloque de 10 s del reposo en movimiento. Lleva label Rest. Se distingue
+# por bloque_tipo y no por una clase nueva: para el modelo es Rest, y lo
+# unico que cambia es que el brazo se mueve.
+TIPO_REPOSO_DINAMICO = "reposo_dinamico"
+# Bloques en los que se recorren las posiciones del brazo.
+TIPOS_CON_RECORRIDO = (TIPO_CONTRACCION, TIPO_REPOSO_DINAMICO)
 
 
 @dataclass
@@ -150,7 +161,7 @@ class Bloque:
         es lo que permite escribirla en el CSV y estudiar despues si el
         error de clasificacion se concentra en los cambios de posicion.
         """
-        if not self.orden_posiciones or self.tipo != TIPO_CONTRACCION:
+        if not self.orden_posiciones or self.tipo not in TIPOS_CON_RECORRIDO:
             return POSICION_NINGUNA
         # Se recorta a los limites del bloque en vez de devolver vacio:
         # una muestra puede caer unos milisegundos despues del final
@@ -352,6 +363,30 @@ def orden_posiciones_de(ocurrencia_dinamica: int) -> tuple:
     return tuple(POSICIONES_BRAZO[k:] + POSICIONES_BRAZO[:k])
 
 
+def ubicar_reposos_dinamicos(subject_id: int,
+                             n_repeticiones: int = N_REPETICIONES,
+                             n_reposos: int = N_REPOSO_DINAMICO) -> List[tuple]:
+    """
+    En que repeticion y en que lugar de ella cae cada reposo en
+    movimiento. Devuelve pares (repetition_id, hueco), donde hueco va de
+    0 (antes del primer gesto) a 4 (despues del ultimo).
+
+    Las repeticiones se parten en n_reposos tramos seguidos y se sortea
+    UNA de cada tramo. Con 6 y 3, una entre la 1 y la 2, otra entre la 3
+    y la 4 y otra entre la 5 y la 6. Asi los tres quedan repartidos a lo
+    largo de la sesion y ninguno carga siempre con el principio o con el
+    final, donde la fatiga es distinta.
+
+    El orden de los gestos NO se toca: el reposo se inserta entre ellos.
+    El contrabalanceo de los pares de gestos consecutivos sigue siendo el
+    de generar_secuencia_gestos, salvo los pares que el reposo separa.
+    """
+    rng = np.random.RandomState(subject_id + 104729)
+    tramos = np.array_split(np.arange(1, n_repeticiones + 1), n_reposos)
+    return [(int(rng.choice(t)), int(rng.randint(0, len(GESTOS_ACTIVOS) + 1)))
+            for t in tramos if len(t)]
+
+
 def construir_sesion(subject_id: int,
                      n_repeticiones: int = N_REPETICIONES) -> List[Bloque]:
     """
@@ -384,7 +419,11 @@ def construir_sesion(subject_id: int,
     ))
     t += DUR_CALIBRACION_MS
 
+    # Cada item es (label, condicion, repetition_id, orden de posiciones,
+    # tipo del bloque principal). Primero los gestos, en su orden
+    # contrabalanceado, y despues se intercalan los reposos en movimiento.
     dinamicas_vistas = {g: 0 for g in set(secuencia)}
+    por_repeticion = {}
     for i, (gesto, condicion) in enumerate(zip(secuencia, condiciones)):
         rep_id = i // len(GESTOS_ACTIVOS) + 1
         if condicion == CONDICION_DINAMICA:
@@ -392,6 +431,24 @@ def construir_sesion(subject_id: int,
             dinamicas_vistas[gesto] += 1
         else:
             orden = ()
+        por_repeticion.setdefault(rep_id, []).append(
+            (gesto, condicion, rep_id, orden, TIPO_CONTRACCION))
+
+    # El punto de partida del recorrido rota entre los reposos en
+    # movimiento, igual que entre las repeticiones dinamicas de un gesto.
+    # Se insertan de atras hacia delante dentro de cada repeticion para
+    # que un hueco no desplace al siguiente.
+    huecos = ubicar_reposos_dinamicos(subject_id, n_repeticiones)
+    for j, (rep_id, hueco) in sorted(enumerate(huecos),
+                                     key=lambda x: (x[1][0], -x[1][1])):
+        por_repeticion[rep_id].insert(hueco, (
+            LABEL_REST, CONDICION_DINAMICA, rep_id, orden_posiciones_de(j),
+            TIPO_REPOSO_DINAMICO))
+
+    items = [it for rep_id in sorted(por_repeticion)
+             for it in por_repeticion[rep_id]]
+
+    for gesto, condicion, rep_id, orden, tipo_principal in items:
 
         # Preparacion: se anuncia el gesto que viene y, si toca, que la
         # repeticion es con el brazo en movimiento. Entera en margen, asi
@@ -416,8 +473,11 @@ def construir_sesion(subject_id: int,
         ))
         t += DUR_PREPARACION_MS
 
+        # El bloque principal es una contraccion o un reposo en
+        # movimiento. Los dos duran lo mismo y llevan los mismos margenes,
+        # asi que la unica diferencia es la etiqueta y lo que se pide.
         bloques.append(Bloque(
-            tipo=TIPO_CONTRACCION, label=gesto, repetition_id=rep_id,
+            tipo=tipo_principal, label=gesto, repetition_id=rep_id,
             t_inicio_ms=t, duracion_ms=DUR_CONTRACCION_MS,
             margen_inicial_ms=MARGEN_CONTRACCION[0],
             margen_final_ms=MARGEN_CONTRACCION[1],
@@ -438,6 +498,18 @@ def construir_sesion(subject_id: int,
         t += DUR_REPOSO_MS
 
     return bloques
+
+
+def orden_completo(bloques: List[Bloque]) -> List[str]:
+    """
+    Lo que se pide en la sesion, un elemento por bloque principal: el
+    gesto, o Rest_mov para el reposo en movimiento, con su repeticion y
+    su condicion. Es lo que va al JSON para reconstruir la sesion.
+    """
+    return [f"r{b.repetition_id} "
+            f"{'Rest_mov' if b.tipo == TIPO_REPOSO_DINAMICO else b.nombre_gesto} "
+            f"{b.condicion_postural}"
+            for b in bloques if b.tipo in TIPOS_CON_RECORRIDO]
 
 
 def resumen_sesion(bloques: List[Bloque]) -> dict:
@@ -464,6 +536,8 @@ def resumen_sesion(bloques: List[Bloque]) -> dict:
             por_condicion[b.condicion_postural] += b.segundos_utiles
             if b.tipo == TIPO_CONTRACCION:
                 contracciones[b.condicion_postural] += 1
+    reposos_dinamicos = sum(1 for b in bloques
+                            if b.tipo == TIPO_REPOSO_DINAMICO)
 
     return {
         "segundos_utiles": {k: round(v, 1) for k, v in utiles.items()},
@@ -476,6 +550,7 @@ def resumen_sesion(bloques: List[Bloque]) -> dict:
         "segundos_utiles_por_condicion": {k: round(v, 1)
                                           for k, v in por_condicion.items()},
         "contracciones_por_condicion": contracciones,
+        "reposos_en_movimiento": reposos_dinamicos,
     }
 
 
@@ -496,7 +571,11 @@ if __name__ == "__main__":
         print(f"  Ratio Rest:activa = {r['ratio_rest_vs_activa']}:1")
         print(f"  Ventanas estimadas: {r['ventanas_estimadas']}")
         print(f"  Contracciones por condicion: "
-              f"{r['contracciones_por_condicion']}")
+              f"{r['contracciones_por_condicion']}, reposos en movimiento: "
+              f"{r['reposos_en_movimiento']}")
+        print("  Orden completo:")
+        for k, item in enumerate(orden_completo(bloques), 1):
+            print(f"    {k:2d}. {item}")
         tabla = collections.Counter((NOMBRES_GESTOS[b.label],
                                      b.condicion_postural)
                                     for b in contracciones)

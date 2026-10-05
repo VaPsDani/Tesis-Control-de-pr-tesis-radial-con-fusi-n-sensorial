@@ -309,10 +309,11 @@ void inicializarHardware() {
     // ========== 3. Inicializar MPU6050 ==========
     Serial.print("[MPU6050] Inicializando... ");
     if (!imu.begin()) {
-        Serial.println("ERROR - No detectado");
+        Serial.println("ERROR - No detectado o mal configurado");
         while (1) delay(10);
     }
     Serial.println("OK");
+    imu.imprimirConfig();
 
     // ========== 3b. Autotest del ciclo de muestreo ==========
     autotestTemporal();

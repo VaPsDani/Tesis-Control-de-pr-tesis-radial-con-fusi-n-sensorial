@@ -485,7 +485,11 @@ def marcar_descartadas(ruta: str, descartadas) -> int:
             # identificar por clave, y ademas sigue siendo reposo valido:
             # que el participante se equivocara de gesto no invalida el
             # reposo posterior.
+            # El reposo en movimiento lleva label 0, igual que los
+            # reposos normales, pero se distingue por bloque_tipo, asi que
+            # descartarlo no arrastra el reposo de la repeticion.
             if clave in objetivo and fila[i_tipo] in ("preparacion",
+                                                      "reposo_dinamico",
                                                       "contraccion"):
                 fila[i_des] = "1"
                 marcadas += 1

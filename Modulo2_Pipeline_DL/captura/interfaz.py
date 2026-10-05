@@ -42,15 +42,20 @@ from config_captura import (BAUDIOS_DEFECTO, CONDICION_DINAMICA,
                             RAMPA_RETENCION_MS,
                             SONIDO_HABILITADO, SONIDO_HZ, SONIDO_MS,
                             POSICIONES_BRAZO, TEXTO_COLOCAR_BRAZO,
-                            TEXTO_MOVIMIENTO_LENTO,
-                            TEXTO_POSICION)
+                            TEXTO_COLOCAR_BRAZO_REPOSO,
+                            TEXTO_MOVIMIENTO_LENTO, TEXTO_MOVIMIENTO_REPOSO,
+                            TEXTO_POSICION, TEXTO_POSTURA_REFERENCIA)
 from protocolo import (TIPO_CALIBRACION, TIPO_CONTRACCION, TIPO_PREPARACION,
-                       TIPO_REPOSO, NOMBRES_GESTOS)
+                       TIPO_REPOSO, TIPO_REPOSO_DINAMICO, TIPOS_CON_RECORRIDO,
+                       LABEL_REST, NOMBRES_GESTOS)
 
 
 def color_de(tipo: str) -> str:
     return {
         TIPO_CONTRACCION: COLOR_CONTRACCION,
+        # Verde como la contraccion: es la senal de "ahora". Lo que se
+        # pide lo dice el texto, que es distinto.
+        TIPO_REPOSO_DINAMICO: COLOR_CONTRACCION,
         TIPO_CALIBRACION: COLOR_CALIBRACION,
         TIPO_PREPARACION: COLOR_PREPARACION,
     }.get(tipo, COLOR_REPOSO)
@@ -63,6 +68,7 @@ TEXTO_FASE = {
     TIPO_CALIBRACION: "FASE 0 de 3  ·  CALIBRACION",
     TIPO_PREPARACION: "FASE 1 de 3  ·  PREPARESE",
     TIPO_CONTRACCION: "FASE 2 de 3  ·  CONTRAIGA",
+    TIPO_REPOSO_DINAMICO: "FASE 2 de 3  ·  MUEVA EL BRAZO",
     TIPO_REPOSO:      "FASE 3 de 3  ·  DESCANSE",
 }
 
@@ -226,7 +232,8 @@ class VentanaParticipante(tk.Toplevel):
         mantener durante RAMPA_RETENCION_MS, para que el final de la
         subida no se confunda con un fallo de la pantalla.
         """
-        if bloque.tipo == TIPO_PREPARACION:
+        # Antes de un reposo en movimiento no hay fuerza que subir.
+        if bloque.tipo == TIPO_PREPARACION and bloque.label != LABEL_REST:
             self._rampa.itemconfigure(self._rampa_marco, state="normal")
             self._rampa.coords(self._rampa_relleno, 2, 2, 2, 24)
             self._rampa_txt.config(
@@ -271,7 +278,7 @@ class VentanaParticipante(tk.Toplevel):
         quedaba etiquetado con una posicion en la que todavia no estaba.
         """
         con_recorrido = bool(bloque.orden_posiciones) and bloque.tipo in (
-            TIPO_PREPARACION, TIPO_CONTRACCION)
+            (TIPO_PREPARACION,) + TIPOS_CON_RECORRIDO)
         if not con_recorrido:
             if self._pos_visible:
                 self._marco_pos.pack_forget()
@@ -300,7 +307,7 @@ class VentanaParticipante(tk.Toplevel):
         # contraccion. En la preparacion se deja _pos_actual en None para
         # que la entrada al primer tramo, que es la misma casilla que ya
         # estaba iluminada, no suene como si fuera un cambio.
-        if bloque.tipo != TIPO_CONTRACCION:
+        if bloque.tipo not in TIPOS_CON_RECORRIDO:
             self._pos_actual = None
             return
         if actual != self._pos_actual:
@@ -313,18 +320,39 @@ class VentanaParticipante(tk.Toplevel):
         self._pintar(color_de(bloque.tipo))
         self._fase.config(text=TEXTO_FASE.get(bloque.tipo, bloque.tipo.upper()))
 
+        # Preparacion de un reposo en movimiento: lleva label Rest.
+        sin_gesto = bloque.label == LABEL_REST
         if bloque.tipo == TIPO_CALIBRACION:
             self._instruccion.config(
-                text="Calibracion. Brazo relajado y quieto. No mueva la mano.")
+                text=f"Calibracion. {TEXTO_POSTURA_REFERENCIA}, codo a 90 "
+                     f"grados y mano fuera del borde. No mueva la mano.")
             self._gesto.config(text="QUIETO")
+        elif bloque.tipo == TIPO_PREPARACION and sin_gesto:
+            self._instruccion.config(
+                text="Ahora viene: reposo con el brazo en movimiento")
+            self._gesto.config(text="SIN GESTO")
         elif bloque.tipo == TIPO_PREPARACION:
             self._instruccion.config(text="Ahora viene este gesto")
             self._gesto.config(text=bloque.nombre_gesto.upper())
+        elif bloque.tipo == TIPO_REPOSO_DINAMICO:
+            self._instruccion.config(
+                text="Mueva el brazo con la mano relajada")
+            self._gesto.config(text="SIN GESTO")
         elif bloque.tipo == TIPO_REPOSO:
-            self._instruccion.config(text="Relaje la mano")
+            # Tras una repeticion dinamica el orden importa: primero se
+            # suelta el gesto y despues se vuelve a la mesa. Al reves, la
+            # vuelta a la mesa quedaria grabada todavia con el gesto.
+            if bloque.condicion_postural == CONDICION_DINAMICA:
+                self._instruccion.config(
+                    text="Primero suelte la mano. Despues vuelva el "
+                         "antebrazo a la mesa, palma hacia abajo")
+            else:
+                self._instruccion.config(
+                    text=f"Relaje la mano. {TEXTO_POSTURA_REFERENCIA}")
             self._gesto.config(text="REPOSO")
         else:
-            self._instruccion.config(text="Ejecute y mantenga")
+            self._instruccion.config(
+                text="Ejecute y mantenga, con fuerza moderada")
             self._gesto.config(text=bloque.nombre_gesto.upper())
 
         # Condicion de la repeticion. Se anuncia en la preparacion, para
@@ -336,22 +364,26 @@ class VentanaParticipante(tk.Toplevel):
         # participante no se le pide nada: descansa con el brazo donde
         # quiera. Mostrar "BRAZO EN MOVIMIENTO" junto a "Relaje la mano"
         # hacia creer que habia que seguir moviendose durante el descanso.
-        if bloque.tipo not in (TIPO_PREPARACION, TIPO_CONTRACCION):
+        if bloque.tipo not in (TIPO_PREPARACION,) + TIPOS_CON_RECORRIDO:
             self._posicion.config(text="")
         elif bloque.condicion_postural == CONDICION_DINAMICA:
             # En la preparacion se pide COLOCAR el brazo, todavia sin
-            # gesto. El recorrido se explica ya en la contraccion, que
-            # es cuando hay que hacerlo.
+            # gesto. El recorrido se explica ya en el bloque siguiente,
+            # que es cuando hay que hacerlo.
             if bloque.tipo == TIPO_PREPARACION:
-                self._posicion.config(
-                    text=f"{TEXTO_CONDICION[CONDICION_DINAMICA]}"
-                         f"\n{TEXTO_COLOCAR_BRAZO}")
+                detalle = (TEXTO_COLOCAR_BRAZO_REPOSO if sin_gesto
+                           else TEXTO_COLOCAR_BRAZO)
+            elif bloque.tipo == TIPO_REPOSO_DINAMICO:
+                detalle = TEXTO_MOVIMIENTO_REPOSO
             else:
-                self._posicion.config(
-                    text=f"{TEXTO_CONDICION[CONDICION_DINAMICA]}"
-                         f"\n{TEXTO_MOVIMIENTO_LENTO}")
+                detalle = TEXTO_MOVIMIENTO_LENTO
+            self._posicion.config(
+                text=f"{TEXTO_CONDICION[CONDICION_DINAMICA]}"
+                     f"\n{detalle}")
         elif bloque.condicion_postural == CONDICION_ESTATICA:
-            self._posicion.config(text=TEXTO_CONDICION[CONDICION_ESTATICA])
+            self._posicion.config(
+                text=f"{TEXTO_CONDICION[CONDICION_ESTATICA]}"
+                     f"\n{TEXTO_POSTURA_REFERENCIA}")
         else:
             self._posicion.config(text="")
 
@@ -592,20 +624,29 @@ class VentanaOperador(tk.Tk):
         g = ttk.LabelFrame(self, text="Participante")
         g.pack(fill="x", padx=8, pady=6)
         self.vars_meta = {}
-        campos = [("edad", 6), ("sexo", 6), ("mano_dominante", 10),
-                  ("circunferencia_antebrazo_cm", 8),
-                  ("posicion_brazalete_cm", 8)]
-        for i, (nombre, ancho) in enumerate(campos):
+        # (nombre, ancho, valor por defecto). El articulo registra
+        # siempre el brazo derecho de participantes diestros, asi que el
+        # campo viene relleno y solo se toca si hubiera una excepcion,
+        # que entonces queda escrita en el JSON.
+        campos = [("edad", 6, ""), ("sexo", 6, ""),
+                  ("mano_dominante", 10, ""),
+                  ("brazo_registrado", 10, "derecho"),
+                  ("longitud_antebrazo_cm", 8, ""),
+                  ("circunferencia_antebrazo_cm", 8, ""),
+                  ("posicion_brazalete_cm", 8, ""),
+                  ("punto_cierre_correa", 10, "")]
+        for i, (nombre, ancho, defecto) in enumerate(campos):
             ttk.Label(g, text=nombre).grid(row=i // 2, column=(i % 2) * 2,
                                            sticky="w", padx=4, pady=2)
-            v = tk.StringVar()
+            v = tk.StringVar(value=defecto)
             self.vars_meta[nombre] = v
             ttk.Entry(g, textvariable=v, width=ancho).grid(
                 row=i // 2, column=(i % 2) * 2 + 1, sticky="w")
-        ttk.Label(g, text="observaciones").grid(row=3, column=0, sticky="nw",
-                                                padx=4)
+        fila_obs = (len(campos) + 1) // 2
+        ttk.Label(g, text="observaciones").grid(row=fila_obs, column=0,
+                                                sticky="nw", padx=4)
         self.txt_obs = tk.Text(g, height=3, width=52, font=("Consolas", 9))
-        self.txt_obs.grid(row=3, column=1, columnspan=3, pady=4)
+        self.txt_obs.grid(row=fila_obs, column=1, columnspan=3, pady=4)
 
     def _elegir_carpeta(self):
         ruta = filedialog.askdirectory(

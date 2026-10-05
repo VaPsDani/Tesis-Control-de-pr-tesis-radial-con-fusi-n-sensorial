@@ -16,10 +16,14 @@ def test_la_sesion_tiene_calibracion_y_tres_fases_por_gesto():
     bloques = p.construir_sesion(1)
     tipos = collections.Counter(b.tipo for b in bloques)
     n_gestos = p.N_REPETICIONES * len(p.GESTOS_ACTIVOS)
+    n_rd = p.N_REPOSO_DINAMICO
     assert tipos[p.TIPO_CALIBRACION] == 1
-    assert tipos[p.TIPO_PREPARACION] == n_gestos
+    # Cada reposo en movimiento trae su preparacion y su reposo, como
+    # un gesto mas.
+    assert tipos[p.TIPO_PREPARACION] == n_gestos + n_rd
     assert tipos[p.TIPO_CONTRACCION] == n_gestos
-    assert tipos[p.TIPO_REPOSO] == n_gestos
+    assert tipos[p.TIPO_REPOSO_DINAMICO] == n_rd
+    assert tipos[p.TIPO_REPOSO] == n_gestos + n_rd
 
 
 def test_los_bloques_no_se_solapan_ni_dejan_huecos():
@@ -96,7 +100,7 @@ def test_solo_las_dinamicas_recorren_posiciones():
     # que ser LA MISMA que la del primer tramo de su contraccion.
     for b in p.construir_sesion(1):
         dinamica = (b.condicion_postural == p.CONDICION_DINAMICA
-                    and b.tipo in (p.TIPO_CONTRACCION, p.TIPO_PREPARACION))
+                    and b.tipo in (p.TIPO_PREPARACION,) + p.TIPOS_CON_RECORRIDO)
         if dinamica:
             assert len(b.orden_posiciones) == len(p.POSICIONES_BRAZO)
             assert set(b.orden_posiciones) == set(p.POSICIONES_BRAZO)
@@ -118,7 +122,9 @@ def test_la_preparacion_dinamica_anuncia_la_posicion_de_partida():
         # recorrido de la contraccion que viene.
         assert prep.orden_posiciones[0] == contr.posicion_en(
             contr.t_inicio_ms + 1)
-    assert vistas == 12          # 4 gestos por 3 repeticiones dinamicas
+    # 4 gestos por 3 repeticiones dinamicas, mas los reposos en
+    # movimiento, que tambien anuncian su posicion de partida.
+    assert vistas == 12 + p.N_REPOSO_DINAMICO
 
 
 def test_la_preparacion_no_escribe_posicion_en_el_csv():
@@ -167,8 +173,68 @@ def test_la_rampa_no_puede_salirse_del_margen_de_entrada(monkeypatch):
 def test_el_resumen_cuadra_con_los_tiempos():
     bloques = p.construir_sesion(1)
     r = p.resumen_sesion(bloques)
-    esperado = (p.DUR_CALIBRACION_MS + p.N_REPETICIONES * len(p.GESTOS_ACTIVOS)
+    n_items = p.N_REPETICIONES * len(p.GESTOS_ACTIVOS) + p.N_REPOSO_DINAMICO
+    esperado = (p.DUR_CALIBRACION_MS + n_items
                 * (p.DUR_PREPARACION_MS + p.DUR_CONTRACCION_MS
                    + p.DUR_REPOSO_MS)) / 1000.0
+    assert esperado == 582.0
+    assert r["reposos_en_movimiento"] == p.N_REPOSO_DINAMICO
     assert r["duracion_total_s"] == pytest.approx(esperado)
     assert r["ratio_rest_vs_activa"] > 0
+
+
+# ---------- reposo en movimiento ----------
+def _reposos_dinamicos(sid):
+    bloques = p.construir_sesion(sid)
+    return bloques, [i for i, b in enumerate(bloques)
+                     if b.tipo == p.TIPO_REPOSO_DINAMICO]
+
+
+def test_el_reposo_en_movimiento_es_rest_dinamico_y_con_su_preparacion():
+    for sid in (1, 2, 5):
+        bloques, idx = _reposos_dinamicos(sid)
+        assert len(idx) == p.N_REPOSO_DINAMICO
+        for i in idx:
+            prep, rd, reposo = bloques[i - 1], bloques[i], bloques[i + 1]
+            assert rd.label == p.LABEL_REST
+            assert rd.condicion_postural == p.CONDICION_DINAMICA
+            assert rd.duracion_ms == p.DUR_CONTRACCION_MS
+            # La preparacion tambien es Rest: no anuncia ningun gesto.
+            assert prep.tipo == p.TIPO_PREPARACION and prep.label == p.LABEL_REST
+            assert reposo.tipo == p.TIPO_REPOSO
+            assert prep.repetition_id == rd.repetition_id == reposo.repetition_id
+
+
+def test_el_reposo_en_movimiento_recorre_las_tres_posiciones():
+    bloques, idx = _reposos_dinamicos(1)
+    partidas = []
+    for i in idx:
+        rd = bloques[i]
+        tramo = rd.duracion_ms / 3
+        vistas = [rd.posicion_en(rd.t_inicio_ms + int(tramo * k + tramo / 2))
+                  for k in range(3)]
+        assert sorted(vistas) == sorted(p.POSICIONES_BRAZO)
+        partidas.append(vistas[0])
+    # El punto de partida rota entre los tres, igual que en los gestos.
+    assert sorted(partidas) == sorted(p.POSICIONES_BRAZO)
+
+
+def test_hay_un_reposo_en_movimiento_por_tercio_de_la_sesion():
+    for sid in (1, 2, 3, 9):
+        bloques, idx = _reposos_dinamicos(sid)
+        reps = sorted(bloques[i].repetition_id for i in idx)
+        assert reps[0] in (1, 2) and reps[1] in (3, 4) and reps[2] in (5, 6)
+
+
+def test_los_reposos_en_movimiento_no_alteran_el_orden_de_los_gestos():
+    # Se intercalan, no se mezclan con el contrabalanceo de los gestos.
+    for sid in (1, 4):
+        contracciones = [b.label for b in p.construir_sesion(sid)
+                         if b.tipo == p.TIPO_CONTRACCION]
+        assert contracciones == p.generar_secuencia_gestos(sid)
+
+
+def test_la_ubicacion_es_reproducible_y_depende_del_sujeto():
+    assert p.ubicar_reposos_dinamicos(1) == p.ubicar_reposos_dinamicos(1)
+    distintas = {tuple(p.ubicar_reposos_dinamicos(s)) for s in range(1, 11)}
+    assert len(distintas) > 1

@@ -151,7 +151,11 @@ python Modulo2_Pipeline_DL/captura_sesion.py --puerto COM3 --participante S01
 ```
 
 4. Una vez al día, con nadie puesto el brazalete, pulse **Autotest del ciclo
-   (T)**. Confirma que el muestreo cabe en los 10 ms de los 100 Hz.
+   (T)**. Confirma que el muestreo cabe en los 10 ms de los 100 Hz. Antes
+   del resultado, el registro muestra dos líneas que hay que comprobar: `[FW] version=M1-2026.10.04` y la del acelerómetro, que tiene que
+   terminar en `OK` y decir `DLPF_CFG=4` y `AFS_SEL=0`. Es la lectura de los
+   registros desde la propia placa, no lo que el código manda. La misma
+   línea queda guardada en el JSON de cada sesión.
 5. Con el participante ya con el brazalete puesto y en reposo, pulse
    **Autocalibrar LED (A)**. Dura unos 15 s y al final pide una contracción
    máxima de 3 s, que hay que pedirle en voz alta cuando aparezca el aviso.
@@ -174,10 +178,19 @@ En la ventana del operador, rellene:
 | `id anonimo` | S01, S02. Es lo que va al CSV, nunca el nombre |
 | `puerto` y `baudios` | Los baudios ya vienen en 921600, que es el del firmware |
 | `carpeta` | Dónde se guardan el CSV y el JSON |
-| Datos del participante | Edad, sexo, mano dominante, circunferencia del antebrazo y posición del brazalete en cm |
+| Datos del participante | Edad, sexo, mano dominante, brazo registrado, longitud y circunferencia del antebrazo en cm, posición del brazalete en cm y punto de cierre de la correa |
 
-La circunferencia y la posición del brazalete se anotan porque, sin ellas, un
-sujeto que rinde peor que los demás queda sin explicación posible.
+`brazo_registrado` viene relleno con "derecho", porque el artículo registra
+siempre el brazo derecho de participantes diestros. Solo se toca si hubiera
+una excepción, que entonces queda escrita en el JSON.
+
+`punto_cierre_correa` es texto libre: el agujero o la marca donde quedó
+cerrada la correa, por ejemplo "agujero 4". Con eso la tensión se puede
+repetir si hay que volver a grabar a la misma persona.
+
+La longitud, la circunferencia, la posición del brazalete y el cierre se
+anotan porque, sin ellos, un sujeto que rinde peor que los demás queda sin
+explicación posible.
 
 ### 2. Prueba de conexión
 
@@ -199,15 +212,20 @@ de iniciar.
 
 Antes de pulsar Iniciar, explique:
 
+- **Postura de referencia**: sentado, antebrazo sobre la mesa **con la palma
+  hacia abajo**, codo a 90 grados y la mano fuera del borde. Ya no es "pulgar
+  hacia arriba".
 - Mire la pantalla, no el teclado ni su mano.
 - En **PREPARESE** verá el gesto que viene, con cuenta de 3, 2 y 1. Si la
   repetición es con movimiento, además se ilumina la posición de partida:
   hay que llevar el brazo ahí con la mano relajada, sin hacer el gesto
   todavía.
-- En **CONTRAIGA** ejecute el gesto y manténgalo los 10 s. **Suba la fuerza
-  poco a poco durante el primer segundo**, siguiendo la barra amarilla, sin
-  dar un golpe.
-- En **DESCANSE** relaje la mano del todo.
+- En **CONTRAIGA** ejecute el gesto **con fuerza moderada** y manténgalo los
+  10 s. **Suba la fuerza poco a poco durante el primer segundo**, siguiendo
+  la barra amarilla, sin dar un golpe.
+- En **DESCANSE** relaje la mano del todo. Después de una repetición con
+  movimiento, **primero suelte el gesto y después vuelva el antebrazo a la
+  mesa**. Al revés, la vuelta a la mesa quedaría grabada todavía con el gesto.
 - Si se equivoca de gesto, que lo diga y siga. No hay que disimular.
 
 Explique además las dos clases de repetición, porque van mezcladas en la misma
@@ -215,8 +233,14 @@ sesión y la pantalla avisa de cuál toca ya en la fase de preparación.
 
 | La pantalla dice | Qué tiene que hacer |
 |---|---|
-| **BRAZO QUIETO** | Mantener el gesto sin mover el brazo, en una postura cómoda |
-| **BRAZO EN MOVIMIENTO** | Mantener el gesto mientras recorre las tres posiciones que se iluminan abajo, una cada 3.3 s, pasando de una a otra sin parar y sin soltar el gesto |
+| **BRAZO QUIETO** | Mantener el gesto sin mover el brazo, en la postura de referencia, con el antebrazo sobre la mesa y la palma hacia abajo |
+| **BRAZO EN MOVIMIENTO** | Mantener el gesto mientras recorre las tres posiciones que se iluminan abajo, una cada 3.3 s, pasando de una a otra sin parar, sin soltar el gesto y **sin girar el antebrazo** |
+| **SIN GESTO** con fondo verde y **MUEVA EL BRAZO** | Es un **reposo en movimiento**: recorrer las tres posiciones igual que arriba, pero **con la mano relajada**, sin hacer ningún gesto |
+
+Hay 3 reposos en movimiento por sesión, intercalados entre los gestos. Su
+preparación dice "Ahora viene: reposo con el brazo en movimiento" y no
+muestra la barra de fuerza, porque no hay fuerza que subir. Son importantes:
+le enseñan al modelo que mover el brazo no significa hacer un gesto.
 
 En las repeticiones con movimiento, **la casilla de la primera posicion ya se ilumina durante la preparacion**, con el aviso de llevar el brazo ahi con la mano relajada. El gesto empieza recien con el fondo verde. Asi la contraccion no se gasta llevando el brazo a su sitio, que era lo que convertia el primer tramo de 3.3 s en un traslado etiquetado como si el brazo ya estuviera colocado.
 
@@ -226,7 +250,7 @@ De las 6 repeticiones de cada gesto, 3 son quietas y 3 con movimiento.
 
 ### 4. Durante la sesión
 
-Pulse **Iniciar**. La sesión dura 8.7 min y va sola.
+Pulse **Iniciar**. La sesión dura 9.7 min y va sola.
 
 | Botón | Cuándo se usa |
 |---|---|
@@ -288,8 +312,9 @@ y recuperar un canal después costaría volver a grabar con los diez
 voluntarios.
 
 **Ojo con la palabra fase.** En `bloque_tipo` las fases son calibración,
-preparación, contracción y reposo. La columna `fase` de `fases.py` es otra
-cosa: reposo, dinámica, meseta y reacción.
+preparación, contracción, reposo y `reposo_dinamico`, que es el bloque de 10 s
+del reposo en movimiento. La columna `fase` de `fases.py` es otra cosa:
+reposo, dinámica, meseta y reacción.
 
 **`en_margen` y `descartada` marcan, no borran.** El margen de entrada de
 1000 ms de cada contracción se señala pero las filas se conservan, para poder
@@ -303,6 +328,9 @@ barrer ese valor sobre los datos del piloto sin volver a grabar.
 | Preparación | 3 s | entero en margen |
 | Contracción | 10 s | 1000 y 500 ms |
 | Reposo | 8 s | 2000 y 500 ms |
+| Reposo en movimiento, en lugar de la contracción | 10 s | 1000 y 500 ms |
+
+Total: 15 + (4 × 6 + 3) × (3 + 10 + 8) = 582 s, o sea 9.7 min.
 
 Cuatro gestos activos por seis repeticiones, con **orden contrabalanceado e
 intercalado**: cada repetición presenta los cuatro gestos una vez, en un orden
@@ -321,6 +349,18 @@ En las repeticiones con movimiento, las tres posiciones se recorren dentro de
 la contracción, 3.3 s cada una, y el orden de partida rota entre repeticiones
 para que ninguna posición caiga siempre en el primer tramo, que es el que
 pierde su primer segundo por el margen de entrada.
+
+**Reposo en movimiento.** Tres veces por sesión, con la misma temporización
+que un gesto, el participante recorre las tres posiciones con la mano
+relajada. Va etiquetado como Rest, en la condición dinámica, con
+`bloque_tipo` igual a `reposo_dinamico`. Las repeticiones se parten en tres
+tramos, de la 1 a la 2, de la 3 a la 4 y de la 5 a la 6, y en cada tramo se
+sortea con semilla del `subject_id` una repetición y un lugar dentro de ella.
+El orden de los gestos no cambia: el reposo se intercala entre ellos.
+
+Sin él, en la condición dinámica "brazo en movimiento" significaría casi
+siempre "hay gesto", y el acelerómetro podría acertar por ese atajo en vez de
+por compensar la postura.
 
 **El margen de entrada de 1000 ms no se reduce.** Como el orden está
 contrabalanceado, el participante no puede anticipar el gesto, y elegir entre

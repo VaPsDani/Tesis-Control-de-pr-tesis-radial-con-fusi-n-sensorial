@@ -36,8 +36,9 @@ from config_captura import (DIR_IMAGENES, DIR_IMAGENES_ALT,
                             DIR_SALIDA_DEFECTO, DUR_CALIBRACION_MS,
                             DUR_CONTRACCION_MS, DUR_PREPARACION_MS,
                             DUR_REPOSO_MS, RAMPA_CONTRACCION_MS, REFRESCO_MS)
-from protocolo import (construir_sesion, resumen_sesion, NOMBRES_GESTOS,
-                       TIPO_CALIBRACION, TIPO_CONTRACCION, TIPO_PREPARACION)
+from protocolo import (construir_sesion, resumen_sesion, orden_completo,
+                       NOMBRES_GESTOS, TIPO_CALIBRACION, TIPO_CONTRACCION,
+                       TIPO_PREPARACION, TIPO_REPOSO_DINAMICO)
 from adquisicion import (LectorSerie, EscritorCSV, Muestra,
                          marcar_descartadas)
 from interfaz import (VentanaOperador, VentanaParticipante, VentanaPrueba,
@@ -476,7 +477,8 @@ class Sesion:
             return
         bloque = None
         for b in reversed(self.bloques[:self.idx + 1]):
-            if b.tipo in (TIPO_CONTRACCION, TIPO_PREPARACION):
+            if b.tipo in (TIPO_CONTRACCION, TIPO_PREPARACION,
+                          TIPO_REPOSO_DINAMICO):
                 bloque = b
                 break
         if bloque is None:
@@ -670,6 +672,13 @@ class Sesion:
             "orden_gestos_efectivo": secuencia,
             "orden_gestos_nombres": [NOMBRES_GESTOS[g] for g in secuencia],
             "condiciones_posturales": [b.condicion_postural for b in contracciones],
+            # Todo lo que se pidio, en orden, incluidos los reposos en
+            # movimiento, que no son contracciones y no salen arriba.
+            "orden_completo": orden_completo(self.bloques),
+            "reposos_en_movimiento": [
+                {"repeticion": b.repetition_id,
+                 "orden_posiciones": "|".join(b.orden_posiciones)}
+                for b in self.bloques if b.tipo == TIPO_REPOSO_DINAMICO],
             "orden_posiciones": ["|".join(b.orden_posiciones)
                                  for b in contracciones],
             "semilla_contrabalanceo": self.subject_id,

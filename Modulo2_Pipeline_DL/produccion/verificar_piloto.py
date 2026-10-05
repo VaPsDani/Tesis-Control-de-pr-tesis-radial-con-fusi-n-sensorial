@@ -41,6 +41,7 @@ import sys as _sys
 _M2 = _os.path.abspath(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
                                      ".."))
 for _d in (_M2, _os.path.join(_M2, "common"), _os.path.join(_M2, "produccion"),
+           _os.path.join(_M2, "captura"),
            _os.path.join(_M2, "experimentos", "validacion_preliminar_emg")):
     if _d not in _sys.path:
         _sys.path.insert(0, _d)
@@ -57,8 +58,11 @@ from preprocesamiento import (COLUMNAS_MODELO, COLUMNAS_NO_MODELO,
                               CONDICIONES_POSTURALES,
                               SlidingWindowPreprocessor)
 
+from config_captura import N_REPOSO_DINAMICO, POSICIONES_BRAZO  # noqa: E402
+
 NOMBRES = ["Rest", "Pinch", "Tripod", "Power", "Finger_Ext"]
 PERIODO_MS = 10
+TIPO_REPOSO_DINAMICO = "reposo_dinamico"
 
 
 def _seccion(t):
@@ -166,6 +170,64 @@ def verificar_condicion_postural(df, informe) -> list:
     return problemas
 
 
+def verificar_reposo_dinamico(df, informe) -> list:
+    """
+    Comprueba los reposos en movimiento.
+
+    Lo que tiene que cumplirse:
+      - hay N_REPOSO_DINAMICO, cada uno en una repeticion,
+      - van etiquetados como Rest y en la condicion dinamica, que es la
+        celda del experimento donde tienen que quitar el atajo de "brazo
+        en movimiento quiere decir gesto",
+      - cada uno recorre las tres posiciones del brazo,
+      - van precedidos de una preparacion con label Rest, porque la
+        preparacion es la que pide llevar el brazo a la primera posicion.
+
+    Un CSV sin ninguno es de una version anterior del protocolo.
+    """
+    problemas = []
+    rd = df[df["bloque_tipo"] == TIPO_REPOSO_DINAMICO]
+    reps = sorted(rd["repetition_id"].unique().tolist())
+    print(f"  Reposos en movimiento     : {len(reps)} "
+          f"(esperados {N_REPOSO_DINAMICO}) en repeticiones {reps}")
+    informe["reposo_dinamico"] = {"repeticiones": reps}
+    if not len(rd):
+        problemas.append("No hay reposos en movimiento: el CSV es de una "
+                         "version anterior del protocolo.")
+        return problemas
+    if len(reps) != N_REPOSO_DINAMICO:
+        problemas.append(f"Hay {len(reps)} reposos en movimiento y se "
+                         f"esperaban {N_REPOSO_DINAMICO}.")
+    if set(rd["label"].unique().tolist()) != {0}:
+        problemas.append("Algun reposo en movimiento no tiene label Rest.")
+    if set(rd["condicion_postural"].fillna("").unique().tolist()) != {"dinamica"}:
+        problemas.append("Algun reposo en movimiento no esta en la condicion "
+                         "dinamica.")
+    if "posicion_brazo" in rd.columns:
+        posiciones = (rd.groupby("repetition_id")["posicion_brazo"]
+                        .apply(lambda x: set(x.fillna("")) - {""}))
+        incompletos = [int(r) for r, ps in posiciones.items()
+                       if ps != set(POSICIONES_BRAZO)]
+        print(f"  Recorren las 3 posiciones : {not incompletos}")
+        if incompletos:
+            problemas.append(f"Reposos en movimiento sin las 3 posiciones en "
+                             f"las repeticiones {incompletos}.")
+    # La fila anterior al primer bloque de cada reposo en movimiento tiene
+    # que ser una preparacion con label Rest.
+    tipos = df["bloque_tipo"].values
+    labels = df["label"].values
+    sin_prep = []
+    for r in reps:
+        i0 = int(rd.index[rd["repetition_id"] == r][0])
+        pos = df.index.get_loc(i0)
+        if pos == 0 or tipos[pos - 1] != "preparacion" or labels[pos - 1] != 0:
+            sin_prep.append(int(r))
+    if sin_prep:
+        problemas.append(f"Reposos en movimiento sin su preparacion en las "
+                         f"repeticiones {sin_prep}.")
+    return problemas
+
+
 def main():
     p = argparse.ArgumentParser(description="Auditoria del piloto")
     p.add_argument("--csv", type=str, required=True)
@@ -202,6 +264,7 @@ def main():
 
     _seccion("2. PROTOCOLO")
     problemas += verificar_condicion_postural(df_raw, informe)
+    problemas += verificar_reposo_dinamico(df_raw, informe)
     reposo = df_raw[df_raw["bloque_tipo"] == "reposo"]
     reps_reposo = sorted(reposo["repetition_id"].unique().tolist())
     hereda = 0 not in reps_reposo

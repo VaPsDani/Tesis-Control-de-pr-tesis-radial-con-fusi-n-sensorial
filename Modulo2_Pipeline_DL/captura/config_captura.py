@@ -97,10 +97,27 @@ CONDICION_NINGUNA = ""          # calibracion
 
 REPETICIONES_POR_CONDICION = 3
 
+# REPOSO EN MOVIMIENTO. Repeticiones de la condicion dinamica en las que
+# el participante recorre las tres posiciones con la mano RELAJADA, con
+# la misma temporizacion de un gesto (preparacion + bloque de 10 s +
+# reposo). Se etiquetan como Rest.
+#
+# Hacen falta por una razon de diseno. Sin ellas, en la condicion
+# dinamica "brazo en movimiento" significa casi siempre "hay gesto", y
+# el acelerometro puede acertar el gesto por ese atajo en vez de por
+# compensar la postura. Con ellas, el movimiento del brazo deja de
+# delatar la clase.
+N_REPOSO_DINAMICO = 3
+
 TEXTO_CONDICION = {
     CONDICION_ESTATICA: "BRAZO QUIETO",
     CONDICION_DINAMICA: "BRAZO EN MOVIMIENTO",
 }
+
+# Postura de referencia del articulo: sentado, antebrazo sobre la mesa en
+# pronacion, codo a 90 grados y mano fuera del borde. Ya NO es "pulgar
+# hacia arriba".
+TEXTO_POSTURA_REFERENCIA = "Antebrazo sobre la mesa, palma hacia abajo"
 
 # Posiciones del brazo de la condicion dinamica. En una repeticion
 # dinamica el participante recorre LAS TRES durante los 10 s de
@@ -115,15 +132,27 @@ POSICIONES_BRAZO = [
 ]
 TEXTO_POSICION = {
     "abajo_al_costado": "ABAJO, AL COSTADO",
-    "al_frente_codo_90": "AL FRENTE, CODO A 90",
-    "arriba_sobre_el_hombro": "ARRIBA, SOBRE EL HOMBRO",
+    "al_frente_codo_90": "AL FRENTE, SIN APOYO",
+    "arriba_sobre_el_hombro": "MANO POR ENCIMA DEL HOMBRO",
 }
+# Las CLAVES de arriba no cambian aunque cambie el texto: son los valores
+# de la columna posicion_brazo del CSV, y cambiarlas romperia la lectura
+# de las sesiones ya grabadas. Solo cambia lo que se muestra.
 # Aviso de la preparacion de una repeticion dinamica. El brazo se
 # coloca en la primera posicion del recorrido ANTES de empezar, con la
 # mano relajada, para que la contraccion no se gaste en el traslado.
 TEXTO_COLOCAR_BRAZO = ("Lleve el brazo aqui, mano relajada. "
                        "El gesto empieza recien en verde")
-TEXTO_MOVIMIENTO_LENTO = "Pase de una posicion a otra sin parar y sin soltar el gesto"
+# Lo mismo antes de un reposo en movimiento, donde no hay gesto.
+TEXTO_COLOCAR_BRAZO_REPOSO = ("Lleve el brazo aqui, mano relajada. En verde "
+                              "recorra las posiciones SIN hacer ningun gesto")
+# En las posiciones dinamicas no se dice "palma hacia abajo": con el
+# brazo colgando al costado la palma mira hacia atras. Lo que el articulo
+# pide es la MISMA rotacion del antebrazo en todas las posiciones.
+TEXTO_MOVIMIENTO_LENTO = ("Pase de una posicion a otra sin parar, sin soltar "
+                          "el gesto y sin girar el antebrazo")
+TEXTO_MOVIMIENTO_REPOSO = ("Pase de una posicion a otra sin parar, con la mano "
+                           "relajada y sin girar el antebrazo")
 
 # ============================================================
 # SALIDA
@@ -177,6 +206,9 @@ SONIDO_HZ = {
     "calibracion": 440,
     "preparacion": 660,
     "contraccion": 880,
+    # El reposo en movimiento arranca con el mismo tono que una
+    # contraccion: en los dos casos es la senal de "ahora".
+    "reposo_dinamico": 880,
     "reposo": 330,
     "aviso": 220,
     # Cambio de posicion del brazo dentro de una repeticion dinamica.

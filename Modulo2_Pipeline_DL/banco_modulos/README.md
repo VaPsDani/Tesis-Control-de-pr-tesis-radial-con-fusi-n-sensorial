@@ -62,8 +62,8 @@ ritmo.
 | Segundos | Posición |
 |---|---|
 | 0 a 3.3 | Abajo, al costado |
-| 3.3 a 6.7 | Al frente, codo a 90 |
-| 6.7 a 10 | Arriba, sobre el hombro |
+| 3.3 a 6.7 | Al frente, sin apoyo |
+| 6.7 a 10 | Mano por encima del hombro |
 
 Se pasa de una a otra sin parar, a velocidad normal y sin sacudir. La mano va
 relajada todo el tiempo, con los dedos sueltos, **y sin girar la muñeca**:
