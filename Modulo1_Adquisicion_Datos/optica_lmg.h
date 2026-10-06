@@ -87,6 +87,16 @@ public:
     float    reposoMedio(uint8_t idx) const { return _reposo[idx]; }   // S-r
     float    ultimaOscura(uint8_t idx) const { return _oscura[idx]; }  // D
     uint16_t duty(uint8_t idx) const { return _duty[idx]; }
+
+    // Banco de modulos (A30): el mismo duty en los cinco LED, sin
+    // autocalibrar y SIN guardarlo en NVS, para no pisar la calibracion
+    // de las sesiones. Al reiniciar vuelve la guardada.
+    void fijarDuty(uint16_t duty);
+
+    // Banco de modulos: LED de un canal encendido fijo a LED_DUTY_MAX,
+    // para medir su corriente con el multimetro en serie. Los demas
+    // quedan apagados. apagarTodos() lo termina.
+    void encenderFijo(uint8_t idx);
     void     info() const;
 
 private:

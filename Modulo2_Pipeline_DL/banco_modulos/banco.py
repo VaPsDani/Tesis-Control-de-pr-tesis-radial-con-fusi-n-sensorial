@@ -13,9 +13,24 @@ POR QUE UN BANCO Y NO LA APP DE CAPTURA:
   calidad de senal que el pipeline no calcula. Lo que si se reutiliza es
   el lector del puerto y los tonos, que ya estan probados.
 
-PROTOCOLO POR VARIANTE (80 s):
-  10 s de reposo, 3 x (5 s de puno + 5 s de reposo), 3 x (5 s de pinza +
-  5 s de reposo) y 10 s moviendo el brazo sin hacer ningun gesto.
+PROTOCOLO POR VARIANTE (160 s, A30):
+  10 s de reposo, 7 x (5 s de puno + 5 s de reposo), 7 x (5 s de pinza +
+  5 s de reposo) y 10 s moviendo el brazo con la mano relajada.
+
+CORRIENTE FIJA (A30):
+  Las seis variantes se miden con la misma corriente media del LED,
+  13 mA, por PWM. Sin autocalibrar: el banco compara cuanta senal saca
+  cada variante de la MISMA luz. El duty sale de medir la corriente al
+  100% con el multimetro (subcomando duty) y queda en
+  parametros_banco.json.
+
+INDICE (A30):
+  I = |dS| / (Phi_e * Rp). dS en mV es la media de contraccion menos la
+  del reposo que la precede, promediada sobre las 7 repeticiones.
+  Phi_e es el flujo radiante del LED en mW a la corriente media de la
+  prueba y Rp la responsividad del fotodiodo en A/W a 940 nm. Los dos
+  salen de las hojas de datos. Phi_e * Rp queda en mA, asi que I queda
+  en mV/mA.
 
   El bloque de movimiento sin gesto es el que separa una variante que
   mide musculo de una que mide el modulo bailando sobre la piel. Sin el,
@@ -29,6 +44,7 @@ DOS RONDAS POR VARIANTE:
   cambia mucho entre colocaciones no sirve para 10 participantes.
 
 USO:
+  python banco.py duty --corriente_100_ma 18.2
   python banco.py capturar --variante SMD_11mm --ronda 1 --puerto COM3
   python banco.py analizar
 
@@ -61,6 +77,11 @@ from config_captura import (                       # noqa: E402
     POSICIONES_BRAZO, TEXTO_POSICION)
 
 DIR_SALIDA = os.path.join(AQUI, "pruebas")
+RUTA_PARAMETROS = os.path.join(AQUI, "parametros_banco.json")
+
+# Igual que LED_DUTY_MAX en Modulo1_Adquisicion_Datos/config.h (9 bits).
+LED_DUTY_MAX = 511
+N_REPETICIONES = 7
 
 FASE_REPOSO = "reposo"
 FASE_PUNO = "puno"
@@ -70,8 +91,8 @@ FASE_MOVIMIENTO = "movimiento"
 # (fase, duracion en segundos), en orden.
 PROTOCOLO = (
     [(FASE_REPOSO, 10)]
-    + [(FASE_PUNO, 5), (FASE_REPOSO, 5)] * 3
-    + [(FASE_PINZA, 5), (FASE_REPOSO, 5)] * 3
+    + [(FASE_PUNO, 5), (FASE_REPOSO, 5)] * N_REPETICIONES
+    + [(FASE_PINZA, 5), (FASE_REPOSO, 5)] * N_REPETICIONES
     + [(FASE_MOVIMIENTO, 10)]
 )
 
@@ -118,17 +139,18 @@ ASPECTO = {
     FASE_MOVIMIENTO: ("MUEVA EL BRAZO", COLOR_PREPARACION, "Rest"),
 }
 
-# Umbral de saturacion. El fondo de escala util son 2000 mV y la
-# autocalibracion del firmware ya no deja pasar del 95%, o sea 1900 mV
-# (AUTOCAL_LIMITE_FRAC y FONDO_ESCALA_UTIL_MV en Modulo1/config.h). Una
-# variante que aun asi recorta esta demasiado cerca del sensor.
+# Umbral de saturacion: el 95% del fondo de escala util de 2000 mV, el
+# mismo limite que usa la autocalibracion de las sesiones
+# (AUTOCAL_LIMITE_FRAC y FONDO_ESCALA_UTIL_MV en Modulo1/config.h). Con
+# corriente fija, una variante con el LED muy cerca del fotodiodo puede
+# llegar ahi, y esa no sirve aunque tenga el mayor indice.
 UMBRAL_SATURACION_MV = 1900.0
 # Una muestra suelta en 1900 mV puede ser un pico de red. Se considera
 # que la variante satura a partir de 0.1 s de recorte acumulado.
 MIN_MUESTRAS_SATURADAS = 10
 
 # Regla de decision, fijada antes de medir nada.
-TOLERANCIA_EMPATE = 0.10        # 10% de diferencia de SNR se considera empate
+TOLERANCIA_EMPATE = 0.10        # 10% de diferencia de I se considera empate
 
 CAMPOS_CSV = (["variante", "ronda", "canal", "t_esp32_ms", "ts_pc_ms", "fase"]
               + [f"v{i}" for i in range(1, 6)] + ["ax", "ay", "az"])
@@ -246,39 +268,37 @@ class Pantalla:
             pass
 
 
-def autocalibrar(lector, limite_s=90.0, silencio_s=6.0):
-    """
-    Manda 'A' y muestra la respuesta del firmware hasta que se calle.
+def cargar_parametros(ruta=RUTA_PARAMETROS):
+    with open(ruta, encoding="utf-8") as f:
+        return json.load(f)
 
-    HAY QUE AUTOCALIBRAR EN CADA VARIANTE. La autocalibracion ajusta la
-    corriente del LED hasta que el reposo queda en 700 mV. Sin ella, una
-    variante con el LED a 9 mm entrega mas luz al fotodiodo que una a
-    13 mm y saldria mejor en el SNR por la distancia, no por la calidad
-    del acoplamiento. Con ella, las 6 se comparan en el mismo punto de
-    operacion.
 
-    Con un solo modulo conectado el firmware marcara DEBIL los otros
-    cuatro canales y devolvera fallo. Es lo esperado: lo que importa es
-    que el canal conectado quede cerca de 700 mV.
+def duty_para(corriente_100_ma, corriente_media_ma):
     """
-    print("\n--- Autocalibracion del LED (comando A). No mueva la mano.")
-    lector.enviar("A")
-    vistas = 0
-    t0 = time.monotonic()
-    t_ultima = t0
-    while True:
-        ahora = time.monotonic()
-        while vistas < len(lector.info):
-            print("    " + lector.info[vistas])
-            vistas += 1
-            t_ultima = ahora
-        if vistas and ahora - t_ultima > silencio_s:
-            print("--- Autocalibracion terminada.\n")
-            return True
-        if ahora - t0 > limite_s:
-            print("--- AVISO: el firmware no respondio a 'A'.\n")
-            return False
-        time.sleep(0.1)
+    Duty que da la corriente media pedida. Al 100% (LED_DUTY_MAX) el LED
+    lleva la corriente medida, y la media por PWM es proporcional al duty.
+    El OPT101 (14 kHz) no sigue el PWM de 100 kHz y ve esa media.
+    """
+    if corriente_100_ma <= 0:
+        raise ValueError("La corriente al 100% tiene que ser mayor que cero.")
+    if corriente_media_ma > corriente_100_ma:
+        raise ValueError(f"Con {corriente_100_ma} mA al 100% no se llega a "
+                         f"{corriente_media_ma} mA de media.")
+    return int(round(LED_DUTY_MAX * corriente_media_ma / corriente_100_ma))
+
+
+def fijar_duty(args):
+    """Subcomando duty: calcula el duty y lo guarda en los parametros."""
+    par = cargar_parametros(args.parametros)
+    d = duty_para(args.corriente_100_ma, par["corriente_media_ma"])
+    par["corriente_100_ma"] = args.corriente_100_ma
+    par["duty"] = d
+    with open(args.parametros, "w", encoding="utf-8") as f:
+        json.dump(par, f, indent=2, ensure_ascii=False)
+    print(f"{args.corriente_100_ma} mA al 100% -> duty {d} de {LED_DUTY_MAX} "
+          f"({100 * d / LED_DUTY_MAX:.1f}%) para {par['corriente_media_ma']} mA "
+          f"de media. Guardado en {args.parametros}")
+    return 0
 
 
 def capturar(args):
@@ -296,8 +316,16 @@ def capturar(args):
     lector.abrir()
     lector.start()
 
-    if not args.simulado and not args.sin_autocal:
-        autocalibrar(lector)
+    duty = cargar_parametros(args.parametros).get("duty")
+    if duty is None and not args.simulado:
+        print("Falta el duty en parametros_banco.json. Mida la corriente del "
+              "LED al 100% ('W1' en el firmware) y corra el subcomando duty.")
+        lector.detener()
+        return 1
+    if duty is not None:
+        # Misma corriente media en las seis variantes, sin autocalibrar.
+        lector.enviar(f"D{duty}\n")
+        time.sleep(0.5)
 
     lector.enviar("L")
     time.sleep(0.5)
@@ -413,6 +441,7 @@ def capturar(args):
         "version_firmware": lector.version_firmware,
         # Corriente de los LED y reposo por canal tras la autocalibracion.
         # Es el punto de operacion con el que se midio esta variante.
+        "duty": duty,
         "optica": lector.optica,
         "huecos": lector.stats.huecos,
         "muestras_perdidas_est": lector.stats.muestras_perdidas_est,
@@ -463,10 +492,28 @@ def recortar_margenes(df, periodo_ms=10.0):
     return pd.concat(trozos)
 
 
+def deltas(util, canal, fase):
+    """
+    dS de cada repeticion, en mV: media de la contraccion menos la del
+    reposo que la precede. Restar el reposo vecino y no uno global quita
+    la deriva lenta de la piel y del LED a lo largo de los 160 s.
+    """
+    import numpy as np
+    medias = util.groupby("seg", sort=True).agg(fase=("fase", "first"),
+                                                m=(canal, "mean"))
+    salida, previa = [], None
+    for f, m in zip(medias["fase"], medias["m"]):
+        if f == fase and previa is not None and previa[0] == FASE_REPOSO:
+            salida.append(m - previa[1])
+        previa = (f, m)
+    return np.array(salida)
+
+
 def metricas(ruta):
     """Metricas de una prueba. Devuelve un dict por archivo."""
     import pandas as pd
     df = pd.read_csv(ruta)
+    df["seg"] = _segmentos(df)
     canal = f"v{int(df['canal'].iloc[0])}"
     v = df[canal]
 
@@ -477,26 +524,39 @@ def metricas(ruta):
     util = recortar_margenes(df)
     s = util[canal]
     reposo = s[util["fase"] == FASE_REPOSO]
-    puno = s[util["fase"] == FASE_PUNO]
-    pinza = s[util["fase"] == FASE_PINZA]
     mov = s[util["fase"] == FASE_MOVIMIENTO]
-
     sd_reposo = float(reposo.std())
-    def snr(x):
-        if len(x) == 0 or len(reposo) == 0 or sd_reposo <= 0:
-            return float("nan")
-        return float((x.mean() - reposo.mean()) / sd_reposo)
 
-    return {
+    # El duty con que se midio, del JSON que deja capturar.
+    duty = None
+    meta = os.path.splitext(ruta)[0] + ".json"
+    if os.path.exists(meta):
+        with open(meta, encoding="utf-8") as f:
+            duty = json.load(f).get("duty")
+
+    fila = {
         "archivo": os.path.basename(ruta),
         "variante": str(df["variante"].iloc[0]),
         "ronda": int(df["ronda"].iloc[0]),
         "canal": canal,
+        "duty": duty,
         "n": len(df),
         "reposo_mv": float(reposo.mean()) if len(reposo) else float("nan"),
         "sd_reposo_mv": sd_reposo,
-        "snr_puno": snr(puno),
-        "snr_pinza": snr(pinza),
+    }
+    for nombre, fase in (("puno", FASE_PUNO), ("pinza", FASE_PINZA)):
+        d = deltas(util, canal, fase)
+        media = float(d.mean()) if len(d) else float("nan")
+        fila[f"n_rep_{nombre}"] = len(d)
+        fila[f"ds_{nombre}_mv"] = media
+        # SNR: cuanto sobresale el gesto sobre el ruido del reposo.
+        fila[f"snr_{nombre}"] = (abs(media) / sd_reposo if sd_reposo > 0
+                                 else float("nan"))
+        # Repetibilidad dentro de la prueba: coeficiente de variacion de
+        # dS entre las 7 repeticiones.
+        fila[f"cv_{nombre}"] = (float(d.std(ddof=1) / abs(media))
+                                if len(d) > 1 and media else float("nan"))
+    fila.update({
         # Artefacto de movimiento: cuanto se mueve la senal al mover el
         # brazo SIN gesto, en unidades de la desviacion del reposo. Un 1
         # significa que moverse ensucia tanto como el ruido de fondo.
@@ -505,34 +565,58 @@ def metricas(ruta):
         "n_saturadas": n_sat,
         "frac_saturada": n_sat / max(len(v), 1),
         "satura": n_sat >= MIN_MUESTRAS_SATURADAS,
-    }
+    })
+    return fila
 
 
-def resumir(pruebas):
+def tipo_led(variante):
+    """PASANTE_9mm -> PASANTE. Es la clave de phi_e_mw en los parametros."""
+    return str(variante).split("_")[0].upper()
+
+
+def faltan_parametros(par, variantes):
+    """Lista de lo que falta en parametros_banco.json para calcular I."""
+    faltan = [] if par.get("rp_a_por_w") else ["rp_a_por_w"]
+    phis = par.get("phi_e_mw") or {}
+    faltan += sorted({f"phi_e_mw.{tipo_led(v)}" for v in variantes
+                      if not phis.get(tipo_led(v))})
+    return faltan
+
+
+def anadir_indice(det, par):
+    """I = |dS| / (Phi_e * Rp), en mV/mA, por prueba."""
+    rp, phis = par["rp_a_por_w"], par["phi_e_mw"]
+    for nombre in ("puno", "pinza"):
+        det[f"i_{nombre}"] = [abs(ds) / (phis[tipo_led(v)] * rp)
+                              for v, ds in zip(det["variante"],
+                                               det[f"ds_{nombre}_mv"])]
+    return det
+
+
+def resumir(det):
     """Una fila por variante, promediando rondas."""
     import pandas as pd
-    df = pd.DataFrame(pruebas)
     filas = []
-    for variante, g in df.groupby("variante"):
-        g = g.sort_values("ronda")
-        snr_p = g["snr_pinza"]
+    for variante, g in det.groupby("variante"):
+        ds = g["ds_pinza_mv"].abs()
         filas.append({
             "variante": variante,
             "rondas": len(g),
+            "i_puno": g["i_puno"].mean(),
+            "i_pinza": g["i_pinza"].mean(),
             "snr_puno": g["snr_puno"].mean(),
-            "snr_pinza": snr_p.mean(),
-            # Repetibilidad del montaje: cuanto cambia el SNR de pinza al
-            # despegar y volver a colocar el modulo.
-            "dif_rondas": (float(snr_p.max() - snr_p.min())
-                           if len(g) > 1 else float("nan")),
-            "dif_rondas_pct": (float(100 * (snr_p.max() - snr_p.min())
-                                     / abs(snr_p.mean()))
-                               if len(g) > 1 and snr_p.mean() else float("nan")),
+            "snr_pinza": g["snr_pinza"].mean(),
+            "cv_pinza": g["cv_pinza"].mean(),
+            # Repetibilidad del montaje: cuanto cambia dS de pinza al
+            # despegar y volver a colocar el modulo. Es el mismo % que el
+            # de I, porque Phi_e y Rp no cambian entre rondas.
+            "dif_rondas_pct": (float(100 * (ds.max() - ds.min()) / ds.mean())
+                               if len(g) > 1 and ds.mean() else float("nan")),
             "artefacto_mov": g["artefacto_mov"].mean(),
             "n_saturadas": int(g["n_saturadas"].sum()),
             "satura": bool(g["satura"].any()),
         })
-    return pd.DataFrame(filas).sort_values("snr_pinza", ascending=False)
+    return pd.DataFrame(filas).sort_values("i_pinza", ascending=False)
 
 
 def elegir(resumen):
@@ -540,55 +624,70 @@ def elegir(resumen):
     Aplica la regla fijada de antemano.
 
       1. Se descartan las variantes que saturan.
-      2. Gana la de mayor SNR de pinza.
+      2. Gana la de mayor I de pinza.
       3. Si otra queda a menos del 10% de esa, empatan, y desempata la
          de menor artefacto de movimiento.
 
     Devuelve (variante, texto del motivo).
     """
-    vivas = resumen[~resumen["satura"]]
+    vivas = resumen[~resumen["satura"] & resumen["i_pinza"].notna()]
     if vivas.empty:
-        return None, ("Todas las variantes saturan. Ninguna es elegible: "
-                      "revise la distancia del LED o baje la corriente.")
+        return None, ("Ninguna variante es elegible: todas saturan o no "
+                      "tienen repeticiones de pinza validas.")
 
-    mejor = vivas.loc[vivas["snr_pinza"].idxmax()]
-    tope = mejor["snr_pinza"]
+    mejor = vivas.loc[vivas["i_pinza"].idxmax()]
+    tope = mejor["i_pinza"]
     if tope <= 0:
-        return None, ("Ninguna variante tiene SNR de pinza positivo. La "
+        return None, ("Ninguna variante tiene I de pinza mayor que cero. La "
                       "medicion no distingue el gesto del reposo.")
 
-    empatadas = vivas[vivas["snr_pinza"] >= tope * (1 - TOLERANCIA_EMPATE)]
+    empatadas = vivas[vivas["i_pinza"] >= tope * (1 - TOLERANCIA_EMPATE)]
     descartadas = int(resumen["satura"].sum())
     nota = (f" Descartadas por saturacion: {descartadas}."
             if descartadas else "")
 
     if len(empatadas) == 1:
         return mejor["variante"], (
-            f"{mejor['variante']} gana por SNR de pinza "
-            f"({tope:.2f}), con mas del {TOLERANCIA_EMPATE:.0%} de ventaja "
-            f"sobre la siguiente.{nota}")
+            f"{mejor['variante']} gana por I de pinza "
+            f"({tope:.3g} mV/mA), con mas del {TOLERANCIA_EMPATE:.0%} de "
+            f"ventaja sobre la siguiente.{nota}")
 
     ganadora = empatadas.loc[empatadas["artefacto_mov"].idxmin()]
     nombres = ", ".join(empatadas["variante"])
     return ganadora["variante"], (
-        f"Empate dentro del {TOLERANCIA_EMPATE:.0%} de SNR de pinza entre: "
+        f"Empate dentro del {TOLERANCIA_EMPATE:.0%} de I de pinza entre: "
         f"{nombres}. Desempata el artefacto de movimiento y gana "
         f"{ganadora['variante']} ({ganadora['artefacto_mov']:.2f} frente a "
         f"{empatadas['artefacto_mov'].max():.2f} de la peor).{nota}")
 
 
-def grafico(pruebas, ruta_png):
-    """Barras del SNR de pinza por variante, una barra por ronda."""
+def ordenar(resumen):
+    """
+    Tabla final ordenada con la misma regla: se aplica elegir() a las que
+    quedan, una y otra vez. Las que saturan van al final, por I.
+    """
+    quedan, orden = resumen, []
+    while True:
+        ganadora, _ = elegir(quedan)
+        if ganadora is None:
+            break
+        orden.append(ganadora)
+        quedan = quedan[quedan["variante"] != ganadora]
+    orden += quedan.sort_values("i_pinza", ascending=False)["variante"].tolist()
+    tabla = resumen.set_index("variante").loc[orden].reset_index()
+    tabla.insert(0, "puesto", range(1, len(tabla) + 1))
+    return tabla
+
+
+def grafico(det, ruta_png):
+    """Barras de I de pinza por variante, una barra por ronda."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    import pandas as pd
 
-    df = pd.DataFrame(pruebas)
-    tabla = df.pivot_table(index="variante", columns="ronda",
-                           values="snr_pinza", aggfunc="mean")
-    orden = tabla.mean(axis=1).sort_values(ascending=False).index
-    tabla = tabla.loc[orden]
+    tabla = det.pivot_table(index="variante", columns="ronda",
+                            values="i_pinza", aggfunc="mean")
+    tabla = tabla.loc[tabla.mean(axis=1).sort_values(ascending=False).index]
 
     ancho = 0.8 / max(len(tabla.columns), 1)
     fig, ax = plt.subplots(figsize=(9, 5))
@@ -598,9 +697,8 @@ def grafico(pruebas, ruta_png):
     ax.set_xticks([i + ancho * (len(tabla.columns) - 1) / 2
                    for i in range(len(tabla))])
     ax.set_xticklabels(tabla.index, rotation=20, ha="right")
-    ax.set_ylabel("SNR de pinza\n(media contraccion - media reposo) / sd reposo")
-    ax.set_title("Variantes del modulo LMG, SNR de pinza por ronda")
-    ax.axhline(0, color="#666666", linewidth=0.8)
+    ax.set_ylabel("I de pinza (mV/mA)\n|dS| / (Phi_e * Rp)")
+    ax.set_title("Variantes del modulo LMG, I de pinza por ronda")
     ax.legend()
     fig.tight_layout()
     fig.savefig(ruta_png, dpi=150)
@@ -613,35 +711,53 @@ def analizar(args):
     import pandas as pd
 
     rutas = sorted(glob.glob(os.path.join(args.dir, "*.csv")))
+    rutas = [r for r in rutas if os.path.basename(r) not in
+             ("metricas_pruebas.csv", "tabla_variantes.csv")]
     if not rutas:
         print(f"No hay CSV en {args.dir}. Corra primero 'capturar'.")
         return 1
 
-    pruebas = [metricas(r) for r in rutas]
-    det = pd.DataFrame(pruebas)
-    resumen = resumir(pruebas)
-
+    det = pd.DataFrame([metricas(r) for r in rutas])
     pd.set_option("display.width", 200)
     pd.set_option("display.max_columns", 50)
+    fmt = lambda x: f"{x:8.3g}"                      # noqa: E731
+
+    par = cargar_parametros(args.parametros)
+    duties = set(det["duty"].dropna())
+    if len(duties) > 1:
+        print(f"AVISO: las pruebas no se midieron todas con el mismo duty: "
+              f"{sorted(duties)}. No son comparables entre si.")
+
+    faltan = faltan_parametros(par, det["variante"])
+    if faltan:
+        print("\n=== PRUEBAS INDIVIDUALES (sin I) ===")
+        print(det[["variante", "ronda", "duty", "ds_pinza_mv", "snr_pinza",
+                   "cv_pinza", "artefacto_mov", "n_saturadas"]]
+              .to_string(index=False, float_format=fmt))
+        print(f"\nFaltan en {args.parametros}: {', '.join(faltan)}. Sin "
+              f"ellos no se calcula I ni se ordena la tabla.")
+        det.to_csv(os.path.join(args.dir, "metricas_pruebas.csv"), index=False)
+        return 1
+
+    det = anadir_indice(det, par)
     print("\n=== PRUEBAS INDIVIDUALES ===")
-    print(det[["variante", "ronda", "reposo_mv", "sd_reposo_mv", "snr_puno",
-               "snr_pinza", "artefacto_mov", "n_saturadas"]]
-          .to_string(index=False, float_format=lambda x: f"{x:8.2f}"))
+    print(det[["variante", "ronda", "duty", "ds_pinza_mv", "i_pinza",
+               "snr_pinza", "cv_pinza", "artefacto_mov", "n_saturadas"]]
+          .to_string(index=False, float_format=fmt))
 
-    print("\n=== RESUMEN POR VARIANTE ===")
-    print(resumen.to_string(index=False,
-                            float_format=lambda x: f"{x:8.2f}"))
+    tabla = ordenar(resumir(det))
+    print("\n=== TABLA FINAL, ORDENADA POR LA REGLA ===")
+    print(tabla.to_string(index=False, float_format=fmt))
 
-    ganadora, motivo = elegir(resumen)
+    ganadora, motivo = elegir(tabla)
     print("\n=== DECISION ===")
     print(motivo)
     if ganadora:
         print(f"\nVARIANTE ELEGIDA: {ganadora}")
 
     det.to_csv(os.path.join(args.dir, "metricas_pruebas.csv"), index=False)
-    resumen.to_csv(os.path.join(args.dir, "metricas_variantes.csv"),
-                   index=False)
-    png = grafico(pruebas, os.path.join(args.dir, "snr_pinza.png"))
+    tabla.to_csv(os.path.join(args.dir, "tabla_variantes.csv"), index=False)
+    png = grafico(det, os.path.join(args.dir, "i_pinza.png"))
     print(f"\nTablas en {args.dir} y grafico en {png}")
     return 0
 
@@ -652,19 +768,25 @@ def main(argv=None):
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
 
+    d = sub.add_parser("duty", help="duty para la corriente media, desde la "
+                                    "corriente medida al 100%%")
+    d.add_argument("--corriente_100_ma", type=float, required=True,
+                   help="lo que marca el multimetro con 'W1' en el firmware")
+    d.add_argument("--parametros", default=RUTA_PARAMETROS)
+    d.set_defaults(func=fijar_duty)
+
     c = sub.add_parser("capturar", help="correr el protocolo de una variante")
     c.add_argument("--variante", required=True,
-                   help="nombre, por ejemplo SMD_11mm o PASANTE_9mm")
+                   help="TIPO_distancia, por ejemplo SMD_11mm o PASANTE_9mm")
     c.add_argument("--ronda", type=int, required=True, help="1 o 2")
     c.add_argument("--puerto", default="COM3")
     c.add_argument("--baudios", type=int, default=921600)
     c.add_argument("--canal", type=int, default=1,
                    help="canal LMG donde esta conectado el modulo (1 a 5)")
     c.add_argument("--dir", default=DIR_SALIDA)
+    c.add_argument("--parametros", default=RUTA_PARAMETROS)
     c.add_argument("--simulado", action="store_true",
                    help="sin hardware, para probar el flujo")
-    c.add_argument("--sin-autocal", action="store_true",
-                   help="no mandar 'A' antes de medir. Solo si ya calibro")
     c.add_argument("--sin-ventana", action="store_true",
                    help="guiar solo por consola, sin la pantalla completa")
     c.add_argument("--escala", type=float, default=1.0,
@@ -674,6 +796,7 @@ def main(argv=None):
 
     a = sub.add_parser("analizar", help="tabla, grafico y decision")
     a.add_argument("--dir", default=DIR_SALIDA)
+    a.add_argument("--parametros", default=RUTA_PARAMETROS)
     a.set_defaults(func=analizar)
 
     args = p.parse_args(argv)

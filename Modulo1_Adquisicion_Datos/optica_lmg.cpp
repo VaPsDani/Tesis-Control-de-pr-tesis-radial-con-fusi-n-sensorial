@@ -41,6 +41,16 @@ bool OpticaLMG::begin() {
 void OpticaLMG::_encender(uint8_t i) { ledcWrite(PINES_LED[i], _duty[i]); }
 void OpticaLMG::_apagar(uint8_t i)   { ledcWrite(PINES_LED[i], 0); }
 
+void OpticaLMG::fijarDuty(uint16_t duty) {
+    if (duty > LED_DUTY_MAX) duty = LED_DUTY_MAX;
+    for (uint8_t i = 0; i < NUM_LMG; i++) _duty[i] = duty;
+}
+
+void OpticaLMG::encenderFijo(uint8_t idx) {
+    apagarTodos();
+    if (idx < NUM_LMG) ledcWrite(PINES_LED[idx], LED_DUTY_MAX);
+}
+
 void OpticaLMG::apagarTodos() {
     for (uint8_t i = 0; i < NUM_LMG; i++) ledcWrite(PINES_LED[i], 0);
 }

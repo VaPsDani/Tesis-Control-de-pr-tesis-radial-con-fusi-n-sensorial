@@ -58,6 +58,11 @@
  *     'A' → autocalibrar la corriente de los LED (~10 s, mano en reposo)
  *     'T' → autotest del ciclo de muestreo
  *     'K' → reemitir las lineas [OPTICA_*]
+ *     'D<n>' → banco de modulos: duty fijo n (0 a LED_DUTY_MAX) en los
+ *           cinco LED, sin autocalibrar ni guardar. Ej. "D369"
+ *     'W<c>' → banco de modulos: LED del canal c (1 a 5) encendido fijo
+ *           al maximo para medir su corriente con el multimetro. Detiene
+ *           la adquisicion. 'S' lo apaga. Ej. "W1"
  *
  *   Al enviar 'L' y 'S' se emite [OPTICA_RECORTES]: cuantas conversiones
  *   de cada canal llegaron al maximo del ADC. La PC lo guarda en el JSON;
@@ -93,6 +98,7 @@ SensorIMU   imu;
 // ======================== VARIABLES DE CONTROL ========================
 unsigned long tAnterior = 0;
 bool adquiriendo = false;
+int8_t ledFijo = -1;    // canal con el LED encendido fijo ('W'), o -1
 unsigned long contadorMuestras = 0;
 
 // ======================== BUFFER DE LECTURA ========================
@@ -232,6 +238,11 @@ void loop() {
             Serial.println("[START] Adquiriendo datos...");
         } else if (c == 'S') {
             adquiriendo = false;
+            if (ledFijo >= 0) {
+                optica.apagarTodos();
+                ledFijo = -1;
+                Serial.println("[OPTICA_FIJO] LED apagado");
+            }
             emitirRecortes();
             Serial.print("[STOP] Muestras adquiridas: ");
             Serial.println(contadorMuestras);
@@ -261,6 +272,33 @@ void loop() {
             emitirVersion();
             imu.imprimirConfig();
             autotestTemporal();
+        } else if (c == 'D') {
+            // Duty fijo para el banco. El numero llega en la misma linea.
+            const long d = Serial.parseInt();
+            if (d < 0 || d > LED_DUTY_MAX) {
+                Serial.printf("[ERROR] Duty fuera de rango: %ld (0 a %d)\n",
+                              d, LED_DUTY_MAX);
+            } else {
+                optica.fijarDuty((uint16_t)d);
+                Serial.printf("[OPTICA_FIJO] duty=%ld de %d (%.1f%%), sin "
+                              "autocalibrar\n", d, LED_DUTY_MAX,
+                              100.0f * d / LED_DUTY_MAX);
+                emitirOptica();
+            }
+        } else if (c == 'W') {
+            // Medicion de la corriente al maximo con el multimetro.
+            const long canal = Serial.parseInt();
+            if (canal < 1 || canal > NUM_LMG) {
+                Serial.printf("[ERROR] Canal fuera de rango: %ld (1 a %d)\n",
+                              canal, NUM_LMG);
+            } else {
+                adquiriendo = false;
+                ledFijo = (int8_t)(canal - 1);
+                optica.encenderFijo(ledFijo);
+                Serial.printf("[OPTICA_FIJO] LED %ld encendido fijo a duty %d "
+                              "de %d. Mida la corriente y envie 'S' para "
+                              "apagarlo.\n", canal, LED_DUTY_MAX, LED_DUTY_MAX);
+            }
         } else if (c == 'K') {
             emitirVersion();
             imu.imprimirConfig();
@@ -270,7 +308,8 @@ void loop() {
 
     // ========== 2. MUESTREO NO BLOQUEANTE (100 Hz) ==========
     unsigned long ahora = millis();
-    if (ahora - tAnterior >= INTERVALO_MS) {
+    // Con un LED fijo ('W') no se lee nada: leer apagaria ese LED.
+    if (ledFijo < 0 && ahora - tAnterior >= INTERVALO_MS) {
         tAnterior = ahora;
 
         // --- Leer 5 LMG: un LED a la vez, con trama oscura si procede ---

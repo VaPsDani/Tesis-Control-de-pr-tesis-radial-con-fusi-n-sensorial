@@ -5,7 +5,7 @@ del OPT101) midiéndolas sobre el mismo antebrazo, una por una.
 
 ## Modo del firmware con un solo módulo conectado
 
-**No hay un modo especial, y no hace falta.** El firmware del Módulo 1 lee
+**No hace falta un modo de un solo canal.** El firmware del Módulo 1 lee
 siempre los 5 canales. Los 4 que no tienen módulo conectado devuelven basura y
 se ignoran en el análisis, que solo mira el canal que le indiques.
 
@@ -20,38 +20,75 @@ Conecta el módulo al **canal LMG1**, que es el más simple de verificar:
 
 Si lo conectas a otro canal, pasa `--canal N` al script.
 
-Comandos del firmware, en este orden. El script manda los dos primeros solo:
+## Corriente fija de 13 mA
+
+Las seis variantes se miden con la **misma corriente media del LED, 13 mA**,
+fijada por PWM. No se autocalibra. El banco quiere saber cuánta señal saca
+cada variante de la misma luz, y eso es justo lo que el índice I divide por
+Φe. Una variante con el LED muy cerca del fotodiodo puede saturar con esa
+corriente, y por eso la saturación descalifica.
+
+### Paso con el multímetro, una vez antes de empezar
+
+1. Multímetro en mA, **en serie** con el LED del módulo (entre GPIO13 y el
+   pin LED del módulo).
+2. En el monitor serie, a 921600 baudios, enviar `W1`. El LED del canal 1
+   queda encendido fijo al máximo (duty 511 de 511) y la adquisición se
+   detiene.
+3. Anotar la corriente. Enviar `S` para apagarlo.
+4. Calcular y guardar el duty:
+
+```bash
+python Modulo2_Pipeline_DL/banco_modulos/banco.py duty --corriente_100_ma 18.2
+```
+
+El duty es 511 × 13 / corriente medida. Con los 18 mA de diseño sale 369
+(72 %). El OPT101 responde hasta unos 14 kHz y el PWM va a 100 kHz, así que
+el fotodiodo ve la media. Basta medir una variante de cada tipo de LED. Si
+el pasante y el SMD dan corrientes distintas al 100 %, avísame, porque
+entonces hace falta un duty por tipo.
+
+## Comandos del firmware
 
 | Comando | Quién lo manda | Para qué |
 |---|---|---|
-| `A` | el script, al empezar cada prueba | autocalibra la corriente del LED |
+| `W1` | tú, una vez | LED del canal 1 fijo al máximo, para el multímetro |
+| `D369` | el script, al empezar cada prueba | duty fijo en los cinco LED, sin autocalibrar y sin guardarlo |
 | `L` | el script | empieza a emitir muestras |
-| `S` | el script, al terminar | detiene la emisión |
+| `S` | el script, al terminar, o tú tras `W1` | detiene la emisión y apaga el LED fijo |
 | `T` | tú, una vez al día | autotest del ciclo, confirma que cabe en 10 ms |
 
-**La autocalibración va a avisar que hay 4 canales DEBIL y va a devolver
-fallo. Es lo esperado**, son los 4 sin módulo. Lo único que importa es que el
-canal conectado quede en unos **700 mV en reposo**. El script imprime la
-respuesta completa del firmware para que lo compruebes.
+`D` no se guarda en la memoria del ESP32. Al reiniciarlo vuelve la
+calibración de las sesiones, así que el banco no la pisa.
 
-**No saltes la autocalibración entre variantes.** Un LED a 9 mm entrega más luz
-al fotodiodo que uno a 13 mm. Sin recalibrar, la variante más cercana ganaría
-por la distancia y no por la calidad del acoplamiento, que es lo que quieres
-medir. Con `A` en cada variante, las 6 se comparan en el mismo punto de
-operación, y el duty al que quedó cada una se guarda en el JSON de la prueba.
+## Parámetros, en `parametros_banco.json`
 
-## Protocolo, 80 s por variante
+| Campo | Qué es | De dónde sale |
+|---|---|---|
+| `corriente_media_ma` | 13 | el artículo |
+| `corriente_100_ma` y `duty` | corriente al 100 % y duty | el subcomando `duty` |
+| `rp_a_por_w` | responsividad del fotodiodo del OPT101 a 940 nm, en A/W | hoja de datos del OPT101 |
+| `phi_e_mw.PASANTE` y `phi_e_mw.SMD` | flujo radiante de cada LED en mW **a 13 mA** | hoja de datos de cada LED |
+
+Si la hoja da Φe a otra corriente, por ejemplo a 20 mA, en la zona baja la
+curva Φe frente a corriente es casi recta y Φe a 13 mA ≈ Φe a 20 mA × 13 / 20.
+Si la hoja trae la curva, mejor leerla ahí. El nombre de la variante empieza
+por el tipo de LED (`SMD_11mm`, `PASANTE_9mm`) y así el script sabe qué Φe
+usar. Sin estos valores `analizar` muestra lo demás y dice qué falta, pero
+no calcula I ni ordena.
+
+## Protocolo, 160 s por variante
 
 | Bloque | Duración |
 |---|---|
 | Reposo | 10 s |
-| Puño 5 s + reposo 5 s | 3 veces |
-| Pinza 5 s + reposo 5 s | 3 veces |
-| Brazo en movimiento, **sin ningún gesto** | 10 s |
+| Puño 5 s + reposo 5 s | 7 veces |
+| Pinza 5 s + reposo 5 s | 7 veces |
+| Brazo en movimiento, mano relajada, **sin ningún gesto** | 10 s |
 
 El bloque final es el que separa una variante que mide músculo de una que mide
 el módulo bailando sobre la piel. Sin él, una variante con mal acoplamiento
-mecánico puede dar buen SNR y aun así ser la peor en uso real.
+mecánico puede dar buen índice y aun así ser la peor en uso real.
 
 ### Cómo se hace el bloque de movimiento
 
@@ -80,7 +117,7 @@ corridas.**
 
 ## Cómo correr
 
-Capturar, una vez por variante y ronda. Son 12 corridas de 80 s.
+Primero el paso con el multímetro. Después capturar, una vez por variante y ronda. Son 12 corridas de 160 s.
 
 ```bash
 python Modulo2_Pipeline_DL/banco_modulos/banco.py capturar --variante SMD_11mm --ronda 1 --puerto COM3
@@ -137,8 +174,8 @@ fatiga y el calentamiento de la piel se acumularían siempre sobre las mismas
 variantes y no podrías distinguir ese efecto del de la variante.
 
 La diferencia entre rondas no es un control de calidad, es un resultado: mide
-la **repetibilidad del montaje**. Una variante con SNR alto que cambia mucho al
-recolocarla no sirve para 10 participantes.
+la **repetibilidad del montaje**. Una variante con buen índice que cambia mucho
+al recolocarla no sirve para 10 participantes.
 
 ## Métricas
 
@@ -148,36 +185,51 @@ protocolo de la tesis para la contracción.
 
 | Métrica | Definición |
 |---|---|
-| `snr_puno`, `snr_pinza` | (media de contracción − media de reposo) / desviación estándar del reposo |
+| `ds_puno_mv`, `ds_pinza_mv` | ΔS: media de cada contracción menos la del reposo que la precede, promediada sobre las 7 repeticiones. Restar el reposo vecino quita la deriva lenta. |
+| `i_puno`, `i_pinza` | I = \|ΔS\| / (Φe · Rp), en mV/mA. Φe en mW por Rp en A/W da mA. |
+| `snr_puno`, `snr_pinza` | \|ΔS\| / desviación estándar del reposo |
+| `cv_pinza` | repetibilidad dentro de la prueba: desviación de ΔS entre las 7 pinzas / \|ΔS\| |
+| `dif_rondas_pct` | repetibilidad del montaje: diferencia de \|ΔS\| de pinza entre las dos rondas, en % de la media. Es el mismo % que el de I. |
 | `artefacto_mov` | desviación estándar durante el movimiento sin gesto / desviación estándar del reposo |
 | `n_saturadas` | muestras en 1900 mV o más, sobre el archivo completo |
-| `dif_rondas` | diferencia de SNR de pinza entre las dos rondas |
 
-El umbral de 1900 mV sale del firmware: el fondo de escala útil son 2000 mV y
-la autocalibración no deja pasar del 95 %. Una variante satura a partir de 10
-muestras recortadas, o sea 0.1 s acumulado, para que un pico suelto de red no
-descalifique a nadie.
+Se usa el valor absoluto de ΔS porque, según dónde quede el módulo, la
+contracción puede subir o bajar la señal. Lo que importa es cuánto cambia.
+
+El umbral de 1900 mV es el 95 % del fondo de escala útil de 2000 mV, el mismo
+límite que usa la autocalibración de las sesiones. Una variante satura a
+partir de 10 muestras recortadas, o sea 0.1 s acumulado, para que un pico
+suelto de red no descalifique a nadie.
 
 ## Regla de decisión, fijada antes de medir
 
+**Mayor I sin saturar y con menor artefacto.**
+
 1. Se descartan las variantes que saturan.
-2. Gana la de mayor SNR de pinza.
+2. Gana la de mayor I de pinza.
 3. Si otra queda a menos del **10 %** de esa, empatan, y desempata la de menor
    artefacto de movimiento.
+
+La tabla final aplica la misma regla una y otra vez a las que quedan, así que
+el puesto 1 es la ganadora, el 2 la que ganaría sin ella, y así. Las que
+saturan van al final.
 
 Se usa la pinza y no el puño porque es el gesto de menor amplitud de los
 cuatro del protocolo. La variante que distingue bien la pinza distingue bien
 todo lo demás, y al revés no.
+
+Rp es el mismo en las seis variantes (el mismo OPT101), así que no cambia el
+orden, solo la escala de I. Φe sí cambia el orden entre pasante y SMD.
 
 ## Salidas
 
 | Archivo | Contenido |
 |---|---|
 | `<variante>_r<ronda>_<fecha>.csv` | Datos crudos etiquetados por fase |
-| `<variante>_r<ronda>_<fecha>.json` | Duty del LED, reposo por canal, huecos, versión del firmware |
+| `<variante>_r<ronda>_<fecha>.json` | Duty usado, reposo por canal, huecos, versión del firmware |
 | `metricas_pruebas.csv` | Una fila por corrida |
-| `metricas_variantes.csv` | Una fila por variante |
-| `snr_pinza.png` | Barras de SNR de pinza, una por ronda |
+| `tabla_variantes.csv` | La tabla final, una fila por variante, ordenada por la regla |
+| `i_pinza.png` | Barras de I de pinza, una por ronda |
 
 ## Qué no hace
 
