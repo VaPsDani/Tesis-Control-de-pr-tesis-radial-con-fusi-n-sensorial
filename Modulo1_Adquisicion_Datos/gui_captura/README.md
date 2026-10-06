@@ -152,7 +152,7 @@ python Modulo2_Pipeline_DL/captura_sesion.py --puerto COM3 --participante S01
 
 4. Una vez al día, con nadie puesto el brazalete, pulse **Autotest del ciclo
    (T)**. Confirma que el muestreo cabe en los 10 ms de los 100 Hz. Antes
-   del resultado, el registro muestra dos líneas que hay que comprobar: `[FW] version=M1-2026.10.04` y la del acelerómetro, que tiene que
+   del resultado, el registro muestra dos líneas que hay que comprobar: `[FW] version=M1-2026.10.05` y la del acelerómetro, que tiene que
    terminar en `OK` y decir `DLPF_CFG=4` y `AFS_SEL=0`. Es la lectura de los
    registros desde la propia placa, no lo que el código manda. La misma
    línea queda guardada en el JSON de cada sesión.

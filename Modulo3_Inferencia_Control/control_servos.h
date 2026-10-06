@@ -95,6 +95,12 @@ public:
     // inicial: el lazo de fuerza no puede proteger un movimiento asi.
     void setAnguloServo(uint8_t servo_id, uint8_t angulo);
 
+    // Senal haptica: pulsos breves de flexion escritos directo al PCA9685,
+    // y al final los cinco vuelven al angulo en que estaban. No toca el
+    // objetivo, asi que Reposo sigue manteniendo la posicion y un gesto a
+    // medio cerrar sigue su rampa. Bloquea ~240 ms por repeticion.
+    void pulsoHaptico(uint8_t repeticiones);
+
     // Configuracion de gestos predefinidos
     static const ConfigGesto gestos[NUM_CLASES];
 

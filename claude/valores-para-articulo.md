@@ -35,7 +35,7 @@ en línea, banco) no existen todavía y no aparecen aquí.
 | A17 | Sí | `M2/experimentos/ablacion_imu/ablacion_imu.py:39, 234` | Modo mixto evaluado por condición, y modo `estatica_a_dinamica`. |
 | A18 | Sí | `M2/experimentos/ablacion_imu/datos.py:39-42` | La ablación llama a `preparar_sesiones` de producción. No tiene ventaneo propio. |
 | A19 | Sí | `M2/common/metricas.py:47-58` | Exactitud = diagonal / total. Las 5 clases fijas. Precisión, recall y F1 por clase y macro. |
-| A20 | Sí | `M2/common/metricas.py:83`, `M2/experimentos/ablacion_imu/estadistica.py:63, 133, 198, 343` | El reporte además imprime una t pareada junto a cada Wilcoxon exploratorio. Ver la sección 5. |
+| A20 | Sí | `M2/common/metricas.py:83`, `M2/experimentos/ablacion_imu/estadistica.py:63, 133, 198, 343` | Wilcoxon y d_z en cada contraste. |
 | A21 | Sí | `M2/produccion/perdida_cuantizacion.py:54, 106` | Diferencia de F1 macro por pliegue sobre los mismos sujetos de prueba. Valor pendiente de datos reales. |
 | A22 | Sí, con un desempate añadido | `M2/experimentos/ablacion_imu/ablacion_imu.py:493-515` | Si empatan a 4 decimales, gana la de menos canales. Ver la sección 5. |
 | A23 | Sí | `M2/produccion/convertir_tflite.py:78, 291-297`, `M2/produccion/entrenar_modelo.py:150` | 1000 ventanas al azar, con semilla, solo de los sujetos de entrenamiento guardados con el modelo. |
@@ -138,11 +138,9 @@ detiene al pasar el umbral de su FSR, que se revisa cada 10 ms. Umbrales:
 
 Los comandos del operador `S` (detener), `A` (autocalibrar) y la señal
 háptica de error de calibración sí llevan la mano a una postura fija de
-reposo (25°). No son acciones de clase. **Un detalle:** si la señal háptica
-ocurre mientras la clase vigente es Reposo, al terminar la mano queda en
-esa postura fija en vez de volver a donde estaba
-(`M3/Modulo3_Inferencia_Control.ino:155`). Solo pasa cuando falla una
-calibración.
+reposo (25°). No son acciones de clase. La señal háptica de error de
+calibración da pulsos breves de flexión y la mano vuelve a donde estaba,
+también en Reposo (`M3/control_servos.cpp`, `pulsoHaptico`).
 
 ## 5. Lo que el artículo dice y el código hace de otra forma
 
@@ -174,11 +172,6 @@ indicación, porque el cambio de postura en la preparación ya mueve la señal
 
 > "Optimizador Adam y entropía cruzada categórica con suavizado de
 > etiquetas de 0,1."
-
-**A20. t pareada.** El bloque exploratorio imprime también una t pareada
-junto a cada Wilcoxon (`estadistica.py:138`). El artículo no la menciona.
-O se agrega "y la prueba t pareada como referencia" a la lista de A20, o se
-quita del reporte. El bloque confirmatorio no la usa.
 
 **A22. Desempate.**
 
@@ -267,8 +260,8 @@ Fuente: `M2/requirements.txt` y las versiones leídas del entorno.
 
 | | Versión |
 |---|---|
-| Firmware de adquisición | `M1-2026.10.04` (`M1/config.h:23`) |
-| Firmware de control | `M3-2026.10.04` (`M3/config.h:40`) |
+| Firmware de adquisición | `M1-2026.10.05` (`M1/config.h:23`) |
+| Firmware de control | `M3-2026.10.05` (`M3/config.h:40`) |
 | Núcleo ESP32 de Espressif para Arduino | 3.3.11, compilador esp-x32 2601 |
 | Arduino IDE | **Sin dato.** No está en esta PC. Pendiente de la PC donde compilas. |
 | Adafruit ADS1X15 | 2.6.2 |

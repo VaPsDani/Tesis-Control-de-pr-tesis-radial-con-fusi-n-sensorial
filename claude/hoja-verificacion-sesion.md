@@ -29,7 +29,7 @@ python Modulo2_Pipeline_DL\captura_sesion.py --puerto COM__ --participante S__
 Solo una vez al día, con el participante fuera:
 
 - [ ] **Autotest del ciclo (T)**: el registro dice `OK` y el ciclo cabe en 10 ms
-- [ ] En las líneas que salen antes: `[FW] version=M1-2026.10.04` y la línea
+- [ ] En las líneas que salen antes: `[FW] version=M1-2026.10.05` y la línea
       `[IMU]` con `DLPF_CFG=4`, `AFS_SEL=0` y `OK`
 
 Con **cada** participante, brazalete colocado y ajustado:

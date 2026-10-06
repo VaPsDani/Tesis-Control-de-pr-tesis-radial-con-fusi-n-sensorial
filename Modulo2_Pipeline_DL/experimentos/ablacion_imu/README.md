@@ -129,8 +129,8 @@ su aporte tiene que ser mayor en la condición dinámica. Con entrenamiento solo
 estático la misma aritmética no dice eso, y el informe lo advierte según el
 modo que registre el CSV.
 
-Se reportan ANOVA de medidas repetidas 2×2, Wilcoxon pareado y t pareada con
-su tamaño de efecto. Con 10 sujetos el p mínimo alcanzable por Wilcoxon es
+Se reportan ANOVA de medidas repetidas 2×2 y Wilcoxon pareado con su tamaño
+de efecto, d_z. Con 10 sujetos el p mínimo alcanzable por Wilcoxon es
 0.002, y con menos de 6 sujetos ningún resultado puede bajar de 0.05. El script
 lo imprime siempre, en vez de dejar que se lea un p sin contexto.
 

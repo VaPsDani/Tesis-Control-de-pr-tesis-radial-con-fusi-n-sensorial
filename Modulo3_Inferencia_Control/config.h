@@ -37,9 +37,12 @@
 // ======================== VERSION ========================
 // Se emite al arrancar como [FW] version=... SUBIRLA al cambiar algo que
 // altere la senal: pines, asentamiento, trama oscura o ADC.
-#define FIRMWARE_VERSION  "M3-2026.10.04"
+#define FIRMWARE_VERSION  "M3-2026.10.05"
 
 // SESIONES QUE NO SE MEZCLAN SIN COMPROBAR (igual que en Modulo1):
+//   M3-2026.10.05 Reposo mantiene la posicion, medicion de latencia 'L',
+//   calibracion de FSR 'F' y senal haptica que devuelve la mano a donde estaba. No cambia la senal: sus sesiones se
+//   mezclan con las de M3-2026.10.04 sin problema.
 //   M3-2026.10.04 configura el MPU6050: rango +/-2 g y filtro paso bajo
 //   DLPF_CFG = 4 (21 Hz). Antes el filtro estaba apagado. El acelerometro
 //   de las sesiones anteriores no es comparable con el de las nuevas.

@@ -20,9 +20,12 @@
 // grabada no dice con que firmware se tomo, y eso es justo lo que hace
 // falta cuando dos sesiones no se parecen. SUBIRLA al cambiar algo que
 // altere la senal: pines, asentamiento, trama oscura o ADC.
-#define FIRMWARE_VERSION  "M1-2026.10.04"
+#define FIRMWARE_VERSION  "M1-2026.10.05"
 
 // SESIONES QUE NO SE MEZCLAN SIN COMPROBAR:
+//   M1-2026.10.05 comandos D y W del banco de modulos (duty fijo y LED fijo para el
+//   multimetro). No cambia la senal: sus sesiones se
+//   mezclan con las de M1-2026.10.04 sin problema.
 //   M1-2026.10.04 configura el MPU6050: rango +/-2 g y filtro paso bajo
 //   DLPF_CFG = 4 (21 Hz). Antes el filtro estaba apagado. El acelerometro
 //   de las sesiones anteriores no es comparable con el de las nuevas.

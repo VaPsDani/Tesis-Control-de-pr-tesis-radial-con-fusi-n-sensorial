@@ -145,14 +145,8 @@ uint32_t      lecturasFSR   = 0;    // ciclos en que se leyeron
 // Escribe al PCA9685 directamente y bloquea ~600 ms: corre en el nucleo 0
 // (desde atenderAvisos) y marca el ciclo como interrumpido.
 void senalHaptica(uint8_t repeticiones) {
-    const uint8_t gestoPrevio = gestoActual;
-    for (uint8_t i = 0; i < repeticiones; i++) {
-        servos.ejecutarGesto(GESTO_POWER);      // flexion parcial
-        delay(120);
-        servos.ejecutarGesto(GESTO_REST);       // vuelta a reposo
-        delay(120);
-    }
-    servos.ejecutarGesto(gestoPrevio);
+    // La mano vuelve a la posicion previa, tambien en Reposo (A25).
+    servos.pulsoHaptico(repeticiones);
     cicloInterrumpido = true;
 }
 

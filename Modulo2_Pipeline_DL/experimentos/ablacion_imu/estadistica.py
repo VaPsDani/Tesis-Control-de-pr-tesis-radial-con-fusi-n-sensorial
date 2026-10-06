@@ -76,7 +76,7 @@ import os
 
 import numpy as np
 import pandas as pd
-from scipy.stats import ttest_rel, wilcoxon
+from scipy.stats import wilcoxon
 
 COMPOSICIONES = ["solo_lmg", "lmg_imu"]
 CONDICIONES = ["estatica", "dinamica"]
@@ -128,14 +128,13 @@ def d_de_cohen_pareado(dif: np.ndarray) -> float:
 
 
 def contraste(dif: np.ndarray, etiqueta: str) -> dict:
-    """Wilcoxon y t pareada sobre un vector de diferencias por sujeto."""
+    """Wilcoxon y d_z sobre un vector de diferencias por sujeto."""
     n = len(dif)
     p_min = 2 / (2 ** n) if n else float("nan")
     if np.allclose(dif, 0):
         p_w = float("nan")
     else:
         p_w = float(wilcoxon(dif).pvalue)
-    t = ttest_rel(dif, np.zeros_like(dif))
     return {
         "etiqueta": etiqueta,
         "n": int(n),
@@ -143,8 +142,6 @@ def contraste(dif: np.ndarray, etiqueta: str) -> dict:
         "sd": float(dif.std(ddof=1)) if n > 1 else float("nan"),
         "wilcoxon_p": p_w,
         "wilcoxon_p_minimo_alcanzable": float(p_min),
-        "t": float(t.statistic),
-        "t_p": float(t.pvalue),
         "d_z": d_de_cohen_pareado(dif),
     }
 
@@ -365,7 +362,6 @@ def texto_caida(res: dict) -> str:
         w("")
         w(f"   {d['etiqueta']}: {d['media']:+.4f}  "
           f"Wilcoxon p = {d['wilcoxon_p']:.4f}  "
-          f"t({d['n']-1}) = {d['t']:+.2f}, p = {d['t_p']:.4f}  "
           f"d_z = {d['d_z']:+.2f}")
         w(f"   {res['lectura']}")
     return "\n".join(L)
@@ -390,7 +386,6 @@ def texto(res: dict) -> str:
                   "aporte_imu_en_dinamica", "interaccion"):
         c = res[clave]
         w(f"   {clave:<24} {c['media']:+.4f}  Wilcoxon p = {c['wilcoxon_p']:.4f}"
-          f"  t({c['n']-1}) = {c['t']:+.2f}, p = {c['t_p']:.4f}"
           f"  d_z = {c['d_z']:+.2f}")
     w(f"   p minimo alcanzable por Wilcoxon con n = {res['n_sujetos']}: "
       f"{res['efecto_A_imu']['wilcoxon_p_minimo_alcanzable']:.4f}")

@@ -152,6 +152,21 @@ void ControlServos::setAnguloServo(uint8_t servo_id, uint8_t angulo) {
     _escribirPulso(servo_id, _anguloAPulso(angulo));
 }
 
+void ControlServos::pulsoHaptico(uint8_t repeticiones) {
+    // Directo y sin rampa: con delay() la rampa no corre, y fijar solo el
+    // objetivo no movia nada.
+    for (uint8_t r = 0; r < repeticiones; r++) {
+        for (int i = 0; i < NUM_SERVOS; i++) {
+            _escribirPulso(i, _anguloAPulso(gestos[GESTO_POWER].angulos[i]));
+        }
+        delay(120);
+        for (int i = 0; i < NUM_SERVOS; i++) {
+            _escribirPulso(i, _anguloAPulso(_ultimo_escrito[i]));
+        }
+        delay(120);
+    }
+}
+
 // ========== PRIVADAS ==========
 
 uint16_t ControlServos::_anguloAPulso(uint8_t angulo) {
