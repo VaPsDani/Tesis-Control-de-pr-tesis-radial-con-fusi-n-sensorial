@@ -28,7 +28,7 @@ cada variante de la misma luz, y eso es justo lo que el índice I divide por
 Φe. Una variante con el LED muy cerca del fotodiodo puede saturar con esa
 corriente, y por eso la saturación descalifica.
 
-### Paso con el multímetro, una vez antes de empezar
+### Paso con el multímetro, una vez por tipo de LED
 
 1. Multímetro en mA, **en serie** con el LED del módulo (entre GPIO13 y el
    pin LED del módulo).
@@ -36,24 +36,31 @@ corriente, y por eso la saturación descalifica.
    queda encendido fijo al máximo (duty 511 de 511) y la adquisición se
    detiene.
 3. Anotar la corriente. Enviar `S` para apagarlo.
-4. Calcular y guardar el duty:
+4. Calcular y guardar el duty de ese tipo de LED:
 
 ```bash
-python Modulo2_Pipeline_DL/banco_modulos/banco.py duty --corriente_100_ma 18.2
+python Modulo2_Pipeline_DL/banco_modulos/banco.py duty --tipo SMD --corriente_100_ma 18.2
+```
+
+```bash
+python Modulo2_Pipeline_DL/banco_modulos/banco.py duty --tipo PASANTE --corriente_100_ma 18.5
 ```
 
 El duty es 511 × 13 / corriente medida. Con los 18 mA de diseño sale 369
 (72 %). El OPT101 responde hasta unos 14 kHz y el PWM va a 100 kHz, así que
-el fotodiodo ve la media. Basta medir una variante de cada tipo de LED. Si
-el pasante y el SMD dan corrientes distintas al 100 %, avísame, porque
-entonces hace falta un duty por tipo.
+el fotodiodo ve la media. Cada tipo de LED lleva su propio duty: con
+distinto voltaje directo, al 100 % pasan corrientes distintas por la misma
+resistencia de 100 Ω. Basta medir una variante de cada tipo.
+
+Hasta que midas, los dos tipos tienen el duty provisional 369, calculado con
+los 18 mA de diseño. La captura y el análisis avisan mientras siga así.
 
 ## Comandos del firmware
 
 | Comando | Quién lo manda | Para qué |
 |---|---|---|
-| `W1` | tú, una vez | LED del canal 1 fijo al máximo, para el multímetro |
-| `D369` | el script, al empezar cada prueba | duty fijo en los cinco LED, sin autocalibrar y sin guardarlo |
+| `W1` | tú, una vez por tipo de LED | LED del canal 1 fijo al máximo, para el multímetro |
+| `D369` | el script, al empezar cada prueba | duty fijo del tipo de LED de la variante, sin autocalibrar y sin guardarlo |
 | `L` | el script | empieza a emitir muestras |
 | `S` | el script, al terminar, o tú tras `W1` | detiene la emisión y apaga el LED fijo |
 | `T` | tú, una vez al día | autotest del ciclo, confirma que cabe en 10 ms |
@@ -66,7 +73,7 @@ calibración de las sesiones, así que el banco no la pisa.
 | Campo | Qué es | De dónde sale |
 |---|---|---|
 | `corriente_media_ma` | 13 | el artículo |
-| `corriente_100_ma` y `duty` | corriente al 100 % y duty | el subcomando `duty` |
+| `corriente_100_ma` y `duty` | corriente al 100 % y duty, por tipo de LED | el subcomando `duty` |
 | `rp_a_por_w` | responsividad del fotodiodo del OPT101 a 940 nm, en A/W | hoja de datos del OPT101 |
 | `phi_e_mw.PASANTE` y `phi_e_mw.SMD` | flujo radiante de cada LED en mW **a 13 mA** | hoja de datos de cada LED |
 

@@ -1,7 +1,13 @@
 {
   "corriente_media_ma": 13.0,
-  "corriente_100_ma": null,
-  "duty": null,
+  "corriente_100_ma": {
+    "PASANTE": null,
+    "SMD": null
+  },
+  "duty": {
+    "PASANTE": 369,
+    "SMD": 369
+  },
   "rp_a_por_w": null,
   "phi_e_mw": {
     "PASANTE": null,

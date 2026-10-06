@@ -53,7 +53,9 @@ def escribir_prueba(dirpath, variante, ronda, *, reposo=700.0, sd=10.0,
     return ruta
 
 
-PARAMETROS = {"corriente_media_ma": 13.0, "duty": 369, "rp_a_por_w": 0.5,
+PARAMETROS = {"corriente_media_ma": 13.0, "rp_a_por_w": 0.5,
+              "duty": {"PASANTE": 369, "SMD": 369},
+              "corriente_100_ma": {"PASANTE": None, "SMD": None},
               "phi_e_mw": {"PASANTE": 4.0, "SMD": 2.0}}
 
 
@@ -250,3 +252,15 @@ def test_seis_variantes_dos_rondas_tabla_grafico_y_decision(tmp_path):
 
     png = b.grafico(det, os.path.join(d, "i_pinza.png"))
     assert os.path.getsize(png) > 1000
+
+
+def test_el_subcomando_duty_guarda_un_valor_por_tipo(tmp_path):
+    import json
+    ruta = str(tmp_path / "par.json")
+    with open(ruta, "w") as f:
+        json.dump(PARAMETROS, f)
+    b.main(["duty", "--tipo", "smd", "--corriente_100_ma", "20", "--parametros", ruta])
+    par = b.cargar_parametros(ruta)
+    # 511 * 13 / 20 = 332. El pasante conserva el provisional.
+    assert par["duty"] == {"PASANTE": 369, "SMD": 332}
+    assert par["corriente_100_ma"] == {"PASANTE": None, "SMD": 20.0}

@@ -44,7 +44,7 @@ DOS RONDAS POR VARIANTE:
   cambia mucho entre colocaciones no sirve para 10 participantes.
 
 USO:
-  python banco.py duty --corriente_100_ma 18.2
+  python banco.py duty --tipo SMD --corriente_100_ma 18.2
   python banco.py capturar --variante SMD_11mm --ronda 1 --puerto COM3
   python banco.py analizar
 
@@ -288,14 +288,19 @@ def duty_para(corriente_100_ma, corriente_media_ma):
 
 
 def fijar_duty(args):
-    """Subcomando duty: calcula el duty y lo guarda en los parametros."""
+    """
+    Subcomando duty: calcula el duty de un tipo de LED y lo guarda en los
+    parametros. Cada tipo lleva el suyo: con distinto voltaje directo, al
+    100% pasan corrientes distintas por la misma resistencia de 100 ohm.
+    """
     par = cargar_parametros(args.parametros)
+    tipo = args.tipo.upper()
     d = duty_para(args.corriente_100_ma, par["corriente_media_ma"])
-    par["corriente_100_ma"] = args.corriente_100_ma
-    par["duty"] = d
+    par["corriente_100_ma"][tipo] = args.corriente_100_ma
+    par["duty"][tipo] = d
     with open(args.parametros, "w", encoding="utf-8") as f:
         json.dump(par, f, indent=2, ensure_ascii=False)
-    print(f"{args.corriente_100_ma} mA al 100% -> duty {d} de {LED_DUTY_MAX} "
+    print(f"{tipo}: {args.corriente_100_ma} mA al 100% -> duty {d} de {LED_DUTY_MAX} "
           f"({100 * d / LED_DUTY_MAX:.1f}%) para {par['corriente_media_ma']} mA "
           f"de media. Guardado en {args.parametros}")
     return 0
@@ -316,12 +321,18 @@ def capturar(args):
     lector.abrir()
     lector.start()
 
-    duty = cargar_parametros(args.parametros).get("duty")
+    par = cargar_parametros(args.parametros)
+    tipo = tipo_led(args.variante)
+    duty = par["duty"].get(tipo)
     if duty is None and not args.simulado:
-        print("Falta el duty en parametros_banco.json. Mida la corriente del "
-              "LED al 100% ('W1' en el firmware) y corra el subcomando duty.")
+        print(f"Falta el duty de {tipo} en parametros_banco.json. Mida la "
+              f"corriente del LED al 100% ('W1' en el firmware) y corra el "
+              f"subcomando duty --tipo {tipo}.")
         lector.detener()
         return 1
+    if duty is not None and par["corriente_100_ma"].get(tipo) is None:
+        print(f"AVISO: el duty de {tipo} ({duty}) es el provisional, calculado "
+              f"con los 18 mA de diseno y no con una corriente medida.")
     if duty is not None:
         # Misma corriente media en las seis variantes, sin autocalibrar.
         lector.enviar(f"D{duty}\n")
@@ -723,10 +734,15 @@ def analizar(args):
     fmt = lambda x: f"{x:8.3g}"                      # noqa: E731
 
     par = cargar_parametros(args.parametros)
-    duties = set(det["duty"].dropna())
-    if len(duties) > 1:
-        print(f"AVISO: las pruebas no se midieron todas con el mismo duty: "
-              f"{sorted(duties)}. No son comparables entre si.")
+    for tipo, g in det.groupby(det["variante"].map(tipo_led)):
+        duties = set(g["duty"].dropna())
+        if len(duties) > 1:
+            print(f"AVISO: las pruebas {tipo} no se midieron todas con el "
+                  f"mismo duty: {sorted(duties)}. No son comparables.")
+    sin_medir = [t for t, i in par["corriente_100_ma"].items() if i is None]
+    if sin_medir:
+        print(f"AVISO: duty provisional, sin corriente medida, en: "
+              f"{', '.join(sin_medir)}.")
 
     faltan = faltan_parametros(par, det["variante"])
     if faltan:
@@ -770,6 +786,8 @@ def main(argv=None):
 
     d = sub.add_parser("duty", help="duty para la corriente media, desde la "
                                     "corriente medida al 100%%")
+    d.add_argument("--tipo", required=True, choices=["PASANTE", "SMD"],
+                   type=str.upper)
     d.add_argument("--corriente_100_ma", type=float, required=True,
                    help="lo que marca el multimetro con 'W1' en el firmware")
     d.add_argument("--parametros", default=RUTA_PARAMETROS)
