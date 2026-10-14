@@ -77,6 +77,9 @@
  *     ADS1115, L y D    : 5 x (2 x 1.73) ms + 0.5  ≈ 17.8 ms   NO cabe
  *   Hasta M1-2026.10.05 (Adafruit, sondeo, 300 us de asentamiento) el
  *   autotest midio 11.9 ms: no cabia.
+ *   MEDIDO con M1-2026.10.14 (2026-10-14): ciclo medio 9221.5 us, peor
+ *   9354 us (6.5% de margen). Conversion medida 1078 us (0x48) y 1082 us
+ *   (0x49), con la espera de 1200 us: ~11% de holgura.
  *   De ahi que la trama oscura vaya ligada al ADS1015 (config.h).
  *
  * ANCHO DE BANDA:

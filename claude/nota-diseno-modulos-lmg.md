@@ -388,3 +388,9 @@ resultado. Cambios, iguales en M1 y M3:
 El presupuesto analítico nuevo está en `M3/config.h`. Las cifras de ~8.9 y
 ~9.4 ms de más arriba eran con el I2C subestimado.
 
+**Medido con M1-2026.10.14:** ciclo medio 9221.5 µs, peor 9354 µs (6.5 % de
+margen; el analítico daba ~9.2 ms). `begin()` midió 1078 µs de conversión en
+0x48 y 1082 µs en 0x49: la espera de 1200 µs deja ~11 % de holgura y no se
+ajustó. El Módulo 3 falta medirlo; su estimado es ~9.5 ms, ~9.9 ms en los
+ciclos con rampa de servos.
+
