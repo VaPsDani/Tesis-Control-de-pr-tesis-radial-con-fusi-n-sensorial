@@ -195,7 +195,7 @@ El modelo hace unas **1.43 millones de multiplicaciones-suma por ventana**:
 
 | Opción | Ahorro | Nota |
 |---|---|---|
-| `LED_SETTLE_US` de 300 a 200 µs | ~500 µs | Sigue siendo 2.5 veces la respuesta del OPT101. Cambia la señal: afecta a los datos ya grabados con 300 |
+| ~~`LED_SETTLE_US` de 300 a 200 µs~~ | | **Hecho el 2026-10-14, a 150 µs**, junto con la lectura del ADC sin sondeo (`adc_lmg.h`). Ver `M3/config.h` |
 | `FSR_MUESTRAS` de 4 a 2 | ~250 µs | El condensador de 100 nF ya filtra |
 | Repartir las escrituras de la rampa: como mucho 3 servos por ciclo | ~150-200 µs en el peor ciclo | Misma velocidad angular |
 | ADS1015 en lugar de ADS1115 (hardware) | ~4.3 ms | Ya soportado en `config.h`; cambia la resolución |

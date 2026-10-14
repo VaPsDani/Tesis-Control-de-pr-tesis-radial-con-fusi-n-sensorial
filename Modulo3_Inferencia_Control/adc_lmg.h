@@ -37,6 +37,39 @@
  *   LED apagado y otra encendido. seleccionar() fija el canal y
  *   leerActual() lo convierte; el multiplexor interno del ADS se conmuta
  *   al inicio de cada conversion y no necesita espera propia.
+ *
+ * LECTURA CON Wire DIRECTO Y ESPERA FIJA (desde 2026.10.14):
+ *   Antes se usaba readADC_SingleEnded() de Adafruit_ADS1X15, que por
+ *   lectura hace: escribir la configuracion, escribir los dos umbrales
+ *   (para el modo RDY del pin ALERT, que aqui no se cablea), sondear el
+ *   bit OS del registro de configuracion hasta que termina y leer el
+ *   resultado. Con el core 3.x cada transaccion I2C cuesta ~280 us
+ *   (medido a 400 kHz), y eso dejaba la lectura en ~1910 us para una
+ *   conversion de ~1125 us.
+ *
+ *   Ahora, por lectura:
+ *     1. Escribir la configuracion con OS = 1 (inicia la conversion).
+ *     2. Mientras convierte, apuntar el registro de puntero al de
+ *        conversion (0x00). Va DENTRO de la espera: no cuesta tiempo.
+ *     3. Esperar hasta ADC_ESPERA_US contados desde el fin de 1.
+ *     4. Leer 2 bytes, una sola vez, sin sondear.
+ *   Lo que se lee es lo mismo que antes: misma configuracion (MUX, PGA,
+ *   modo single-shot, tasa). Lo unico distinto es el comparador, que se
+ *   deja deshabilitado (COMP_QUE = 11, ALERT en alta impedancia) porque
+ *   no se usa; no toca la conversion.
+ *
+ * EL RIESGO DE LA ESPERA FIJA, Y COMO SE CUBRE:
+ *   Si la conversion no termino al leer, el registro de conversion
+ *   devuelve la ANTERIOR de ese chip, que es OTRO canal. Seria crosstalk
+ *   silencioso, peor que un ciclo lento. La hoja de datos admite +/-10%
+ *   en la tasa, asi que una espera de 1200 us no cubre por si sola un
+ *   ADS1115 en el extremo lento (1163 x 1.1 + 25 us de encendido =
+ *   ~1305 us). Por eso begin() MIDE el tiempo real de conversion de cada
+ *   chip, por el mismo camino de lectura, y si no deja al menos
+ *   ADC_ESPERA_MARGEN_PCT de holgura sube la espera de ESE chip y lo
+ *   avisa por serie. Nunca se lee un resultado a medias: en el peor caso
+ *   el ciclo se alarga y el autotest lo reporta. verificarEspera() repite
+ *   la medicion (el autotest 'T' la llama).
  */
 
 #ifndef ADC_LMG_H
@@ -44,15 +77,14 @@
 
 #include <Arduino.h>
 #include <Wire.h>
-#include <Adafruit_ADS1X15.h>
 #include "config.h"
 
 class ADC_LMG {
 public:
     ADC_LMG();
 
-    // Inicializa los dos ADC. Devuelve false si falta alguno; presente()
-    // dice cual.
+    // Inicializa los dos ADC y mide su tiempo de conversion. Devuelve
+    // false si falta alguno; presente() dice cual.
     bool begin();
     bool presente(uint8_t adc) const { return adc < 2 && _presente[adc]; }
 
@@ -65,6 +97,16 @@ public:
     // seleccionar + leerActual. En mV.
     float leerCanal(uint8_t canal);
 
+    // Mide otra vez la conversion de cada chip, ajusta la espera si hace
+    // falta e imprime una linea [ADC] por chip.
+    void verificarEspera();
+
+    // Espera en uso y conversion medida (us) de cada ADC (0 o 1).
+    uint16_t esperaUs(uint8_t adc) const { return adc < 2 ? _esperaUs[adc] : 0; }
+    uint16_t conversionMedidaUs(uint8_t adc) const {
+        return adc < 2 ? _convMedidaUs[adc] : 0;
+    }
+
     // Conversiones que llegaron al maximo, por canal, desde el arranque o
     // desde el ultimo reiniciarRecortes().
     uint32_t recortes(uint8_t canal) const {
@@ -72,16 +114,22 @@ public:
     }
     void reiniciarRecortes();
 
+    // Transacciones I2C que fallaron (NACK o bytes de menos).
+    uint32_t erroresI2C() const { return _erroresI2C; }
+
 private:
-#if ADC_MODELO == ADC_ADS1015
-    Adafruit_ADS1015 _ads[2];
-#else
-    Adafruit_ADS1115 _ads[2];
-#endif
+    bool     _iniciar(uint8_t k, uint8_t ain, unsigned long &t0);
+    bool     _leer16(uint8_t k, uint16_t &valor);
+    uint16_t _medirConversionUs(uint8_t k);
+
     bool          _presente[2];
+    uint16_t      _esperaUs[2];
+    uint16_t      _convMedidaUs[2];
     uint8_t       _canal;
     uint32_t      _recortes[NUM_LMG];
+    uint32_t      _erroresI2C;
     unsigned long _tUltimoAviso;
+    unsigned long _tUltimoAvisoI2C;
 };
 
 #endif

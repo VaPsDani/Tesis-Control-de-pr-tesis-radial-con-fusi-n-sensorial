@@ -24,7 +24,7 @@ en línea, banco) no existen todavía y no aparecen aquí.
 | A6 | Sí | `M2/captura/protocolo.py:129, 437` | `bloque_tipo = reposo_dinamico`, etiqueta Rest, uno en cada tercio de la sesión. La sesión dura 582 s (9.7 min). |
 | A7 | Sí | `M2/captura/interfaz.py:639-643` | Edad, sexo, mano dominante, brazo, longitud y circunferencia del antebrazo, posición del brazalete, punto de cierre de la correa y observaciones. |
 | A8 | Sí | `M2/produccion/preprocesamiento.py:158, 187-204`, `M3/calibracion.h:36` | Igual en Python y en el firmware. |
-| A9 | Sí | `M2/produccion/preprocesamiento.py:193-203`, `M3/calibracion.h:42`, `M1/config.h:149` | g menos la media de calibración, sin dividir. ±2 g, 16384 LSB/g. |
+| A9 | Sí | `M2/produccion/preprocesamiento.py:193-203`, `M3/calibracion.h:42`, `M1/config.h:188` | g menos la media de calibración, sin dividir. ±2 g, 16384 LSB/g. |
 | A10 | Sí | `M2/produccion/preprocesamiento.py:173, 218` | La calibración solo da media y desviación. |
 | A11 | Sí | `M2/produccion/preprocesamiento.py:121-122` | 20 muestras, paso 2, a 100 Hz. |
 | A12 | Sí, con la base dinámica cambiada | `M2/produccion/fases.py:115, 142-168`, `M2/produccion/preprocesamiento.py:207-224`, `M2/produccion/anotar_fases.py:143` | Detector versión 4. La línea base de las dinámicas es el final de la preparación. Ver la sección 5. |
@@ -39,8 +39,8 @@ en línea, banco) no existen todavía y no aparecen aquí.
 | A21 | Sí | `M2/produccion/perdida_cuantizacion.py:54, 106` | Diferencia de F1 macro por pliegue sobre los mismos sujetos de prueba. Valor pendiente de datos reales. |
 | A22 | Sí, con un desempate añadido | `M2/experimentos/ablacion_imu/ablacion_imu.py:493-515` | Si empatan a 4 decimales, gana la de menos canales. Ver la sección 5. |
 | A23 | Sí | `M2/produccion/convertir_tflite.py:78, 291-297`, `M2/produccion/entrenar_modelo.py:150` | 1000 ventanas al azar, con semilla, solo de los sujetos de entrenamiento guardados con el modelo. |
-| A24 | Sí | `M3/config.h:340-341`, `M3/Modulo3_Inferencia_Control.ino:732-735` | Núcleo 0 adquiere cada 10 ms. Núcleo 1 infiere. Ver la sección 5. |
-| A25 | Sí | `M3/Modulo3_Inferencia_Control.ino:461-462`, `M3/control_servos.h:27`, `M3/config.h:292, 477-480` | Tabla en la sección 4. |
+| A24 | Sí | `M3/config.h:375-376`, `M3/Modulo3_Inferencia_Control.ino:732-735` | Núcleo 0 adquiere cada 10 ms. Núcleo 1 infiere. Ver la sección 5. |
+| A25 | Sí | `M3/Modulo3_Inferencia_Control.ino:461-462`, `M3/control_servos.h:27`, `M3/config.h:327, 512-515` | Tabla en la sección 4. |
 | A26 | Sí, con un matiz | `M3/Modulo3_Inferencia_Control.ino:98-108, 466, 501` | Comando `L`. Ver la sección 5. Valores pendientes de la placa. |
 | A27 | Sí | `M3/Modulo3_Inferencia_Control.ino:549`, `M2/produccion/calibrar_fsr.py:46, 58, 94` | Comando `F`, ajuste lineal y potencial, MAE en newtons. Ver la sección 5. Valores pendientes de medir. |
 | A28 | Sí | `M2/produccion/prueba_en_linea.py:58, 65, 81`, `M2/produccion/planilla_agarres.csv` | El modelo de cada participante se entrena con `entrenar_modelo.py --modo final --excluir <id>`. |
@@ -51,9 +51,9 @@ en línea, banco) no existen todavía y no aparecen aquí.
 
 | | Valor | Dónde |
 |---|---|---|
-| Rango | ±2 g (`AFS_SEL = 0`) | `M1/config.h:149` |
-| Sensibilidad | 16384 LSB/g | `M1/config.h:149` |
-| Filtro paso bajo interno | `DLPF_CFG = 4`: 21 Hz en el acelerómetro con 8.5 ms de retardo, 20 Hz en el giroscopio con 8.3 ms | `M1/config.h:148` |
+| Rango | ±2 g (`AFS_SEL = 0`) | `M1/config.h:188` |
+| Sensibilidad | 16384 LSB/g | `M1/config.h:188` |
+| Filtro paso bajo interno | `DLPF_CFG = 4`: 21 Hz en el acelerómetro con 8.5 ms de retardo, 20 Hz en el giroscopio con 8.3 ms | `M1/config.h:187` |
 | Comprobación | El firmware relee los registros del chip y no arranca si no coinciden | `M1/sensor_imu.cpp:27-32` |
 
 Los Módulos 1 y 3 lo configuran igual. **Falta la confirmación en la
@@ -260,12 +260,12 @@ Fuente: `M2/requirements.txt` y las versiones leídas del entorno.
 
 | | Versión |
 |---|---|
-| Firmware de adquisición | `M1-2026.10.05` (`M1/config.h:23`) |
-| Firmware de control | `M3-2026.10.05` (`M3/config.h:40`) |
+| Firmware de adquisición | `M1-2026.10.14` (`M1/config.h:23`) |
+| Firmware de control | `M3-2026.10.14` (`M3/config.h:40`) |
 | Núcleo ESP32 de Espressif para Arduino | 3.3.11, compilador esp-x32 2601 |
 | Arduino IDE | **Sin dato.** No está en esta PC. Pendiente de la PC donde compilas. |
-| Adafruit ADS1X15 | 2.6.2 |
-| Adafruit BusIO | 1.17.4 (dependencia de la anterior) |
+| ADS1115 | Sin librería desde 2026.10.14. Driver propio sobre `Wire` (`M1/adc_lmg.cpp`, igual en M3). Antes, Adafruit ADS1X15 2.6.2 |
+| Adafruit BusIO | 1.17.4 (la instalada; el ADC ya no la usa) |
 | Adafruit PWM Servo Driver (PCA9685) | 3.0.3 |
 | Chirale_TensorFLowLite | 2.0.0 |
 | MPU6050 | Sin librería. Driver propio sobre `Wire` (`M1/sensor_imu.cpp`) |

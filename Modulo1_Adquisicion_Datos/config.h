@@ -20,9 +20,16 @@
 // grabada no dice con que firmware se tomo, y eso es justo lo que hace
 // falta cuando dos sesiones no se parecen. SUBIRLA al cambiar algo que
 // altere la senal: pines, asentamiento, trama oscura o ADC.
-#define FIRMWARE_VERSION  "M1-2026.10.05"
+#define FIRMWARE_VERSION  "M1-2026.10.14"
 
 // SESIONES QUE NO SE MEZCLAN SIN COMPROBAR:
+//   M1-2026.10.14 el ADC se lee con Wire directo y espera fija, sin
+//   sondeo (adc_lmg.h), y LED_SETTLE_US baja de 300 a 150 us, para que
+//   el ciclo quepa en 10 ms (pendiente de confirmar con 'T'). Con las versiones
+//   2026.09.24 a 2026.10.05 el autotest midio 11.9 ms por ciclo, o sea
+//   ~84 Hz y no 100. Una ventana de 20 muestras de esas sesiones abarca
+//   ~237 ms, no 200: NO se mezclan con las nuevas sin remuestrear (el
+//   timestamp_ms del CSV es el reloj bueno para hacerlo).
 //   M1-2026.10.05 comandos D y W del banco de modulos (duty fijo y LED fijo para el
 //   multimetro). No cambia la senal: sus sesiones se
 //   mezclan con las de M1-2026.10.04 sin problema.
@@ -76,23 +83,46 @@
 #define ADC_ADS1015     1
 
 // DECISION (Tarea 3.c): ADS1015, la unica opcion que cabe en 10 ms con
-// trama oscura (~8.6 ms en Modulo3, ~8.1 ms aqui sin FSR; con ADS1115,
+// trama oscura (~9.8 ms en Modulo3, ~9.4 ms aqui sin FSR; con ADS1115,
 // ~18 ms). Analitico: el firmware mide el ciclo real al arrancar.
 // MIENTRAS SIGA SOLDADO EL ADS1115, dejar ADC_ADS1115.
 #ifndef ADC_MODELO                      // -DADC_MODELO=1 para compilar la otra rama
 #define ADC_MODELO      ADC_ADS1115
 #endif
 
+// Conversion NOMINAL (1 / tasa). La espera real es ADC_ESPERA_US.
 #if ADC_MODELO == ADC_ADS1015
   #define ADC_CONVERSION_US  303
 #else
   #define ADC_CONVERSION_US  1163
 #endif
-#define ADC_OVERHEAD_I2C_US  240     // estimado a 400 kHz; el autotest mide
+// Espera fija entre el inicio de la conversion y la unica lectura del
+// resultado (adc_lmg.cpp, sin sondear el bit OS). ADS1115 a 860 SPS:
+// 1/860 = 1163 us de conversion + ~25 us de encendido en single-shot =
+// 1188 us nominales; 1200 us es el nominal con 1% de holgura. NO cubre
+// por si solo el extremo de la hoja de datos (tasa +/-10%: hasta
+// ~1305 us); lo cubre que begin() mide cada chip y sube su espera si no
+// deja ADC_ESPERA_MARGEN_PCT de holgura. Los dos chips montados midieron
+// ~1125 us en el diagnostico del 2026-10-14, y eso incluye la
+// escritura de inicio y el grano del sondeo de Adafruit (~280 us), asi
+// que su conversion real es menor.
+// ADS1015 a 3300 SPS: 303 + 25 us, con el +10% de la hoja: 360 us.
+#if ADC_MODELO == ADC_ADS1015
+  #define ADC_ESPERA_US  360
+#else
+  #define ADC_ESPERA_US  1200
+#endif
+#define ADC_ESPERA_MARGEN_PCT  5
+// I2C por lectura, fuera de la espera: escribir la configuracion (3
+// bytes) y leer el resultado (2 bytes). ESTIMADO a partir de los
+// ~280 us medidos para escribir el puntero y leer 2 bytes con el core
+// 3.x a 400 kHz; el apuntado al registro de conversion va dentro de la
+// espera. El autotest mide el real.
+#define ADC_OVERHEAD_I2C_US  325
 
 // GAIN_TWO (+/-2.048 V) en los dos ADC: solo leen canales opticos, y el
 // OPT101 a 3.3 V no pasa de ~2.15 V. Ver adc_lmg.h.
-// mV por LSB, solo informativo: la conversion usa computeVolts().
+// mV por LSB: adc_lmg.cpp convierte el codigo con este factor.
 #if ADC_MODELO == ADC_ADS1015
   #define ADS_GAIN_MV   1.0f       // 12 bits, GAIN_TWO
   #define ADC_RAW_MAX   2047       // codigo de recorte
@@ -122,9 +152,15 @@
 // L - D. Ligada al ADS1015: con el ADS1115 el ciclo no cabe y el residuo
 // del parpadeo de 120 Hz tras restar seria del 113%.
 #define TRAMA_OSCURA_HABILITADA  (ADC_MODELO == ADC_ADS1015)
-// 300 us por la nota de diseno; el OPT101 responde en ~80 us. Ver la
-// nota del presupuesto en Modulo3_Inferencia_Control/config.h.
-#define LED_SETTLE_US            300
+// Asentamiento del LED antes de iniciar la conversion. 150 us desde
+// M*-2026.10.14 (antes 300). El OPT101 con su realimentacion interna de
+// 1 MOhm (14 kHz de ancho de banda) se asienta en ~80 us: 150 us son
+// casi el doble. Y lo que quedara de cola se diluye: el ADS1115 integra
+// la entrada durante toda la conversion (1163 us), asi que un resto al
+// inicio pesa en el resultado por la fraccion de tiempo que dura, y es
+// ademas un factor fijo por canal que la normalizacion por sujeto quita.
+// 300 dejaba el ciclo en 11.9 ms. TIENE QUE SER IGUAL EN M1 Y M3.
+#define LED_SETTLE_US            150
 
 // ======================== AUTOCALIBRACION DE GANANCIA (Tarea 3.d) ========================
 #define FONDO_ESCALA_UTIL_MV       2000.0f

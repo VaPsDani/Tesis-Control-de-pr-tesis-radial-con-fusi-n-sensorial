@@ -69,12 +69,14 @@
  *   distinto de cero significa que hubo lecturas no validas.
  *
  * PRESUPUESTO TEMPORAL POR CICLO (analitico; el autotest mide el real):
- *   Por lectura: 300 us de asentamiento del LED + conversion + ~240 us
- *   de I2C. Sin multiplexor ya no hay espera de 50 us por canal.
- *   MPU6050, 14 bytes a 400 kHz: ~0.4 ms.
- *     ADS1115, solo L   : 5 x 1.70 ms + 0.4        ≈  8.9 ms   cabe
- *     ADS1015, L y D    : 5 x (2 x 0.84) ms + 0.4  ≈  8.8 ms   cabe
- *     ADS1115, L y D    : 5 x (2 x 1.70) ms + 0.4  ≈ 17.4 ms   NO cabe
+ *   Por lectura: ~50 us de LED + LED_SETTLE_US (150) + ~325 us de I2C +
+ *   ADC_ESPERA_US (1200 en el ADS1115, 360 en el ADS1015). Lectura con
+ *   Wire directo y sin sondeo (adc_lmg.h). MPU6050, 14 bytes: ~0.5 ms.
+ *     ADS1115, solo L   : 5 x 1.73 ms + 0.5        ≈  9.2 ms   cabe
+ *     ADS1015, L y D    : 5 x (2 x 0.89) ms + 0.5  ≈  9.4 ms   cabe
+ *     ADS1115, L y D    : 5 x (2 x 1.73) ms + 0.5  ≈ 17.8 ms   NO cabe
+ *   Hasta M1-2026.10.05 (Adafruit, sondeo, 300 us de asentamiento) el
+ *   autotest midio 11.9 ms: no cabia.
  *   De ahi que la trama oscura vaya ligada al ADS1015 (config.h).
  *
  * ANCHO DE BANDA:
@@ -171,11 +173,13 @@ void autotestTemporal() {
 // con que firmware se grabo cada CSV.
 void emitirVersion() {
     Serial.printf("[FW] version=%s modulo=1 adc=%s adc_arq=2xADS gain=2 "
-                  "trama_oscura=%d led_settle_us=%d fs_hz=%d\n",
+                  "trama_oscura=%d led_settle_us=%d adc_espera_us=%u,%u "
+                  "fs_hz=%d\n",
                   FIRMWARE_VERSION,
                   ADC_MODELO == ADC_ADS1015 ? "ADS1015" : "ADS1115",
                   TRAMA_OSCURA_HABILITADA ? 1 : 0,
-                  LED_SETTLE_US, 1000 / INTERVALO_MS);
+                  LED_SETTLE_US, adcLmg.esperaUs(0), adcLmg.esperaUs(1),
+                  1000 / INTERVALO_MS);
 }
 
 void setup() {
@@ -271,6 +275,7 @@ void loop() {
             // es lo que el operador ve en la ventana al pulsar T.
             emitirVersion();
             imu.imprimirConfig();
+            adcLmg.verificarEspera();   // conversion medida de cada ADS
             autotestTemporal();
         } else if (c == 'D') {
             // Duty fijo para el banco. El numero llega en la misma linea.

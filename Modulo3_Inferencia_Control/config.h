@@ -37,9 +37,14 @@
 // ======================== VERSION ========================
 // Se emite al arrancar como [FW] version=... SUBIRLA al cambiar algo que
 // altere la senal: pines, asentamiento, trama oscura o ADC.
-#define FIRMWARE_VERSION  "M3-2026.10.05"
+#define FIRMWARE_VERSION  "M3-2026.10.14"
 
 // SESIONES QUE NO SE MEZCLAN SIN COMPROBAR (igual que en Modulo1):
+//   M3-2026.10.14 el ADC se lee con Wire directo y espera fija, sin
+//   sondeo (adc_lmg.h), y LED_SETTLE_US baja de 300 a 150 us, igual que
+//   en M1-2026.10.14. Un modelo entrenado con sesiones de M1 de 2026.09.24
+//   a 2026.10.05 vio ventanas de ~237 ms (el ciclo real era 11.9 ms), no
+//   de 200.
 //   M3-2026.10.05 Reposo mantiene la posicion, medicion de latencia 'L',
 //   calibracion de FSR 'F' y senal haptica que devuelve la mano a donde estaba. No cambia la senal: sus sesiones se
 //   mezclan con las de M3-2026.10.04 sin problema.
@@ -83,16 +88,21 @@
 #define ADC_ADS1015     1
 
 // DECISION (Tarea 3.c): ADS1015 para poder usar la trama oscura. Sin
-// multiplexor y con los FSR fuera del ADS, el ciclo de 10 ms queda asi:
+// multiplexor y con los FSR fuera del ADS, el ciclo de 10 ms queda asi
+// (recalculado el 2026-10-14 con el I2C medido en el core 3.x):
 //
-//                     5 LMG               +MPU   +5 FSR (ADC ESP32)   total
-//   ADS1115 solo L     8.52 ms            0.4    ~0.5                 9.4 ms  SI
-//   ADS1115 L y D     17.03 ms            0.4    ~0.5                17.9 ms  NO
-//   ADS1015 L y D      8.43 ms            0.4    ~0.5                 9.3 ms  SI
+//                     5 LMG               +ACC   +5 FSR (ADC ESP32)   total
+//   ADS1115 solo L     8.6 ms             0.4    ~0.5                 9.5 ms  justo
+//   ADS1115 L y D     17.3 ms             0.4    ~0.5                18.2 ms  NO
+//   ADS1015 L y D      8.9 ms             0.4    ~0.5                 9.8 ms  justo
 //
-//   (ANALITICO, no medido: 1163 o 303 us de conversion + ~240 us de I2C
-//   + 300 us de asentamiento del LED por lectura; ~25 us por muestra del
-//   ADC del ESP32. El firmware lo mide al arrancar; ver autotestTemporal().)
+//   (ANALITICO, no medido: por lectura ~50 us de LED (ledcWrite) +
+//   LED_SETTLE_US + ~325 us de I2C + ADC_ESPERA_US; ~25 us por muestra
+//   del ADC del ESP32. La rampa de servos suma ~375 us uno de cada dos
+//   ciclos. El firmware lo mide al arrancar; ver autotestTemporal().)
+//   Antes de 2026.10.14 se estimaban 240 us de I2C por lectura y eran
+//   ~800 (Adafruit escribia 3 registros y sondeaba): el ciclo real era
+//   11.9 ms, no los 9.4 de esta tabla.
 //
 //   60 Hz de muestreo seria ademas la peor eleccion en Peru, porque el
 //   parpadeo de 120 Hz de las lamparas se plegaria exactamente a DC.
@@ -110,12 +120,35 @@
 #define ADC_MODELO      ADC_ADS1115
 #endif
 
+// Conversion NOMINAL (1 / tasa). La espera real es ADC_ESPERA_US.
 #if ADC_MODELO == ADC_ADS1015
   #define ADC_CONVERSION_US  303
 #else
   #define ADC_CONVERSION_US  1163
 #endif
-#define ADC_OVERHEAD_I2C_US  240     // estimado a 400 kHz; el autotest mide
+// Espera fija entre el inicio de la conversion y la unica lectura del
+// resultado (adc_lmg.cpp, sin sondear el bit OS). ADS1115 a 860 SPS:
+// 1/860 = 1163 us de conversion + ~25 us de encendido en single-shot =
+// 1188 us nominales; 1200 us es el nominal con 1% de holgura. NO cubre
+// por si solo el extremo de la hoja de datos (tasa +/-10%: hasta
+// ~1305 us); lo cubre que begin() mide cada chip y sube su espera si no
+// deja ADC_ESPERA_MARGEN_PCT de holgura. Los dos chips montados midieron
+// ~1125 us en el diagnostico del 2026-10-14, y eso incluye la
+// escritura de inicio y el grano del sondeo de Adafruit (~280 us), asi
+// que su conversion real es menor.
+// ADS1015 a 3300 SPS: 303 + 25 us, con el +10% de la hoja: 360 us.
+#if ADC_MODELO == ADC_ADS1015
+  #define ADC_ESPERA_US  360
+#else
+  #define ADC_ESPERA_US  1200
+#endif
+#define ADC_ESPERA_MARGEN_PCT  5
+// I2C por lectura, fuera de la espera: escribir la configuracion (3
+// bytes) y leer el resultado (2 bytes). ESTIMADO a partir de los
+// ~280 us medidos para escribir el puntero y leer 2 bytes con el core
+// 3.x a 400 kHz; el apuntado al registro de conversion va dentro de la
+// espera. El autotest mide el real.
+#define ADC_OVERHEAD_I2C_US  325
 
 // ======================== LED DE LOS MODULOS LMG (Tarea 3.a) ========================
 // Un pin por LED para encender solo el del canal que se lee y eliminar el
@@ -158,13 +191,15 @@
 // residuo del parpadeo de 120 Hz sube al 113%, mas que sin restar.
 // Mientras siga soldado el ADS1115 se lee solo L, un LED a la vez.
 #define TRAMA_OSCURA_HABILITADA  (ADC_MODELO == ADC_ADS1015)
-// Asentamiento del OPT101 con su realimentacion interna de 1 MOhm:
-// ~80 us. La nota de diseno fija 300 us. Son 600 us por ciclo mas que
-// los 200 anteriores (5 canales + 1 trama oscura), y el presupuesto de
-// abajo esta calculado con 300. Si hay que recuperar esos 600 us, este
-// es el primer sitio donde mirar: 200 sigue dando 2.5 veces el tiempo
-// de respuesta del fotodiodo.
-#define LED_SETTLE_US            300
+// Asentamiento del LED antes de iniciar la conversion. 150 us desde
+// M*-2026.10.14 (antes 300). El OPT101 con su realimentacion interna de
+// 1 MOhm (14 kHz de ancho de banda) se asienta en ~80 us: 150 us son
+// casi el doble. Y lo que quedara de cola se diluye: el ADS1115 integra
+// la entrada durante toda la conversion (1163 us), asi que un resto al
+// inicio pesa en el resultado por la fraccion de tiempo que dura, y es
+// ademas un factor fijo por canal que la normalizacion por sujeto quita.
+// 300 dejaba el ciclo en 11.9 ms. TIENE QUE SER IGUAL EN M1 Y M3.
+#define LED_SETTLE_US            150
 
 // ======================== AUTOCALIBRACION DE GANANCIA (Tarea 3.d) ========================
 // Fondo de escala UTIL: el menor entre el del ADC (2048 mV a GAIN_TWO) y
@@ -184,7 +219,7 @@
 
 // GAIN_TWO (+/-2.048 V) en los dos ADC: solo leen canales opticos, y el
 // OPT101 a 3.3 V no pasa de ~2.15 V. Ver adc_lmg.h.
-// mV por LSB, solo informativo: la conversion usa computeVolts().
+// mV por LSB: adc_lmg.cpp convierte el codigo con este factor.
 #if ADC_MODELO == ADC_ADS1015
   #define ADS_GAIN_MV   1.0f       // 12 bits, GAIN_TWO
   #define ADC_RAW_MAX   2047       // codigo de recorte

@@ -359,3 +359,32 @@ ADS1115 es otra: sacar los FSR del ADC (pasan al ADC interno del ESP32) y
 eliminar la espera del multiplexor. Con eso, y sin trama oscura, el ciclo queda
 en ~8.9 ms en el Módulo 1 y ~9.4 ms en el Módulo 3. Es la arquitectura vigente
 (ver el estado vigente, al principio).
+
+## Corrección del 2026-10-14: el ciclo real y la lectura del ADC
+
+El autotest del Módulo 1 midió **11 867 µs de media y 11 990 µs en el peor
+ciclo**: no cabía en 10 ms, y las sesiones grabadas con M1-2026.09.24 a
+M1-2026.10.05 salieron a ~84 Hz. El diagnóstico con las dos ADS1115 y el
+MPU6050 conectados, núcleo ESP32 3.3.x a 400 kHz, dio:
+
+| | medido |
+|---|---|
+| `readADC_SingleEnded` completa | 1912 µs (0x48), 1910 µs (0x49) |
+| una transacción (puntero + 2 bytes) | 280 µs |
+| conversión (inicio a `conversionComplete()`) | ~1125 µs |
+
+El ADS1115 convierte bien. Lo que fallaba era el I2C, estimado en 240 µs por
+lectura y en realidad ~800: la librería escribe la configuración y los dos
+umbrales en cada lectura, sondea el bit OS a 280 µs por consulta y lee el
+resultado. Cambios, iguales en M1 y M3:
+
+- `adc_lmg.cpp` con `Wire` directo: escribe la configuración, apunta al
+  registro de conversión mientras convierte, espera `ADC_ESPERA_US` = 1200 µs
+  y lee una sola vez. `begin()` mide cada chip y sube su espera si no deja 5%
+  de holgura, para no leer nunca la conversión anterior (otro canal).
+- `LED_SETTLE_US` de 300 a 150 µs (arriba decía 300).
+- Versiones M1-2026.10.14 y M3-2026.10.14.
+
+El presupuesto analítico nuevo está en `M3/config.h`. Las cifras de ~8.9 y
+~9.4 ms de más arriba eran con el I2C subestimado.
+

@@ -252,7 +252,7 @@ void autotestTemporal() {
     const float periodo = INTERVALO_MUESTRA_MS * 1000.0f;
     const uint8_t convLMG = NUM_LMG * (TRAMA_OSCURA_HABILITADA ? 2 : 1);
     const float estimado =
-        convLMG * (ADC_CONVERSION_US + ADC_OVERHEAD_I2C_US + LED_SETTLE_US)
+        convLMG * (ADC_ESPERA_US + ADC_OVERHEAD_I2C_US + LED_SETTLE_US + 50)
         + NUM_FSR * FSR_MUESTRAS * FSR_US_POR_MUESTRA
         + 400.0f;
 
@@ -400,7 +400,9 @@ void atenderComandos() {
             Serial.println("[CMD] Envie 'G' para reactivar el control.");
             cicloInterrumpido = true;
             break;
-        case 'T': autotestTemporal(); cicloInterrumpido = true; break;
+        case 'T':
+            adcLmg.verificarEspera();   // conversion medida de cada ADS
+            autotestTemporal(); cicloInterrumpido = true; break;
         case 'I': calibrador.info(); optica.info(); reportarLatencias(); break;
         case 'L':
             if (!sistemaActivo) {

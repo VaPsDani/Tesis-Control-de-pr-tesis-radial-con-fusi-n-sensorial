@@ -18,7 +18,7 @@ ADS1115/ADS1015, en 0x48 y 0x49, sin multiplexor) y los 6 ejes del MPU6050 a
   16, 17; ataque directo con la resistencia de 100 Ω del PCB de cada módulo,
   según `claude/nota-diseno-modulos-lmg.md`). Solo se enciende el LED del canal que se
   está leyendo, lo que elimina el crosstalk óptico entre módulos vecinos.
-- **Trama oscura** (`v = L − D`, con 300 µs de asentamiento). Cancela la
+- **Trama oscura** (`v = L − D`, con 150 µs de asentamiento). Cancela la
   componente continua de la luz ambiental. **No** cancela el parpadeo de 120 Hz
   de las lámparas: D y L quedan separadas por una conversión completa del ADC. La
   trama oscura va ligada al ADS1015; con el ADS1115 el ciclo no cabe en 10 ms.
