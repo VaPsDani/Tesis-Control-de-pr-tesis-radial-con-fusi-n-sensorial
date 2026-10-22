@@ -6,7 +6,7 @@
  *   I2C-1: SDA=GPIO21, SCL=GPIO22  → ADS1115 #1 (0x48), ADS1115 #2 (0x49),
  *          MPU6050 (0x68)
  *   LMG:   OUT de los modulos 1-3 a AIN0-2 del ADS #1; 4-5 a AIN0-1 del ADS #2
- *   LED LMG: GPIO 13, 25, 27, 16, 17 (PWM, 100 ohm en serie al LED, en el
+ *   LED LMG: GPIO 23, 19, 18, 16, 17 (PWM, 100 ohm en serie al LED, en el
  *          PCB de cada modulo)
  *   Serial: 921600 baud
  */
@@ -20,9 +20,13 @@
 // grabada no dice con que firmware se tomo, y eso es justo lo que hace
 // falta cuando dos sesiones no se parecen. SUBIRLA al cambiar algo que
 // altere la senal: pines, asentamiento, trama oscura o ADC.
-#define FIRMWARE_VERSION  "M1-2026.10.14"
+#define FIRMWARE_VERSION  "M1-2026.10.22"
 
 // SESIONES QUE NO SE MEZCLAN SIN COMPROBAR:
+//   M1-2026.10.22 los LED 1, 2 y 3 pasan de los GPIO 13, 25 y 27 a los
+//   23, 19 y 18, para que todo el cableado quede en un lado del devkit.
+//   No cambia la senal: sus sesiones se mezclan con las de
+//   M1-2026.10.14 sin problema.
 //   M1-2026.10.14 el ADC se lee con Wire directo y espera fija, sin
 //   sondeo (adc_lmg.h), y LED_SETTLE_US baja de 300 a 150 us, para que
 //   el ciclo quepa en 10 ms (pendiente de confirmar con 'T'). Con las versiones
@@ -57,7 +61,8 @@
 #define I2C_FREQ        400000      // 400 kHz (modo Fast)
 
 // ======================== ADC DE LOS CANALES LMG ========================
-// Todo este bloque, hasta la autocalibracion, es IDENTICO al de Modulo3.
+// Todo este bloque, hasta la autocalibracion, es IDENTICO al de Modulo3,
+// salvo los pines de los LED (ver abajo).
 // optica_lmg.cpp y adc_lmg.cpp son el mismo archivo en ambos modulos: la
 // senal con que se entrena tiene que ser la misma con que se infiere. La
 // justificacion completa de cada valor esta en
@@ -136,11 +141,20 @@
 // directo con la resistencia de 100 ohm del PCB de cada modulo (~18 mA
 // con un LED IR de 940 nm, Vf ~1.3 V), nunca los cinco a la vez.
 // Validos en el WROOM 32; en un WROVER, 16 y 17 son de la PSRAM.
-// LED 2 en GPIO25 y no en GPIO14: el 14 emite pulsos durante el arranque
-// y hacia parpadear el LED. El 25 quedo libre al quitar el multiplexor.
-#define PIN_LED_LMG_1   13
-#define PIN_LED_LMG_2   25
-#define PIN_LED_LMG_3   27
+//
+// DESDE M1-2026.10.22 TODOS EN EL MISMO LADO DEL DEVKIT que el I2C (21 y
+// 22), para poder montar la placa en la protoboard con un solo lado
+// cableado: 23, 22, 21, 19, 18, 17, 16 van en la misma fila de pines
+// tanto en el devkit de 30 pines como en el de 38. Antes eran 13, 25 y
+// 27, del otro lado. Ninguno es pin de arranque (0, 2, 5, 12, 15) ni
+// emite pulsos al arrancar (el 14 si, por eso se dejo de usar).
+//
+// ESTE BLOQUE YA NO ES IGUAL AL DE MODULO3, que sigue en 13, 25, 27. Los
+// pines del LED no cambian la senal (optica_lmg.cpp los toma de aqui),
+// solo el cableado; el resto del bloque si sigue identico.
+#define PIN_LED_LMG_1   23
+#define PIN_LED_LMG_2   19
+#define PIN_LED_LMG_3   18
 #define PIN_LED_LMG_4   16
 #define PIN_LED_LMG_5   17
 

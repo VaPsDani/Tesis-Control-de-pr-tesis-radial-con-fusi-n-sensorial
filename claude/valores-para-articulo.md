@@ -260,7 +260,7 @@ Fuente: `M2/requirements.txt` y las versiones leídas del entorno.
 
 | | Versión |
 |---|---|
-| Firmware de adquisición | `M1-2026.10.14` (`M1/config.h:23`) |
+| Firmware de adquisición | `M1-2026.10.22` (`M1/config.h:23`) |
 | Firmware de control | `M3-2026.10.14` (`M3/config.h:40`) |
 | Núcleo ESP32 de Espressif para Arduino | 3.3.11, compilador esp-x32 2601 |
 | Arduino IDE | **Sin dato.** No está en esta PC. Pendiente de la PC donde compilas. |

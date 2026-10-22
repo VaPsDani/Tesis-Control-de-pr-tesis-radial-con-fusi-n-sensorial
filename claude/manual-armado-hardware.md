@@ -191,13 +191,19 @@ Es la tabla de referencia. Las secciones que siguen la detallan.
 
 **Módulos LMG: conector J1 de cada módulo**
 
-| Módulo | J1-1 VCC | J1-2 GND | J1-3 OUT | J1-4 LED |
-|---|---|---|---|---|
-| 1 | Riel de 3.3 V | Riel de tierra | ADS1115 **#1** (0x48), entrada **A0** | ESP32 **GPIO13** |
-| 2 | Riel de 3.3 V | Riel de tierra | ADS1115 **#1** (0x48), entrada **A1** | ESP32 **GPIO25** |
-| 3 | Riel de 3.3 V | Riel de tierra | ADS1115 **#1** (0x48), entrada **A2** | ESP32 **GPIO27** |
-| 4 | Riel de 3.3 V | Riel de tierra | ADS1115 **#2** (0x49), entrada **A0** | ESP32 **GPIO16** |
-| 5 | Riel de 3.3 V | Riel de tierra | ADS1115 **#2** (0x49), entrada **A1** | ESP32 **GPIO17** |
+| Módulo | J1-1 VCC | J1-2 GND | J1-3 OUT | J1-4 LED, Módulo 1 | J1-4 LED, Módulo 3 |
+|---|---|---|---|---|---|
+| 1 | Riel de 3.3 V | Riel de tierra | ADS1115 **#1** (0x48), entrada **A0** | ESP32 **GPIO23** | ESP32 **GPIO13** |
+| 2 | Riel de 3.3 V | Riel de tierra | ADS1115 **#1** (0x48), entrada **A1** | ESP32 **GPIO19** | ESP32 **GPIO25** |
+| 3 | Riel de 3.3 V | Riel de tierra | ADS1115 **#1** (0x48), entrada **A2** | ESP32 **GPIO18** | ESP32 **GPIO27** |
+| 4 | Riel de 3.3 V | Riel de tierra | ADS1115 **#2** (0x49), entrada **A0** | ESP32 **GPIO16** | ESP32 **GPIO16** |
+| 5 | Riel de 3.3 V | Riel de tierra | ADS1115 **#2** (0x49), entrada **A1** | ESP32 **GPIO17** | ESP32 **GPIO17** |
+
+Desde M1-2026.10.22 el Módulo 1 tiene los cinco LED y el I2C (GPIO21 y 22)
+en **el mismo lado del devkit**, para cablear la protoboard por un solo lado.
+El Módulo 3 sigue en 13, 25 y 27: sus FSR (32 a 36) ya ocupan el otro lado. El
+pin del LED no cambia la señal, así que las sesiones del Módulo 1 sirven igual
+para el Módulo 3.
 
 **Los dos ADS1115**
 
@@ -321,8 +327,9 @@ los servos: es una señal analógica pequeña.
   módulo: el cable va directo del GPIO al pin 4.
 
 **Si la placa es un ESP32 WROVER y no un WROOM 32**, los GPIO 16 y 17 están
-tomados por la PSRAM y hay que reasignar los LED 4 y 5, por ejemplo al GPIO 26 y
-al 18, y cambiar `PIN_LED_LMG_4` y `PIN_LED_LMG_5` en los dos `config.h`.
+tomados por la PSRAM y hay que reasignar los LED 4 y 5 y cambiar
+`PIN_LED_LMG_4` y `PIN_LED_LMG_5` en los dos `config.h`: en el Módulo 1, al
+GPIO 4 (mismo lado) y al 26; en el Módulo 3, al 26 y al 18.
 
 ### 4.5 Los FSR (solo Módulo 3)
 
