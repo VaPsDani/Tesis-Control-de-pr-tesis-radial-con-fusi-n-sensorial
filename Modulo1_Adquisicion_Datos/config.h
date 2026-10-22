@@ -3,10 +3,10 @@
  * Protesis transradial - Fusion sensorial y Deep Learning
  *
  * PINOUT:
- *   I2C-1: SDA=GPIO21, SCL=GPIO22  → ADS1115 #1 (0x48), ADS1115 #2 (0x49),
+ *   I2C-1: SDA=GPIO33, SCL=GPIO14  → ADS1115 #1 (0x48), ADS1115 #2 (0x49),
  *          MPU6050 (0x68)
  *   LMG:   OUT de los modulos 1-3 a AIN0-2 del ADS #1; 4-5 a AIN0-1 del ADS #2
- *   LED LMG: GPIO 23, 19, 18, 16, 17 (PWM, 100 ohm en serie al LED, en el
+ *   LED LMG: GPIO 13, 25, 27, 26, 32 (PWM, 100 ohm en serie al LED, en el
  *          PCB de cada modulo)
  *   Serial: 921600 baud
  */
@@ -23,8 +23,8 @@
 #define FIRMWARE_VERSION  "M1-2026.10.22"
 
 // SESIONES QUE NO SE MEZCLAN SIN COMPROBAR:
-//   M1-2026.10.22 los LED 1, 2 y 3 pasan de los GPIO 13, 25 y 27 a los
-//   23, 19 y 18, para que todo el cableado quede en un lado del devkit.
+//   M1-2026.10.22 todo el cableado pasa al lado del 3V3 del devkit de
+//   38 pines: I2C de 21/22 a 33/14 (SDA/SCL) y LED 4 y 5 de 16/17 a 26/32.
 //   No cambia la senal: sus sesiones se mezclan con las de
 //   M1-2026.10.14 sin problema.
 //   M1-2026.10.14 el ADC se lee con Wire directo y espera fija, sin
@@ -56,8 +56,13 @@
 #define BAUDIOS         921600
 
 // ======================== I2C ========================
-#define PIN_SDA         21
-#define PIN_SCL         22
+// En el lado del 3V3 del devkit de 38 pines, como los LED (ver abajo).
+// SCL en el 14 y no SDA: el 14 emite pulsos al arrancar, y con SDA quieta
+// en alto un pulso en SCL no forma una condicion START, asi que ningun
+// chip del bus lo toma como transaccion. En SDA si podria.
+// El Modulo 3 sigue en 21/22.
+#define PIN_SDA         33
+#define PIN_SCL         14
 #define I2C_FREQ        400000      // 400 kHz (modo Fast)
 
 // ======================== ADC DE LOS CANALES LMG ========================
@@ -142,21 +147,28 @@
 // con un LED IR de 940 nm, Vf ~1.3 V), nunca los cinco a la vez.
 // Validos en el WROOM 32; en un WROVER, 16 y 17 son de la PSRAM.
 //
-// DESDE M1-2026.10.22 TODOS EN EL MISMO LADO DEL DEVKIT que el I2C (21 y
-// 22), para poder montar la placa en la protoboard con un solo lado
-// cableado: 23, 22, 21, 19, 18, 17, 16 van en la misma fila de pines
-// tanto en el devkit de 30 pines como en el de 38. Antes eran 13, 25 y
-// 27, del otro lado. Ninguno es pin de arranque (0, 2, 5, 12, 15) ni
-// emite pulsos al arrancar (el 14 si, por eso se dejo de usar).
+// DESDE M1-2026.10.22 TODO EN UN LADO DEL DEVKIT DE 38 PINES, el del
+// 3V3, para cablear la protoboard por un solo lado. Ese lado, de arriba
+// abajo: 3V3, EN, 36, 39, 34, 35, 32, 33, 25, 26, 27, 14, 12, GND, 13,
+// SD2, SD3, CMD, 5V. Salidas utiles hay siete justas (32, 33, 25, 26,
+// 27, 14, 13) para 5 LED + SDA + SCL:
+//   34 a 39   solo entrada.
+//   12        pin de arranque: en alto al encender pone la flash a 1.8 V y
+//             el ESP32 no arranca ni se deja programar. NO CONECTAR NADA.
+//   SD2, SD3, CMD (9, 10, 11): son de la flash interna. NO CONECTAR NADA.
+//   5V        el OPT101 va a 3.3 V, nunca aqui.
+// El 14 emite pulsos al arrancar y hacia parpadear el LED 2: queda para
+// SCL, donde no molesta. LED 1 a 3 en 13, 25 y 27, igual que en Modulo3.
 //
-// ESTE BLOQUE YA NO ES IGUAL AL DE MODULO3, que sigue en 13, 25, 27. Los
-// pines del LED no cambian la senal (optica_lmg.cpp los toma de aqui),
-// solo el cableado; el resto del bloque si sigue identico.
-#define PIN_LED_LMG_1   23
-#define PIN_LED_LMG_2   19
-#define PIN_LED_LMG_3   18
-#define PIN_LED_LMG_4   16
-#define PIN_LED_LMG_5   17
+// ESTE BLOQUE YA NO ES IGUAL AL DE MODULO3 en los LED 4 y 5 (alli 16 y
+// 17) ni en el I2C (alli 21/22). Los pines no cambian la senal
+// (optica_lmg.cpp los toma de aqui), solo el cableado; el resto del
+// bloque si sigue identico.
+#define PIN_LED_LMG_1   13
+#define PIN_LED_LMG_2   25
+#define PIN_LED_LMG_3   27
+#define PIN_LED_LMG_4   26
+#define PIN_LED_LMG_5   32
 
 #define LED_PWM_FREQ_HZ   100000     // >> 14 kHz de ancho de banda del OPT101
 #define LED_PWM_BITS      9          // 100 kHz x 2^9 <= 80 MHz

@@ -14,7 +14,7 @@ Conecta el módulo al **canal LMG1**, que es el más simple de verificar:
 | Señal del módulo | Va a |
 |---|---|
 | OUT | ADS1115 #1 (**0x48**), entrada **AIN0** |
-| LED | **GPIO23** del ESP32 (GPIO13 con firmware anterior a M1-2026.10.22) |
+| LED | **GPIO13** del ESP32 |
 | VCC | 3.3 V |
 | GND | GND común |
 
@@ -30,7 +30,7 @@ corriente, y por eso la saturación descalifica.
 
 ### Paso con el multímetro, una vez por tipo de LED
 
-1. Multímetro en mA, **en serie** con el LED del módulo (entre GPIO23 y el
+1. Multímetro en mA, **en serie** con el LED del módulo (entre GPIO13 y el
    pin LED del módulo).
 2. En el monitor serie, a 921600 baudios, enviar `W1`. El LED del canal 1
    queda encendido fijo al máximo (duty 511 de 511) y la adquisición se

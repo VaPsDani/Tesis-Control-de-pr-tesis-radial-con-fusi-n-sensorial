@@ -394,8 +394,8 @@ margen; el analítico daba ~9.2 ms). `begin()` midió 1078 µs de conversión en
 ajustó. El Módulo 3 falta medirlo; su estimado es ~9.5 ms, ~9.9 ms en los
 ciclos con rampa de servos.
 
-**2026-10-22, pines de los LED en el Módulo 1:** pasan a GPIO **23, 19, 18,
-16, 17**, del mismo lado del devkit que el I2C, para la protoboard. El Módulo 3
-sigue en 13, 25, 27, 16, 17. Si más adelante se cablea ALERT/RDY en el
-Módulo 1, el GPIO18 y el 19 ya no están libres: quedan el 4 de ese lado y el
-26 o el 32 del otro.
+**2026-10-22, pines del Módulo 1:** todo en el lado del 3V3 del devkit de 38
+pines. LED en GPIO **13, 25, 27, 26, 32**; I2C con **SDA en 33 y SCL en 14**.
+El Módulo 3 sigue en 13, 25, 27, 16, 17 e I2C en 21/22. Con esto, ese lado del
+Módulo 1 queda sin salidas libres: si se cablea ALERT/RDY, tendría que ir al
+otro lado (por ejemplo GPIO18 y 19).

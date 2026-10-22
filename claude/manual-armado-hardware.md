@@ -193,17 +193,20 @@ Es la tabla de referencia. Las secciones que siguen la detallan.
 
 | Módulo | J1-1 VCC | J1-2 GND | J1-3 OUT | J1-4 LED, Módulo 1 | J1-4 LED, Módulo 3 |
 |---|---|---|---|---|---|
-| 1 | Riel de 3.3 V | Riel de tierra | ADS1115 **#1** (0x48), entrada **A0** | ESP32 **GPIO23** | ESP32 **GPIO13** |
-| 2 | Riel de 3.3 V | Riel de tierra | ADS1115 **#1** (0x48), entrada **A1** | ESP32 **GPIO19** | ESP32 **GPIO25** |
-| 3 | Riel de 3.3 V | Riel de tierra | ADS1115 **#1** (0x48), entrada **A2** | ESP32 **GPIO18** | ESP32 **GPIO27** |
-| 4 | Riel de 3.3 V | Riel de tierra | ADS1115 **#2** (0x49), entrada **A0** | ESP32 **GPIO16** | ESP32 **GPIO16** |
-| 5 | Riel de 3.3 V | Riel de tierra | ADS1115 **#2** (0x49), entrada **A1** | ESP32 **GPIO17** | ESP32 **GPIO17** |
+| 1 | Riel de 3.3 V | Riel de tierra | ADS1115 **#1** (0x48), entrada **A0** | ESP32 **GPIO13** | ESP32 **GPIO13** |
+| 2 | Riel de 3.3 V | Riel de tierra | ADS1115 **#1** (0x48), entrada **A1** | ESP32 **GPIO25** | ESP32 **GPIO25** |
+| 3 | Riel de 3.3 V | Riel de tierra | ADS1115 **#1** (0x48), entrada **A2** | ESP32 **GPIO27** | ESP32 **GPIO27** |
+| 4 | Riel de 3.3 V | Riel de tierra | ADS1115 **#2** (0x49), entrada **A0** | ESP32 **GPIO26** | ESP32 **GPIO16** |
+| 5 | Riel de 3.3 V | Riel de tierra | ADS1115 **#2** (0x49), entrada **A1** | ESP32 **GPIO32** | ESP32 **GPIO17** |
 
-Desde M1-2026.10.22 el Módulo 1 tiene los cinco LED y el I2C (GPIO21 y 22)
-en **el mismo lado del devkit**, para cablear la protoboard por un solo lado.
-El Módulo 3 sigue en 13, 25 y 27: sus FSR (32 a 36) ya ocupan el otro lado. El
-pin del LED no cambia la señal, así que las sesiones del Módulo 1 sirven igual
-para el Módulo 3.
+Desde M1-2026.10.22 el Módulo 1 tiene los cinco LED y el I2C en **el lado
+del 3V3 del devkit de 38 pines**, para cablear la protoboard por un solo lado:
+LED en 13, 25, 27, 26 y 32, **SDA en GPIO33 y SCL en GPIO14**. En ese lado
+**no se conecta nada al GPIO12** (si está en alto al encender, el ESP32 no
+arranca ni se deja programar), ni a SD2, SD3 y CMD, que son de la flash, ni
+al 5V. El Módulo 3 sigue con LED 4 y 5 en 16 y 17 e I2C en 21/22. El pin no
+cambia la señal, así que las sesiones del Módulo 1 sirven igual para el
+Módulo 3.
 
 **Los dos ADS1115**
 
@@ -216,7 +219,7 @@ para el Módulo 3.
 | A3 | Riel de tierra (sin uso) | Riel de tierra (sin uso) |
 | VDD | Riel de 3.3 V | Riel de 3.3 V |
 | GND | Riel de tierra | Riel de tierra |
-| SDA / SCL | GPIO21 / GPIO22 | GPIO21 / GPIO22 |
+| SDA / SCL | GPIO21 / GPIO22 (Módulo 1: GPIO33 / GPIO14) | GPIO21 / GPIO22 (Módulo 1: GPIO33 / GPIO14) |
 | ALRT | Sin conexión | Sin conexión |
 
 **FSR del Módulo 3: ADC interno del ESP32, solo pines del ADC1**
@@ -266,8 +269,8 @@ MPU6050 en el Módulo 1, y además el PCA9685 en el Módulo 3.
 
 | Desde | Hasta | Color | Notas |
 |---|---|---|---|
-| ESP32, GPIO21 | SDA de ADS1115 #1, ADS1115 #2, MPU6050 y PCA9685 | Azul | |
-| ESP32, GPIO22 | SCL de ADS1115 #1, ADS1115 #2, MPU6050 y PCA9685 | Verde | |
+| ESP32, GPIO21 (Módulo 1: GPIO33) | SDA de ADS1115 #1, ADS1115 #2, MPU6050 y PCA9685 | Azul | |
+| ESP32, GPIO22 (Módulo 1: GPIO14) | SCL de ADS1115 #1, ADS1115 #2, MPU6050 y PCA9685 | Verde | |
 | Riel de 3.3 V | VDD o VCC de las cuatro placas | Rojo | En el PCA9685, solo la lógica. La potencia entra por el borne de tornillo. |
 | Riel de tierra | GND de las cuatro placas | Negro | |
 | ADS1115 #1, ADDR | Riel de tierra | Negro | **0x48**. |
@@ -327,9 +330,9 @@ los servos: es una señal analógica pequeña.
   módulo: el cable va directo del GPIO al pin 4.
 
 **Si la placa es un ESP32 WROVER y no un WROOM 32**, los GPIO 16 y 17 están
-tomados por la PSRAM y hay que reasignar los LED 4 y 5 y cambiar
-`PIN_LED_LMG_4` y `PIN_LED_LMG_5` en los dos `config.h`: en el Módulo 1, al
-GPIO 4 (mismo lado) y al 26; en el Módulo 3, al 26 y al 18.
+tomados por la PSRAM. En el Módulo 3 hay que reasignar los LED 4 y 5, por
+ejemplo al GPIO 26 y al 18, y cambiar `PIN_LED_LMG_4` y `PIN_LED_LMG_5` en su
+`config.h`. El Módulo 1 ya no usa el 16 ni el 17.
 
 ### 4.5 Los FSR (solo Módulo 3)
 
@@ -556,7 +559,7 @@ actual no da el resultado esperado.**
 
 | Síntoma | Causa probable | Qué revisar |
 |---|---|---|
-| El escaneo I2C no encuentra nada | Falta alimentación, o SDA y SCL están cruzados | Medir 3.3 V en cada placa. Confirmar que SDA va a GPIO21 y SCL a GPIO22. |
+| El escaneo I2C no encuentra nada | Falta alimentación, o SDA y SCL están cruzados | Medir 3.3 V en cada placa. Confirmar que SDA va a GPIO21 y SCL a GPIO22 (en el Módulo 1, GPIO33 y GPIO14). |
 | El firmware dice `0x49 FALTA` | El ADDR del ADS1115 #2 no está en 3.3 V | ADDR del #2 a 3.3 V. Si aparece 0x48 dos veces no es posible: los dos ADDR están a tierra. |
 | Aparecen 0x48 y 0x49 pero no 0x68 | AD0 del MPU6050 al aire o en alto | AD0 a tierra da 0x68. En alto da 0x69. |
 | Errores de lectura I2C intermitentes | Pull-up fuera de rango | Medir SDA y SCL contra 3.3 V sin alimentación (sección 4.3). |

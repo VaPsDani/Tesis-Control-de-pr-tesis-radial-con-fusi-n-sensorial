@@ -14,8 +14,8 @@ ADS1115/ADS1015, en 0x48 y 0x49, sin multiplexor) y los 6 ejes del MPU6050 a
 
 ## Lectura óptica
 
-- **Un LED a la vez.** Cada módulo LMG tiene su propio pin PWM (GPIO 23, 19, 18,
-  16, 17; ataque directo con la resistencia de 100 Ω del PCB de cada módulo,
+- **Un LED a la vez.** Cada módulo LMG tiene su propio pin PWM (GPIO 13, 25, 27,
+  26, 32; ataque directo con la resistencia de 100 Ω del PCB de cada módulo,
   según `claude/nota-diseno-modulos-lmg.md`). Solo se enciende el LED del canal que se
   está leyendo, lo que elimina el crosstalk óptico entre módulos vecinos.
 - **Trama oscura** (`v = L − D`, con 150 µs de asentamiento). Cancela la
