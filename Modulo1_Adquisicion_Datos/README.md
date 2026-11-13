@@ -1,48 +1,106 @@
-# Módulo 1 — Adquisición de datos
+# Módulo 1: adquisición de datos (OMG)
 
-Firmware del ESP32 que adquiere 5 canales LMG (OPT101 leídos por dos ADC
-ADS1115/ADS1015, en 0x48 y 0x49, sin multiplexor) y los 6 ejes del MPU6050 a
-100 Hz, y los envía por serie a la aplicación de captura del Módulo 2
-(`Modulo2_Pipeline_DL/captura/`).
+Firmware del ESP32 que adquiere a 100 Hz las señales de **8 módulos QRE1113**
+(OMG, optomiografía) con el **ADC interno** del ESP32 y los 6 ejes del MPU6050,
+y las envía por serie a la aplicación de captura del Módulo 2
+(`Modulo2_Pipeline_DL/captura/`). Todo se evalúa fuera de línea: este firmware
+solo adquiere.
 
-> **Desde `M1-2026.09.24`** la cadena óptica cambió: sin multiplexor CD74HC4067,
-> dos ADS1115 a GAIN_TWO y el LED 2 en el GPIO25. **Las sesiones grabadas con
-> versiones anteriores y las grabadas desde esta no se mezclan en un mismo
-> entrenamiento sin comprobar** que su reposo y su excursión por canal son
-> comparables. La versión queda en el JSON de cada sesión (`version_firmware`).
-> Cableado completo en `claude/manual-armado-hardware.md`.
+> **Desde `M1-2026.11.13-QRE`** el sensor es otro. Estas sesiones **no se
+> mezclan** con las de `M1-2026.10.22` o anteriores (OPT101 con ADS1115, 5
+> canales). El firmware LMG está en el tag `lmg-final-2026-11-13`. La versión
+> queda en el JSON de cada sesión (`version_firmware`). Cableado y pruebas en
+> `claude/manual-armado-hardware.md`.
+
+## Conexiones
+
+Placa: DevKit ESP32 WROOM de 38 pines. La tabla vive en `config.h`
+(`PIN_OUT`, `PIN_IR`) y el firmware la imprime al arrancar con líneas
+`[PINES]`.
+
+| Módulo | JST pin 3, OUT (ADC) | JST pin 4, IR (LED) |
+|---|---|---|
+| 1 | GPIO36 (VP/SP, ADC1_CH0) | GPIO13 |
+| 2 | GPIO39 (VN/SN, ADC1_CH3) | GPIO27 |
+| 3 | GPIO34 (ADC1_CH6) | GPIO23 |
+| 4 | GPIO35 (ADC1_CH7) | GPIO19 |
+| 5 | GPIO32 (ADC1_CH4) | GPIO18 |
+| 6 | GPIO33 (ADC1_CH5) | GPIO17 |
+| 7 | GPIO25 (ADC2_CH8) | GPIO16 |
+| 8 | GPIO26 (ADC2_CH9) | GPIO4 |
+
+En todos los módulos: JST pin 1 (VCC) a **3,3 V**, pin 2 a GND, y **pin 5 (Led)
+sin conectar**. El MPU6050 va por I2C en SDA = GPIO21 y SCL = GPIO22, a 400 kHz.
 
 ## Lectura óptica
 
-- **Un LED a la vez.** Cada módulo LMG tiene su propio pin PWM (GPIO 13, 25, 27,
-  26, 32; ataque directo con la resistencia de 100 Ω del PCB de cada módulo,
-  según `claude/nota-diseno-modulos-lmg.md`). Solo se enciende el LED del canal que se
-  está leyendo, lo que elimina el crosstalk óptico entre módulos vecinos.
-- **Trama oscura** (`v = L − D`, con 150 µs de asentamiento). Cancela la
-  componente continua de la luz ambiental. **No** cancela el parpadeo de 120 Hz
-  de las lámparas: D y L quedan separadas por una conversión completa del ADC. La
-  trama oscura va ligada al ADS1015; con el ADS1115 el ciclo no cabe en 10 ms.
-  El razonamiento y el presupuesto temporal están en
-  `Modulo3_Inferencia_Control/config.h` y en `optica_lmg.h`.
-- **GAIN_TWO (±2.048 V)** en los dos ADC. Si una lectura llega al máximo, el
-  firmware avisa (`[ADC] AVISO ... recorta`) y lo cuenta: `[OPTICA_RECORTES]`
-  se emite al iniciar y al detener y la PC lo guarda en el JSON. Distinto de
-  cero significa que hubo lecturas no válidas en la sesión.
-- `optica_lmg.*` y `adc_lmg.*` son **idénticos** en los módulos 1 y 3:
-  la señal con que se entrena es la misma con que se infiere.
+Cada QRE1113 tiene un LED IR de 940 nm y un fototransistor en el mismo
+encapsulado. OUT es el colector, con 47 kΩ a VCC: **más luz da menos tensión**.
+A oscuras OUT queda en unos 3,3 V, por encima del tope del ADC con 11 dB
+(~3,1 V), así que dentro de la carcasa la lectura con el LED apagado queda en el
+tope. Es normal.
 
-Comandos serie: `L` iniciar, `S` detener, `M` marcador de sincronización,
-`A` autocalibrar los LED (~10 s, mano en reposo), `T` autotest del ciclo de
-muestreo, `K` reemitir la ganancia y el reposo por canal.
+Cada ciclo de 10 ms:
+
+1. Todos los LED apagados, espera `T_OFF_US`, lee los 8 canales: `V_apag`.
+2. LED encendidos (los 8 a la vez por defecto, `MODO_LED`), espera `T_ON_US`,
+   lee los 8 y apaga: `V_enc`.
+3. Lee el MPU6050.
+4. `v = V_apag − V_enc` en mV, positiva y mayor cuando vuelve más luz.
+   `amb = V_apag`.
+5. Emite la línea.
+
+Cada lectura promedia `N_MUESTRAS` (4, provisional) lecturas calibradas
+(`analogReadMilliVolts`), descartando la primera tras cambiar de canal. La
+capacidad de salida de los 8 GPIO de los LED se fija a mano
+(`GPIO_DRIVE_CAP_2`) y se imprime al arrancar.
+
+**Valores provisionales hasta medirlos con la placa:** `T_ON_US` y `T_OFF_US`
+(1000 µs), `N_MUESTRAS` y los umbrales de las banderas del autotest.
+
+## Formato de la línea
+
+```
+timestamp_ms,v1,...,v8,ax,ay,az,gx,gy,gz,amb1,...,amb8
+```
+
+22 señales más el timestamp, unos 182 bytes en el peor caso. A 100 Hz son
+18 200 B/s, el 20 % de lo que dan 921 600 baudios. Al modelo entran `v1..v8` y
+`ax, ay, az`. El giroscopio y `amb` se guardan para el análisis.
+
+## Comandos
+
+| Comando | Qué hace |
+|---|---|
+| `L` | Empieza a emitir. Antes emite versión, pines, `[OPTICA_*]` e `[IMU]`, que la app guarda en el JSON |
+| `S` | Detiene |
+| `R` | Detiene y reinicia el contador |
+| `M` | Marcador de sincronización: `[MARK]` con el `millis()` actual |
+| `K` | Reemite la configuración |
+| `T` | Autotest: 1000 ciclos con media, p95 y máximo, y por canal `V_enc`, `V_apag`, `v` y su desviación en reposo, con banderas `SATURADO`, `SIN_SENAL`, `LED_NO_ENCIENDE` y `TOPE_ADC` (informativo), más la línea `[IMU]` |
+| `C` | Curva de asentamiento por canal, al encender y al apagar su LED: t90, t95 y t99, y `T_ON_US` / `T_OFF_US` sugeridos (t99 + 20 %) |
+| `X` | Diafonía: por canal, con su LED apagado y los otros 7 encendidos, frente a todos apagados |
+| `D<0-3>` | Capacidad de salida de los 8 LED, para la prueba de saturación. No se guarda: al reiniciar vuelve a 2 |
+| `E<us>` | Fija `T_ON_US` y lo guarda en NVS |
+| `O<us>` | Fija `T_OFF_US` y lo guarda en NVS |
+
+`T`, `C` y `X` detienen la emisión mientras corren. Ya no hay autocalibración
+por canal: `A` y `W` no existen.
+
+## Primera prueba con la placa
+
+1. Medir 3,3 V en el pin 1 del JST de cada módulo.
+2. `T`: que el ciclo quepa en 10 ms y ningún canal tenga banderas.
+3. `C`: aplicar los tiempos sugeridos con `E` y `O`, y repetir `T`.
+4. `X`: si algún canal pasa del 5 %, probar `MODO_LED = MODO_SECUENCIAL`.
+
+Detalle en `claude/manual-armado-hardware.md`.
 
 ## Procedimiento de una sesión
 
-1. Colocar el brazalete y enviar `A`. La autocalibración deja el reposo en ~35%
-   del fondo de escala, comprueba que una contracción máxima no recorte y
-   guarda en NVS la corriente y el valor de reposo de cada canal (S̄r).
+1. Colocar el brazalete y comprobar con `T` que no hay banderas.
 2. Iniciar la sesión en la aplicación de captura. Al recibir `L`, el firmware
-   emite las líneas `[OPTICA_*]` y la PC guarda la corriente y S̄r en el JSON de
-   la sesión.
+   emite la configuración y la PC la guarda en el JSON de la sesión.
 3. Al cerrar la sesión, la aplicación añade al CSV la columna `fase`
    (`anotar_fases.py`) y deja al lado un `<csv>_fases.json` con el informe por
    gesto.
@@ -75,8 +133,8 @@ calibración 15 s | reposo 8 s · gesto A 15 s | reposo · gesto C | reposo · g
 
 ### 2. Rest se deriva de los reposos entre gestos, con recorte de bordes
 
-No hay bloques de Rest propios: la clase Rest sale de los 24 periodos de reposo
-entre gestos (ratio Rest:activa de 1.63:1). Para que no entren a Rest ni el
+La clase Rest sale de los 24 periodos de reposo entre gestos y de los 3
+reposos en movimiento. Para que no entren a Rest ni el
 transitorio de relajación ni la anticipación del gesto siguiente:
 
 - la **relajación** se detecta por señal: dura desde el fin del gesto hasta que
@@ -123,7 +181,7 @@ como `sospechoso`, con el motivo en `<csv>_fases.json`. Ningún tramo se borra.
 
 **Línea base.** Por defecto se usa la del reposo inmediatamente anterior a cada
 gesto (sus 2 s finales, antes del recorte). El bloque de calibración, que da el
-S̄r de la sesión, sirve de respaldo, y es la base única con `--modo_base
+estadísticas de la sesión, sirve de respaldo, y es la base única con `--modo_base
 calibracion`. No es la opción por defecto, aunque era la especificada, porque
 una base tomada minutos antes es precisamente la que hizo fallar la primera
 versión del detector sobre el dataset público. Con ella, la deriva y la
@@ -144,7 +202,7 @@ variantes de entrenamiento (`solo_meseta`, `dinamica_meseta`,
 `todo_con_reaccion`) sobre el **mismo** conjunto de test. Reporta la exactitud
 por clase y por fase, la matriz de confusión y la fracción de ventanas de
 reacción clasificadas como Rest. Chen et al. lo mostraron sobre sEMG; el
-equivalente sobre LMG es un resultado propio.
+equivalente sobre señal óptica es un resultado propio.
 
 ```bash
 python Modulo2_Pipeline_DL/experimentos/ablacion_fases/ablacion_fases.py --csv Modulo2_Pipeline_DL/captura/sesiones/*.csv

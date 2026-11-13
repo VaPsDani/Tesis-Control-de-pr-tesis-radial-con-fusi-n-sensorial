@@ -1,210 +1,166 @@
 /*
- * adquisicion_datos.ino - Modulo 1: Adquisicion de Datos
- * ======================================================
- * Protesis transradial - Fusion sensorial y Deep Learning
+ * Modulo1_Adquisicion_Datos.ino - Modulo 1: Adquisicion de Datos (OMG)
+ * ====================================================================
+ * Protesis transradial - OMG (QRE1113) + IMU sobre ESP32
  *
  * OBJETIVO:
- *   Adquirir senales de 5 fotodiodos LMG (OPT101 via dos ADS1115) y los
- *   6 ejes crudos del MPU6050 para construir el dataset de entrenamiento.
+ *   Adquirir a 100 Hz las senales de 8 modulos QRE1113 con el ADC interno
+ *   del ESP32 y los 6 ejes del MPU6050, para el dataset de entrenamiento.
+ *   Todo se evalua fuera de linea: este firmware solo adquiere.
  *
- * LECTURA OPTICA (Tarea 3, ver optica_lmg.h):
- *   Un LED a la vez: solo se enciende el del canal que se lee, para que
- *   la luz de un modulo no llegue al fotodiodo del vecino. Con el
- *   ADS1015, ademas, trama oscura: v = L - D. optica_lmg.cpp es el MISMO
- *   archivo que en Modulo3.
+ * TRAMA DE CADA CICLO (config.h, optica_omg.h):
+ *   1. LED apagados, espera T_OFF_US, lee los 8 canales   -> V_apag
+ *   2. LED encendidos, espera T_ON_US, lee los 8, apaga   -> V_enc
+ *   3. Lee el MPU6050
+ *   4. v = V_apag - V_enc (mV, positivo con mas luz), amb = V_apag
+ *   5. Emite la linea CSV
  *
- * VENTANA DESLIZANTE (lado PC):
- *   Los datos se envian en crudo por Serial a 100 Hz.
- *   El script en Python (Modulo 2) aplicara:
- *     - Ventana de 200 ms → 20 muestras a 100 Hz
- *     - Stride de 20 ms → 2 muestras de avance
+ * PROTOCOLO SERIAL, 23 campos por linea:
+ *   timestamp_ms,v1..v8,ax,ay,az,gx,gy,gz,amb1..amb8
  *
- * PROTOCOLO SERIAL — 12 campos por linea:
- *   timestamp_ms,v1,v2,v3,v4,v5,ax,ay,az,gx,gy,gz
+ *   El timestamp es el millis() del ESP32 al empezar el ciclo, el reloj
+ *   bueno para el espaciado entre muestras. Las demas columnas del CSV
+ *   (sujeto, etiqueta, bloque...) las agrega la app de captura.
  *
- *   El timestamp es el millis() del ESP32, no la hora de la PC. Es el
- *   reloj bueno para el espaciado entre muestras: el cristal deriva
- *   10-40 ppm (18-36 ms en 15 min) mientras que el sellado en la PC
- *   sufre el latency timer del conversor USB-serie (16 ms por defecto en
- *   CP210x/CH340) mas el jitter del scheduler, sin cota superior.
+ *   Al modelo entran v1..v8 y ax, ay, az (11 canales). El giroscopio y la
+ *   trama oscura se guardan para el analisis y se descartan en
+ *   preprocesamiento.py.
  *
- * ESQUEMA COMPLETO DEL CSV — lo escribe el script de captura del
- * Modulo 2, no este firmware:
- *
- *   subject_id, repetition_id, timestamp_ms, v1..v5,
- *   ax, ay, az, gx, gy, gz, label, bloque_tipo, en_margen, es_calibracion
- *
- *   De esas, el firmware aporta las 12 de arriba. Las demas las anade la
- *   PC, que es quien conoce el protocolo de la sesion. La columna fase
- *   se calcula despues, sobre el CSV cerrado (Modulo2 fases.py).
- *
- * QUE SE GUARDA Y QUE CONSUME EL MODELO:
- *   El modelo usa 8 canales: v1..v5 + ax, ay, az. El giroscopio se
- *   guarda igualmente porque sus bytes ya viajan en la misma lectura
- *   I2C de 14 bytes, asi que almacenarlo no cuesta tiempo de bus, y
- *   recuperarlo despues obligaria a repetir toda la campana con los 10
- *   voluntarios. El descarte de gx, gy, gz ocurre en
- *   preprocesamiento.py, nunca en el firmware.
- *
- *   Comandos:
- *     'L' → empezar a etiquetar (modo label). Antes de la primera
- *           muestra emite las lineas [OPTICA_*] con la ganancia y el
- *           reposo por canal, que la PC guarda en el JSON de la sesion.
- *     'S' → detener etiquetado
- *     'R' → reset (descarta buffer)
- *     'M' → marcador de sincronizacion: emite una linea [MARK] con el
- *           millis() actual, para que la PC ancle el cambio de bloque
- *           al reloj del ESP32
- *     'A' → autocalibrar la corriente de los LED (~10 s, mano en reposo)
- *     'T' → autotest del ciclo de muestreo
- *     'K' → reemitir las lineas [OPTICA_*]
- *     'D<n>' → banco de modulos: duty fijo n (0 a LED_DUTY_MAX) en los
- *           cinco LED, sin autocalibrar ni guardar. Ej. "D369"
- *     'W<c>' → banco de modulos: LED del canal c (1 a 5) encendido fijo
- *           al maximo para medir su corriente con el multimetro. Detiene
- *           la adquisicion. 'S' lo apaga. Ej. "W1"
- *
- *   Al enviar 'L' y 'S' se emite [OPTICA_RECORTES]: cuantas conversiones
- *   de cada canal llegaron al maximo del ADC. La PC lo guarda en el JSON;
- *   distinto de cero significa que hubo lecturas no validas.
- *
- * PRESUPUESTO TEMPORAL POR CICLO (analitico; el autotest mide el real):
- *   Por lectura: ~50 us de LED + LED_SETTLE_US (150) + ~325 us de I2C +
- *   ADC_ESPERA_US (1200 en el ADS1115, 360 en el ADS1015). Lectura con
- *   Wire directo y sin sondeo (adc_lmg.h). MPU6050, 14 bytes: ~0.5 ms.
- *     ADS1115, solo L   : 5 x 1.73 ms + 0.5        ≈  9.2 ms   cabe
- *     ADS1015, L y D    : 5 x (2 x 0.89) ms + 0.5  ≈  9.4 ms   cabe
- *     ADS1115, L y D    : 5 x (2 x 1.73) ms + 0.5  ≈ 17.8 ms   NO cabe
- *   Hasta M1-2026.10.05 (Adafruit, sondeo, 300 us de asentamiento) el
- *   autotest midio 11.9 ms: no cabia.
- *   MEDIDO con M1-2026.10.14 (2026-10-14): ciclo medio 9221.5 us, peor
- *   9354 us (6.5% de margen). Conversion medida 1078 us (0x48) y 1082 us
- *   (0x49), con la espera de 1200 us: ~11% de holgura.
- *   De ahi que la trama oscura vaya ligada al ADS1015 (config.h).
- *
- * ANCHO DE BANDA:
- *   12 campos ≈ 122 bytes por linea a 100 Hz = 12200 B/s. A 115200
- *   baudios 8N1 el enlace da 11520 B/s, un 6% POR DEBAJO de lo
- *   necesario: se desbordaria. De ahi los 921600 baudios (92160 B/s,
- *   13% de uso).
+ * COMANDOS:
+ *   L        iniciar la emision de muestras (antes, las lineas de config)
+ *   S        detener
+ *   R        detener y reiniciar el contador
+ *   M        marcador de sincronizacion: [MARK] con el millis() actual
+ *   K        reemitir version, pines, [OPTICA_*] y la linea [IMU]
+ *   T        autotest: 1000 ciclos (media, p95 y maximo), y por canal
+ *            V_enc, V_apag y v en reposo con sus banderas
+ *   C        curva de asentamiento por canal y T_ON_US / T_OFF_US sugeridos
+ *   X        diafonia entre canales
+ *   D<0-3>   capacidad de salida de los 8 LED, hasta reiniciar. Ej. "D3"
+ *   E<us>    T_ON_US, se guarda en NVS. Ej. "E400"
+ *   O<us>    T_OFF_US, se guarda en NVS. Ej. "O400"
+ *   T, C y X detienen la emision mientras corren.
  */
 
 #include <Wire.h>
 #include "config.h"
-#include "adc_lmg.h"
-#include "optica_lmg.h"
+#include "optica_omg.h"
 #include "sensor_imu.h"
 
-// ======================== INSTANCIAS GLOBALES ========================
-ADC_LMG     adcLmg;
-OpticaLMG   optica(adcLmg);
-SensorIMU   imu;
+OpticaOMG optica;
+SensorIMU imu;
 
-// ======================== VARIABLES DE CONTROL ========================
-unsigned long tAnterior = 0;
 bool adquiriendo = false;
-int8_t ledFijo = -1;    // canal con el LED encendido fijo ('W'), o -1
 unsigned long contadorMuestras = 0;
+uint32_t proximoUs = 0;
 
-// ======================== BUFFER DE LECTURA ========================
-float valoresLMG[NUM_LMG];
-float ax, ay, az;   // acelerometro: entra al modelo
-float gx, gy, gz;   // giroscopio: solo al CSV, no al modelo
+float vApag[NUM_OPT], vEnc[NUM_OPT];
+float ax, ay, az, gx, gy, gz;
+char linea[BYTES_LINEA_MAX + 64];
 
-// Conversiones que llegaron al maximo del ADC, por canal. Distinto de
-// cero: hubo lecturas no validas en la sesion (ver adc_lmg.h).
-void emitirRecortes() {
-    Serial.print("[OPTICA_RECORTES] ");
-    for (uint8_t i = 0; i < NUM_LMG; i++) {
-        Serial.print(adcLmg.recortes(i));
-        Serial.print(i + 1 < NUM_LMG ? "," : "\n");
-    }
+// ======================== CICLO ========================
+// Pasos 1 a 3 de la trama.
+void medirCiclo() {
+    optica.medir(vApag, vEnc);
+    imu.leerIMUCompleta(ax, ay, az, gx, gy, gz);
 }
 
-// Lineas que la PC guarda en el JSON de la sesion. El reposo por canal
-// es el S-barra-r del indice de rendimiento; la ganancia permite saber
-// despues si dos sesiones se capturaron con la misma corriente de LED.
-void emitirOptica() {
-    Serial.printf("[OPTICA_CONFIG] adc=%s arq=2xADS gain=2 trama_oscura=%d "
-                  "pwm_hz=%d bits=%d\n",
-                  ADC_MODELO == ADC_ADS1015 ? "ADS1015" : "ADS1115",
-                  TRAMA_OSCURA_HABILITADA ? 1 : 0, LED_PWM_FREQ_HZ, LED_PWM_BITS);
-    Serial.print("[OPTICA_DUTY] ");
-    for (uint8_t i = 0; i < NUM_LMG; i++) {
-        Serial.print(optica.duty(i));
-        Serial.print(i + 1 < NUM_LMG ? "," : "\n");
+// Pasos 4 y 5: la linea CSV en el buffer. Devuelve su largo.
+int formatearLinea(unsigned long t) {
+    int n = snprintf(linea, sizeof(linea), "%lu", t);
+    for (uint8_t k = 0; k < NUM_OPT; k++) {
+        n += snprintf(linea + n, sizeof(linea) - n, ",%.1f", vApag[k] - vEnc[k]);
     }
-    Serial.print("[OPTICA_REPOSO] ");
-    for (uint8_t i = 0; i < NUM_LMG; i++) {
-        Serial.print(optica.reposoMedio(i), 2);
-        Serial.print(i + 1 < NUM_LMG ? "," : "\n");
+    n += snprintf(linea + n, sizeof(linea) - n, ",%.4f,%.4f,%.4f,%.4f,%.4f,%.4f",
+                  ax, ay, az, gx, gy, gz);
+    for (uint8_t k = 0; k < NUM_OPT; k++) {
+        n += snprintf(linea + n, sizeof(linea) - n, ",%.1f", vApag[k]);
     }
-    emitirRecortes();
+    n += snprintf(linea + n, sizeof(linea) - n, "\n");
+    return n;
 }
 
-// Mide el ciclo de muestreo REAL (5 LMG + IMU completa). El presupuesto
-// de arriba es analitico; este numero es el que decide.
-void autotestTemporal() {
-    const uint16_t N = 200;
-    unsigned long suma = 0, peor = 0;
-    for (uint16_t k = 0; k < N; k++) {
-        const unsigned long t0 = micros();
-        optica.leerTodos(valoresLMG);
-        imu.leerIMUCompleta(ax, ay, az, gx, gy, gz);
-        const unsigned long dt = micros() - t0;
-        suma += dt;
-        if (dt > peor) peor = dt;
+// ======================== INFORMACION ========================
+void emitirVersion() {
+    Serial.printf("[FW] version=%s modulo=1 sensor=QRE1113 adc=interno "
+                  "canales_opticos=%d fs_hz=%d\n", FIRMWARE_VERSION, NUM_OPT,
+                  1000000 / INTERVALO_US);
+}
+
+void emitirTodo() {
+    emitirVersion();
+    optica.imprimirPines();
+    optica.imprimirConfig();
+    imu.imprimirConfig();
+}
+
+// ======================== 'T': AUTOTEST ========================
+static uint32_t tiemposUs[1000];
+
+static int compararU32(const void *a, const void *b) {
+    const uint32_t x = *(const uint32_t *)a, y = *(const uint32_t *)b;
+    return (x > y) - (x < y);
+}
+
+void autotest() {
+    const uint16_t N = 1000;
+    double sEnc[NUM_OPT] = {0}, sApag[NUM_OPT] = {0}, sV[NUM_OPT] = {0},
+           sV2[NUM_OPT] = {0};
+    Serial.println("[AUTOTEST] 1000 ciclos (10 s). Mano en reposo y quieta.");
+    for (uint16_t i = 0; i < N; i++) {
+        const uint32_t t0 = micros();
+        medirCiclo();
+        formatearLinea(millis());           // el ciclo real incluye formatear
+        tiemposUs[i] = micros() - t0;
+        for (uint8_t k = 0; k < NUM_OPT; k++) {
+            const float v = vApag[k] - vEnc[k];
+            sEnc[k] += vEnc[k]; sApag[k] += vApag[k]; sV[k] += v; sV2[k] += v * v;
+        }
+        while (micros() - t0 < INTERVALO_US) { }
     }
-    const float medio   = suma / (float)N;
-    const float periodo = INTERVALO_MS * 1000.0f;
-    Serial.printf("[AUTOTEST] ADC %s, trama oscura %s: ciclo medio %.1f us, "
-                  "peor %lu us, de %.0f us disponibles\n",
-                  ADC_MODELO == ADC_ADS1015 ? "ADS1015" : "ADS1115",
-                  TRAMA_OSCURA_HABILITADA ? "SI" : "NO", medio, peor, periodo);
-    if (peor > periodo) {
-        Serial.println("[AUTOTEST] ERROR: el ciclo NO cabe en 10 ms. El CSV "
-                       "no saldria a 100 Hz.");
-    } else if (peor > 0.9f * periodo) {
+    double suma = 0;
+    for (uint16_t i = 0; i < N; i++) suma += tiemposUs[i];
+    qsort(tiemposUs, N, sizeof(uint32_t), compararU32);
+    const uint32_t p95 = tiemposUs[(uint16_t)ceilf(0.95f * N) - 1];
+    const uint32_t peor = tiemposUs[N - 1];
+    Serial.printf("[AUTOTEST] ciclo: medio %.1f us, p95 %lu us, maximo %lu us, "
+                  "de %d us disponibles\n", suma / N, (unsigned long)p95,
+                  (unsigned long)peor, INTERVALO_US);
+    if (peor > INTERVALO_US) {
+        Serial.println("[AUTOTEST] ERROR: el ciclo NO cabe en 10 ms. El CSV no "
+                       "saldria a 100 Hz.");
+    } else if (peor > 0.9f * INTERVALO_US) {
         Serial.println("[AUTOTEST] AVISO: menos del 10% de margen.");
     } else {
-        Serial.println("[AUTOTEST] OK");
+        Serial.println("[AUTOTEST] ciclo OK");
     }
+
+    // Banderas PROVISIONALES (config.h).
+    for (uint8_t k = 0; k < NUM_OPT; k++) {
+        const float enc = sEnc[k] / N, apag = sApag[k] / N, v = sV[k] / N;
+        const float sd = sqrtf(fmaxf(0.0f, (float)(sV2[k] / N) - v * v));
+        String b;
+        if (enc < UMBRAL_SATURADO_MV) b += " SATURADO";
+        if (v < UMBRAL_SIN_SENAL_MV) b += " SIN_SENAL";
+        if (fabsf(apag - enc) < UMBRAL_LED_APAGADO_MV) b += " LED_NO_ENCIENDE";
+        if (apag >= UMBRAL_TOPE_ADC_MV) b += " TOPE_ADC(informativo)";
+        Serial.printf("[AUTOTEST] modulo %u: V_enc=%.1f V_apag=%.1f v=%.1f "
+                      "sd_v=%.2f mV%s\n", k + 1, enc, apag, v, sd,
+                      b.length() ? b.c_str() : " OK");
+    }
+    imu.imprimirConfig();
 }
 
-// Version del firmware y ajustes que alteran la senal. La app de captura
-// lo guarda en el JSON de la sesion, de modo que meses despues se sabe
-// con que firmware se grabo cada CSV.
-void emitirVersion() {
-    Serial.printf("[FW] version=%s modulo=1 adc=%s adc_arq=2xADS gain=2 "
-                  "trama_oscura=%d led_settle_us=%d adc_espera_us=%u,%u "
-                  "fs_hz=%d\n",
-                  FIRMWARE_VERSION,
-                  ADC_MODELO == ADC_ADS1015 ? "ADS1015" : "ADS1115",
-                  TRAMA_OSCURA_HABILITADA ? 1 : 0,
-                  LED_SETTLE_US, adcLmg.esperaUs(0), adcLmg.esperaUs(1),
-                  1000 / INTERVALO_MS);
-}
-
+// ======================== SETUP Y LOOP ========================
 void setup() {
+    Serial.setTxBufferSize(SERIAL_TX_BUFFER);
     Serial.begin(BAUDIOS);
     Wire.begin(PIN_SDA, PIN_SCL);
     Wire.setClock(I2C_FREQ);
 
+    optica.begin();
     emitirVersion();
-    Serial.println("[INIT] Inicializando los dos ADC (0x48 y 0x49)...");
-    if (!adcLmg.begin()) {
-        Serial.printf("[ERROR] ADC no detectado: 0x48 %s, 0x49 %s. Revise "
-                      "el cableado I2C y el pin ADDR (0x49 = ADDR a VDD).\n",
-                      adcLmg.presente(0) ? "OK" : "FALTA",
-                      adcLmg.presente(1) ? "OK" : "FALTA");
-        while (1) delay(10);
-    }
-    Serial.println("[OK] ADC listos");
-
-    if (!optica.begin()) {
-        Serial.println("[ERROR] No se pudo configurar el PWM de los LED");
-        while (1) delay(10);
-    }
+    optica.imprimirPines();
 
     Serial.println("[INIT] Inicializando MPU6050...");
     if (!imu.begin()) {
@@ -212,138 +168,103 @@ void setup() {
         while (1) delay(10);
     }
     Serial.println("[OK] MPU6050 listo");
+    optica.imprimirConfig();
     imu.imprimirConfig();
 
-    autotestTemporal();
-    optica.info();
-
-    // Cabecera de los campos que aporta el firmware. Las columnas
-    // restantes del esquema las anade el script de captura del Modulo 2.
-    Serial.println("[INFO] timestamp_ms,v1,v2,v3,v4,v5,ax,ay,az,gx,gy,gz");
-    Serial.println("[READY] Envie 'L' para iniciar, 'S' para detener, "
-                   "'M' para marcar sincronizacion, 'A' para autocalibrar "
-                   "los LED, 'T' para el autotest.");
+    Serial.println("[INFO] timestamp_ms,v1,v2,v3,v4,v5,v6,v7,v8,ax,ay,az,gx,gy,gz,"
+                   "amb1,amb2,amb3,amb4,amb5,amb6,amb7,amb8");
+    Serial.println("[READY] L iniciar, S detener, M marcar, K configuracion, "
+                   "T autotest, C asentamiento, X diafonia, D<0-3> capacidad "
+                   "de los LED, E<us> T_ON_US, O<us> T_OFF_US.");
+    proximoUs = micros();
 }
 
-void loop() {
-    // ========== 1. ATENDER COMANDOS SERIAL ==========
-    if (Serial.available() > 0) {
-        char c = Serial.read();
-        if (c == 'L') {
-            // Antes de la primera muestra, para que la PC tenga la
-            // version, la ganancia y el reposo de la sesion aunque se
-            // aborte a los dos minutos.
-            emitirVersion();
-            // El arranque se pierde: la PC vacia el bufer al abrir el
-            // puerto. Por eso la configuracion leida del MPU6050 se
-            // repite aqui, y asi queda en el JSON de cada sesion.
-            imu.imprimirConfig();
-            adcLmg.reiniciarRecortes();
-            emitirOptica();
+void atenderComandos() {
+    if (Serial.available() <= 0) return;
+    const char c = Serial.read();
+    switch (c) {
+        case 'L':
+            emitirTodo();
             adquiriendo = true;
             contadorMuestras = 0;
             Serial.println("[START] Adquiriendo datos...");
-        } else if (c == 'S') {
+            proximoUs = micros();
+            break;
+        case 'S':
             adquiriendo = false;
-            if (ledFijo >= 0) {
-                optica.apagarTodos();
-                ledFijo = -1;
-                Serial.println("[OPTICA_FIJO] LED apagado");
-            }
-            emitirRecortes();
-            Serial.print("[STOP] Muestras adquiridas: ");
-            Serial.println(contadorMuestras);
-        } else if (c == 'R') {
+            Serial.printf("[STOP] Muestras adquiridas: %lu\n", contadorMuestras);
+            break;
+        case 'R':
             adquiriendo = false;
             contadorMuestras = 0;
             Serial.println("[RESET] Buffer descartado");
-        } else if (c == 'M') {
-            // Marcador de sincronizacion. La PC lo envia en cada cambio
-            // de bloque y aqui se devuelve con el millis() del ESP32,
-            // de modo que ambos relojes quedan anclados cada ~15 s. Asi
-            // la deriva acumulada nunca excede un bloque (0.6 ms a
-            // 40 ppm) en vez de los 18-36 ms de una sesion completa.
-            Serial.print("[MARK] ");
-            Serial.println(millis());
-        } else if (c == 'A') {
-            // Bloqueante: no se emite ninguna muestra mientras dura, asi
-            // que no se hace durante una sesion sino antes de iniciarla.
-            const bool estaba = adquiriendo;
+            break;
+        case 'M':
+            Serial.printf("[MARK] %lu\n", millis());
+            break;
+        case 'K':
+            emitirTodo();
+            break;
+        case 'T':
             adquiriendo = false;
-            optica.autocalibrar(AUTOCAL_VERIFICAR_GESTO_MAX);
-            emitirOptica();
-            adquiriendo = estaba;
-        } else if (c == 'T') {
-            // La version y los registros del MPU6050 antes del autotest:
-            // es lo que el operador ve en la ventana al pulsar T.
             emitirVersion();
-            imu.imprimirConfig();
-            adcLmg.verificarEspera();   // conversion medida de cada ADS
-            autotestTemporal();
-        } else if (c == 'D') {
-            // Duty fijo para el banco. El numero llega en la misma linea.
-            const long d = Serial.parseInt();
-            if (d < 0 || d > LED_DUTY_MAX) {
-                Serial.printf("[ERROR] Duty fuera de rango: %ld (0 a %d)\n",
-                              d, LED_DUTY_MAX);
+            optica.imprimirConfig();
+            autotest();
+            break;
+        case 'C':
+            adquiriendo = false;
+            optica.curvaAsentamiento();
+            break;
+        case 'X':
+            adquiriendo = false;
+            optica.diafonia();
+            break;
+        case 'D': {
+            const long v = Serial.parseInt();
+            if (v < 0 || v > 3 || !optica.fijarDriveCap((uint8_t)v)) {
+                Serial.printf("[ERROR] Capacidad fuera de rango: %ld (0 a 3)\n", v);
             } else {
-                optica.fijarDuty((uint16_t)d);
-                Serial.printf("[OPTICA_FIJO] duty=%ld de %d (%.1f%%), sin "
-                              "autocalibrar\n", d, LED_DUTY_MAX,
-                              100.0f * d / LED_DUTY_MAX);
-                emitirOptica();
+                Serial.printf("[OPTICA] capacidad de los LED = %ld hasta reiniciar\n", v);
+                optica.imprimirConfig();
             }
-        } else if (c == 'W') {
-            // Medicion de la corriente al maximo con el multimetro.
-            const long canal = Serial.parseInt();
-            if (canal < 1 || canal > NUM_LMG) {
-                Serial.printf("[ERROR] Canal fuera de rango: %ld (1 a %d)\n",
-                              canal, NUM_LMG);
-            } else {
-                adquiriendo = false;
-                ledFijo = (int8_t)(canal - 1);
-                optica.encenderFijo(ledFijo);
-                Serial.printf("[OPTICA_FIJO] LED %ld encendido fijo a duty %d "
-                              "de %d. Mida la corriente y envie 'S' para "
-                              "apagarlo.\n", canal, LED_DUTY_MAX, LED_DUTY_MAX);
-            }
-        } else if (c == 'K') {
-            emitirVersion();
-            imu.imprimirConfig();
-            emitirOptica();
+            break;
         }
+        case 'E':
+        case 'O': {
+            const long v = Serial.parseInt();
+            const bool ok = v >= 0 && (c == 'E' ? optica.fijarTOn((uint32_t)v)
+                                                : optica.fijarTOff((uint32_t)v));
+            if (!ok) {
+                Serial.printf("[ERROR] %s fuera de rango: %ld (0 a %d us)\n",
+                              c == 'E' ? "T_ON_US" : "T_OFF_US", v, T_MAX_US);
+            } else {
+                Serial.printf("[OPTICA] %s = %ld us, guardado en NVS\n",
+                              c == 'E' ? "T_ON_US" : "T_OFF_US", v);
+                optica.imprimirConfig();
+            }
+            break;
+        }
+        default:
+            break;
     }
+}
 
-    // ========== 2. MUESTREO NO BLOQUEANTE (100 Hz) ==========
-    unsigned long ahora = millis();
-    // Con un LED fijo ('W') no se lee nada: leer apagaria ese LED.
-    if (ledFijo < 0 && ahora - tAnterior >= INTERVALO_MS) {
-        tAnterior = ahora;
+void loop() {
+    atenderComandos();
 
-        // --- Leer 5 LMG: un LED a la vez, con trama oscura si procede ---
-        optica.leerTodos(valoresLMG);
+    // Ciclo de 10 ms contra un reloj fijo: proximoUs avanza de a 10 ms,
+    // asi un ciclo tardio no corre a los siguientes. Si se atraso mas de
+    // un ciclo (un comando largo), se resincroniza sin recuperar.
+    const uint32_t ahora = micros();
+    if ((int32_t)(ahora - proximoUs) < 0) return;
+    proximoUs += INTERVALO_US;
+    if ((int32_t)(ahora - proximoUs) > (int32_t)INTERVALO_US) proximoUs = ahora + INTERVALO_US;
 
-        // --- Leer MPU6050: los 6 ejes crudos ---
-        // Se piden los 6 aunque el modelo use 3: los bytes del
-        // giroscopio ya vienen en la misma transaccion I2C.
-        imu.leerIMUCompleta(ax, ay, az, gx, gy, gz);
-
-        // ========== 3. TRANSMITIR POR SERIAL ==========
-        if (adquiriendo) {
-            // timestamp del ESP32 primero: es el reloj con el que la PC
-            // asignara las etiquetas.
-            Serial.print(ahora); Serial.print(",");
-            for (uint8_t i = 0; i < NUM_LMG; i++) {
-                Serial.print(valoresLMG[i], 4); Serial.print(",");
-            }
-            Serial.print(ax, 4); Serial.print(",");
-            Serial.print(ay, 4); Serial.print(",");
-            Serial.print(az, 4); Serial.print(",");
-            Serial.print(gx, 4); Serial.print(",");
-            Serial.print(gy, 4); Serial.print(",");
-            Serial.println(gz, 4);
-
-            contadorMuestras++;
-        }
+    const unsigned long t = millis();
+    medirCiclo();
+    if (adquiriendo) {
+        const int n = formatearLinea(t);
+        Serial.write((const uint8_t *)linea, n);
+        contadorMuestras++;
     }
 }

@@ -20,10 +20,7 @@
  *
  *   qw era una funcion determinista de los otros tres: no aportaba
  *   informacion que la red no pudiera recomputar con una operacion, y
- *   costaba un canal de entrada. Eliminarlo deja el vector en 5 LMG + 3
- *   acelerometro = 8 canales, exactamente la misma forma con la que se
- *   valido el pipeline sobre NinaPro DB5 (5 sEMG + 3 ACC), asi que el
- *   mismo codigo sirve para las dos entradas.
+ *   costaba un canal de entrada. Al modelo entran solo ax, ay, az.
  */
 
 #ifndef SENSOR_IMU_H

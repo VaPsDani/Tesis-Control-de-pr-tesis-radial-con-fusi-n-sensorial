@@ -1,251 +1,166 @@
 /*
- * config.h - Configuracion de hardware para el Modulo 1: Adquisicion de Datos
- * Protesis transradial - Fusion sensorial y Deep Learning
+ * config.h - Configuracion de hardware del Modulo 1: Adquisicion de Datos
+ * Protesis transradial - OMG (QRE1113) + IMU sobre ESP32
  *
- * PINOUT:
- *   I2C-1: SDA=GPIO33, SCL=GPIO14  → ADS1115 #1 (0x48), ADS1115 #2 (0x49),
- *          MPU6050 (0x68)
- *   LMG:   OUT de los modulos 1-3 a AIN0-2 del ADS #1; 4-5 a AIN0-1 del ADS #2
- *   LED LMG: GPIO 13, 25, 27, 26, 32 (PWM, 100 ohm en serie al LED, en el
- *          PCB de cada modulo)
- *   Serial: 921600 baud
+ * Unica fuente de verdad de los pines, los tiempos de la trama y el
+ * formato del CSV. El firmware imprime la tabla de pines al arrancar.
+ *
+ * PLACA: DevKit ESP32 WROOM de 38 pines. Serial a 921600 baudios.
  */
 
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#include <stdint.h>
+
 // ======================== VERSION ========================
-// La emite el firmware al arrancar como [FW] version=..., y la app de
-// captura la guarda en el JSON de cada sesion. Sin esto, una sesion
-// grabada no dice con que firmware se tomo, y eso es justo lo que hace
-// falta cuando dos sesiones no se parecen. SUBIRLA al cambiar algo que
-// altere la senal: pines, asentamiento, trama oscura o ADC.
-#define FIRMWARE_VERSION  "M1-2026.10.22"
+// La emite el firmware como [FW] version=..., y la app de captura la
+// guarda en el JSON de cada sesion. SUBIRLA al cambiar algo que altere la
+// senal: pines, tiempos de la trama, ADC, promedio o capacidad de los LED.
+#define FIRMWARE_VERSION  "M1-2026.11.13-QRE"
 
 // SESIONES QUE NO SE MEZCLAN SIN COMPROBAR:
-//   M1-2026.10.22 todo el cableado pasa al lado del 3V3 del devkit de
-//   38 pines: I2C de 21/22 a 33/14 (SDA/SCL) y LED 4 y 5 de 16/17 a 26/32.
-//   No cambia la senal: sus sesiones se mezclan con las de
-//   M1-2026.10.14 sin problema.
-//   M1-2026.10.14 el ADC se lee con Wire directo y espera fija, sin
-//   sondeo (adc_lmg.h), y LED_SETTLE_US baja de 300 a 150 us, para que
-//   el ciclo quepa en 10 ms (pendiente de confirmar con 'T'). Con las versiones
-//   2026.09.24 a 2026.10.05 el autotest midio 11.9 ms por ciclo, o sea
-//   ~84 Hz y no 100. Una ventana de 20 muestras de esas sesiones abarca
-//   ~237 ms, no 200: NO se mezclan con las nuevas sin remuestrear (el
-//   timestamp_ms del CSV es el reloj bueno para hacerlo).
-//   M1-2026.10.05 comandos D y W del banco de modulos (duty fijo y LED fijo para el
-//   multimetro). No cambia la senal: sus sesiones se
-//   mezclan con las de M1-2026.10.04 sin problema.
-//   M1-2026.10.04 configura el MPU6050: rango +/-2 g y filtro paso bajo
-//   DLPF_CFG = 4 (21 Hz). Antes el filtro estaba apagado. El acelerometro
-//   de las sesiones anteriores no es comparable con el de las nuevas.
-//   M1-2026.09.24 cambia la cadena de lectura optica: sin multiplexor
-//   CD74HC4067 (la salida del OPT101 entra directa al ADC), dos ADS1115 y
-//   GAIN_TWO en lugar de GAIN_ONE, y el LED 2 pasa del GPIO14 al GPIO25.
-//   Las sesiones grabadas con M1-2026.09.18 o anteriores y las grabadas
-//   desde esta version NO se mezclan en un mismo entrenamiento sin
-//   comprobar antes que su reposo y su excursion por canal son
-//   comparables. La version queda en el JSON de cada sesion.
+//   M1-2026.11.13-QRE cambia de sensor: 8 modulos QRE1113 (LED IR y
+//   fototransistor en el mismo encapsulado, en contacto con la piel)
+//   leidos con el ADC interno del ESP32, en lugar de 5 OPT101 leidos con
+//   dos ADS1115. CSV con 8 canales opticos y su trama oscura. Estas
+//   sesiones NO se mezclan con las de M1-2026.10.22 o anteriores: otro
+//   sensor, otro numero de canales y otra polaridad. El firmware LMG
+//   sigue en el tag lmg-final-2026-11-13.
 
 // ======================== SERIAL ========================
-// 921600 y no 115200. Con 12 campos por linea (~122 bytes) a 100 Hz
-// hacen falta 12200 B/s, y 115200 baudios 8N1 solo dan 11520 B/s: el
-// enlace se queda un 6% corto y el buffer se desborda. A 921600 el uso
-// baja al 13%.
-#define BAUDIOS         921600
+// Linea de datos, peor caso (valores con signo y del ancho maximo):
+//   timestamp_ms            "4294967," hasta  8 bytes (~71 min: 7 cifras)
+//   v1..v8   "-3100.0,"     8 bytes x 8 =    64
+//   ax..az   "-1.2345,"     8 bytes x 3 =    24
+//   gx..gz   "-250.0000,"  10 bytes x 3 =    30
+//   amb1..8  "3100.0,"      7 bytes x 8 =    56   (el ultimo con \n)
+//   total                                ~  182 bytes por linea
+// A 100 Hz son 18 200 B/s. 921600 baudios 8N1 dan 92 160 B/s: uso del
+// ~20 % en el peor caso. A 115200 (11 520 B/s) NO cabria.
+#define BAUDIOS            921600
+#define BYTES_LINEA_MAX    182
+// Buffer de transmision: una linea entera cabe sin bloquear el ciclo.
+#define SERIAL_TX_BUFFER   1024
 
-// ======================== I2C ========================
-// En el lado del 3V3 del devkit de 38 pines, como los LED (ver abajo).
-// SCL en el 14 y no SDA: el 14 emite pulsos al arrancar, y con SDA quieta
-// en alto un pulso en SCL no forma una condicion START, asi que ningun
-// chip del bus lo toma como transaccion. En SDA si podria.
-// El Modulo 3 sigue en 21/22.
-#define PIN_SDA         33
-#define PIN_SCL         14
-#define I2C_FREQ        400000      // 400 kHz (modo Fast)
+// ======================== I2C (MPU6050) ========================
+#define PIN_SDA            21
+#define PIN_SCL            22
+#define I2C_FREQ           400000      // 400 kHz
 
-// ======================== ADC DE LOS CANALES LMG ========================
-// Todo este bloque, hasta la autocalibracion, es IDENTICO al de Modulo3,
-// salvo los pines de los LED (ver abajo).
-// optica_lmg.cpp y adc_lmg.cpp son el mismo archivo en ambos modulos: la
-// senal con que se entrena tiene que ser la misma con que se infiere. La
-// justificacion completa de cada valor esta en
-// Modulo3_Inferencia_Control/config.h.
-//
-// Dos ADC en el mismo bus I2C, sin multiplexor:
-#define ADS_ADDR_1      0x48    // ADDR a GND
-#define ADS_ADDR_2      0x49    // ADDR a VDD
+// ======================== MODULOS OPTICOS (QRE1113GR) ========================
+// Conector J1 de cada modulo, JST ZH B5B-ZR (paso 1,5 mm):
+//   1 VCC   3,3 V, OBLIGATORIO: OUT entra directo al ADC del ESP32.
+//   2 GND
+//   3 OUT   colector del fototransistor, R2 = 47 kohm a VCC, emisor a
+//           GND. MAS LUZ DA MENOS TENSION. A oscuras queda en ~3,3 V.
+//   4 IR    anodo del LED del QRE. Catodo a GND por R1 = 100 ohm. GPIO
+//           en alto lo enciende: ~20 mA con 3,3 V (VF ~1,2 V a 20 mA).
+//   5 Led   tres LED externos del PCB (D1 a D3, R3) que NO se usan: SIN
+//           CONECTAR.
+#define NUM_OPT            8
 
-// Canal LMG -> ADC (0 = ADS_ADDR_1, 1 = ADS_ADDR_2) y entrada AINx.
-#define LMG1_ADS        0
-#define LMG1_AIN        0
-#define LMG2_ADS        0
-#define LMG2_AIN        1
-#define LMG3_ADS        0
-#define LMG3_AIN        2
-#define LMG4_ADS        1
-#define LMG4_AIN        0
-#define LMG5_ADS        1
-#define LMG5_AIN        1
+// TABLA DE PINES. Modulo k (1 a 8) -> OUT al ADC, IR al LED.
+//   Modulo | OUT (ADC)                  | IR (LED)
+//   1      | GPIO36 (VP/SP, ADC1_CH0)   | GPIO13
+//   2      | GPIO39 (VN/SN, ADC1_CH3)   | GPIO27
+//   3      | GPIO34 (ADC1_CH6)          | GPIO23
+//   4      | GPIO35 (ADC1_CH7)          | GPIO19
+//   5      | GPIO32 (ADC1_CH4)          | GPIO18
+//   6      | GPIO33 (ADC1_CH5)          | GPIO17
+//   7      | GPIO25 (ADC2_CH8)          | GPIO16
+//   8      | GPIO26 (ADC2_CH9)          | GPIO4
+// El ADC2 (25 y 26) funciona porque no se usa WiFi.
+// NO USAR: 0 y 12 (arranque), 6 a 11 (flash: SD2, SD3, CMD, CLK, SD0,
+// SD1), 1 y 3 (serie). El 2 solo como indicador (LED de la placa).
+// Libres: 14, 5, 15. 16 y 17 valen porque es WROOM (en WROVER son de la
+// PSRAM).
+static const uint8_t PIN_OUT[NUM_OPT] = {36, 39, 34, 35, 32, 33, 25, 26};
+static const uint8_t PIN_IR[NUM_OPT]  = {13, 27, 23, 19, 18, 17, 16, 4};
+static const char *const CANAL_ADC[NUM_OPT] = {
+    "ADC1_CH0", "ADC1_CH3", "ADC1_CH6", "ADC1_CH7",
+    "ADC1_CH4", "ADC1_CH5", "ADC2_CH8", "ADC2_CH9"};
 
-#define ADC_ADS1115     0
-#define ADC_ADS1015     1
+// Valores del PCB del asesor, informativos (van al JSON de la sesion).
+#define VCC_MODULO_V       3.3f
+#define R1_OHM             100
+#define R2_OHM             47000
 
-// DECISION (Tarea 3.c): ADS1015, la unica opcion que cabe en 10 ms con
-// trama oscura (~9.8 ms en Modulo3, ~9.4 ms aqui sin FSR; con ADS1115,
-// ~18 ms). Analitico: el firmware mide el ciclo real al arrancar.
-// MIENTRAS SIGA SOLDADO EL ADS1115, dejar ADC_ADS1115.
-#ifndef ADC_MODELO                      // -DADC_MODELO=1 para compilar la otra rama
-#define ADC_MODELO      ADC_ADS1115
-#endif
+// ======================== ADC INTERNO ========================
+// 12 bits y atenuacion de 11 dB en cada pin, lectura calibrada con
+// analogReadMilliVolts. Con 11 dB el tope util es ~3,1 V, por debajo de
+// los 3,3 V de OUT a oscuras: dentro de la carcasa la lectura con el LED
+// apagado queda en el tope, y eso es normal.
+#define ADC_BITS           12
+// Lecturas promediadas por canal y por fase. PROVISIONAL.
+#define N_MUESTRAS         4
+// Descartar la primera lectura tras cambiar de canal: el condensador de
+// muestreo del ADC guarda carga del canal anterior, y con 47 kohm de
+// fuente tarda en igualarse. PROVISIONAL.
+#define DESCARTAR_PRIMERA  1
 
-// Conversion NOMINAL (1 / tasa). La espera real es ADC_ESPERA_US.
-#if ADC_MODELO == ADC_ADS1015
-  #define ADC_CONVERSION_US  303
-#else
-  #define ADC_CONVERSION_US  1163
-#endif
-// Espera fija entre el inicio de la conversion y la unica lectura del
-// resultado (adc_lmg.cpp, sin sondear el bit OS). ADS1115 a 860 SPS:
-// 1/860 = 1163 us de conversion + ~25 us de encendido en single-shot =
-// 1188 us nominales; 1200 us es el nominal con 1% de holgura. NO cubre
-// por si solo el extremo de la hoja de datos (tasa +/-10%: hasta
-// ~1305 us); lo cubre que begin() mide cada chip y sube su espera si no
-// deja ADC_ESPERA_MARGEN_PCT de holgura. Los dos chips montados midieron
-// ~1125 us en el diagnostico del 2026-10-14, y eso incluye la
-// escritura de inicio y el grano del sondeo de Adafruit (~280 us), asi
-// que su conversion real es menor.
-// ADS1015 a 3300 SPS: 303 + 25 us, con el +10% de la hoja: 360 us.
-#if ADC_MODELO == ADC_ADS1015
-  #define ADC_ESPERA_US  360
-#else
-  #define ADC_ESPERA_US  1200
-#endif
-#define ADC_ESPERA_MARGEN_PCT  5
-// I2C por lectura, fuera de la espera: escribir la configuracion (3
-// bytes) y leer el resultado (2 bytes). ESTIMADO a partir de los
-// ~280 us medidos para escribir el puntero y leer 2 bytes con el core
-// 3.x a 400 kHz; el apuntado al registro de conversion va dentro de la
-// espera. El autotest mide el real.
-#define ADC_OVERHEAD_I2C_US  325
+// ======================== LED ========================
+// Capacidad de salida del GPIO, la misma en los 8 y fijada a mano (no se
+// deja la de fabrica). 0 a 3 = GPIO_DRIVE_CAP_0 a GPIO_DRIVE_CAP_3. La
+// cambia 'D' para la prueba de saturacion, sin guardarla: al reiniciar
+// vuelve a la de aqui.
+#define DRIVE_CAP_DEFECTO  2
 
-// GAIN_TWO (+/-2.048 V) en los dos ADC: solo leen canales opticos, y el
-// OPT101 a 3.3 V no pasa de ~2.15 V. Ver adc_lmg.h.
-// mV por LSB: adc_lmg.cpp convierte el codigo con este factor.
-#if ADC_MODELO == ADC_ADS1015
-  #define ADS_GAIN_MV   1.0f       // 12 bits, GAIN_TWO
-  #define ADC_RAW_MAX   2047       // codigo de recorte
-#else
-  #define ADS_GAIN_MV   0.0625f    // 16 bits, GAIN_TWO
-  #define ADC_RAW_MAX   32767      // codigo de recorte
-#endif
+// Modo de encendido en la fase iluminada.
+//   SIMULTANEO  los 8 a la vez, una espera, se leen los 8. Por defecto.
+//   SECUENCIAL  uno por uno: enciende k, espera, lee k, apaga k. Solo si
+//               la prueba 'X' muestra diafonia. Con T_ON_US de 1000 us el
+//               ciclo pasa de 10 ms: lo dice el autotest.
+// Ojo en SIMULTANEO: los 8 LED piden ~160 mA juntos. Si el 3,3 V cae al
+// encenderlos, OUT (colgado de VCC por R2) cae igual en todos los
+// canales, y v lo arrastra como un artefacto comun. Lo detecta 'X'.
+#define MODO_SIMULTANEO    0
+#define MODO_SECUENCIAL    1
+#define MODO_LED           MODO_SIMULTANEO
 
-// ======================== LED DE LOS MODULOS LMG (Tarea 3.a) ========================
-// Un pin por LED: se enciende solo el del canal que se lee. Ataque
-// directo con la resistencia de 100 ohm del PCB de cada modulo (~18 mA
-// con un LED IR de 940 nm, Vf ~1.3 V), nunca los cinco a la vez.
-// Validos en el WROOM 32; en un WROVER, 16 y 17 son de la PSRAM.
-//
-// DESDE M1-2026.10.22 TODO EN UN LADO DEL DEVKIT DE 38 PINES, el del
-// 3V3, para cablear la protoboard por un solo lado. Ese lado, de arriba
-// abajo: 3V3, EN, 36, 39, 34, 35, 32, 33, 25, 26, 27, 14, 12, GND, 13,
-// SD2, SD3, CMD, 5V. Salidas utiles hay siete justas (32, 33, 25, 26,
-// 27, 14, 13) para 5 LED + SDA + SCL:
-//   34 a 39   solo entrada.
-//   12        pin de arranque: en alto al encender pone la flash a 1.8 V y
-//             el ESP32 no arranca ni se deja programar. NO CONECTAR NADA.
-//   SD2, SD3, CMD (9, 10, 11): son de la flash interna. NO CONECTAR NADA.
-//   5V        el OPT101 va a 3.3 V, nunca aqui.
-// El 14 emite pulsos al arrancar y hacia parpadear el LED 2: queda para
-// SCL, donde no molesta. LED 1 a 3 en 13, 25 y 27, igual que en Modulo3.
-//
-// ESTE BLOQUE YA NO ES IGUAL AL DE MODULO3 en los LED 4 y 5 (alli 16 y
-// 17) ni en el I2C (alli 21/22). Los pines no cambian la senal
-// (optica_lmg.cpp los toma de aqui), solo el cableado; el resto del
-// bloque si sigue identico.
-#define PIN_LED_LMG_1   13
-#define PIN_LED_LMG_2   25
-#define PIN_LED_LMG_3   27
-#define PIN_LED_LMG_4   26
-#define PIN_LED_LMG_5   32
+// ======================== TRAMA ========================
+// Ciclo de 10 ms (100 Hz):
+//   1. Todos los LED apagados, espera T_OFF_US, lee los 8 -> V_apag[k].
+//   2. LED encendidos, espera T_ON_US, lee los 8 -> V_enc[k], apaga.
+//   3. Lee el MPU6050.
+//   4. v[k] = V_apag[k] - V_enc[k] en mV (positivo, mayor con mas luz).
+//      amb[k] = V_apag[k].
+//   5. Emite la linea CSV.
+// T_ON_US y T_OFF_US PROVISIONALES hasta medirlos con 'C' (hoja de
+// datos: 20 us con 1 kohm de carga, con 47 kohm sera bastante mas). Se
+// cambian por serie ('E' y 'O') y se guardan en NVS.
+#define T_ON_US_DEFECTO    1000
+#define T_OFF_US_DEFECTO   1000
+#define T_MAX_US           5000         // tope de los comandos E y O
 
-#define LED_PWM_FREQ_HZ   100000     // >> 14 kHz de ancho de banda del OPT101
-#define LED_PWM_BITS      9          // 100 kHz x 2^9 <= 80 MHz
-#define LED_DUTY_MAX      ((1 << LED_PWM_BITS) - 1)
+#define INTERVALO_US       10000        // 100 Hz
 
-// ======================== TRAMA OSCURA (Tarea 3.b) ========================
-// L - D. Ligada al ADS1015: con el ADS1115 el ciclo no cabe y el residuo
-// del parpadeo de 120 Hz tras restar seria del 113%.
-#define TRAMA_OSCURA_HABILITADA  (ADC_MODELO == ADC_ADS1015)
-// Asentamiento del LED antes de iniciar la conversion. 150 us desde
-// M*-2026.10.14 (antes 300). El OPT101 con su realimentacion interna de
-// 1 MOhm (14 kHz de ancho de banda) se asienta en ~80 us: 150 us son
-// casi el doble. Y lo que quedara de cola se diluye: el ADS1115 integra
-// la entrada durante toda la conversion (1163 us), asi que un resto al
-// inicio pesa en el resultado por la fraccion de tiempo que dura, y es
-// ademas un factor fijo por canal que la normalizacion por sujeto quita.
-// 300 dejaba el ciclo en 11.9 ms. TIENE QUE SER IGUAL EN M1 Y M3.
-#define LED_SETTLE_US            150
-
-// ======================== AUTOCALIBRACION DE GANANCIA (Tarea 3.d) ========================
-#define FONDO_ESCALA_UTIL_MV       2000.0f
-#define AUTOCAL_OBJETIVO_FRAC      0.35f
-#define AUTOCAL_LIMITE_FRAC        0.95f
-#define AUTOCAL_UMBRAL_DISPERSION  1.5f
-#define AUTOCAL_DUTY_NOMINAL_FRAC  0.60f
-#define AUTOCAL_MUESTRAS           24
-#define AUTOCAL_VERIFICAR_GESTO_MAX 1
+// ======================== UMBRALES (PROVISIONALES) ========================
+// Banderas del autotest, a revisar con la placa.
+#define UMBRAL_SATURADO_MV     250.0f   // V_enc por debajo: satura con luz
+#define UMBRAL_SIN_SENAL_MV     30.0f   // v por debajo: casi no vuelve luz
+#define UMBRAL_LED_APAGADO_MV   10.0f   // |V_apag - V_enc| menor: el LED no enciende
+#define UMBRAL_TOPE_ADC_MV    3050.0f   // V_apag en el tope del ADC (informativo)
 
 // ======================== MPU6050 ========================
-#define MPU_ADDR        0x68
+#define MPU_ADDR           0x68
+// Rango y filtro, se escriben al arrancar y se releen (sensor_imu.cpp).
+#define MPU_DLPF_CFG       4   // acelerometro 21 Hz, retardo 8.5 ms. Giroscopio 20 Hz, 8.3 ms
+#define MPU_ACCEL_FS_SEL   0   // +/-2 g, 16384 LSB/g
+#define MPU_GYRO_FS_SEL    0   // +/-250 grados/s, 131 LSB por grado/s
 
-// Rango y filtro del MPU6050. Se ESCRIBEN al arrancar y se releen de la
-// placa para confirmarlos (sensor_imu.cpp). Antes no se escribian y
-// quedaban los valores de fabrica: +/-2 g, que coincidia con la escala
-// del codigo, y el filtro paso bajo APAGADO, unos 260 Hz de ancho de
-// banda. Muestreando a 100 Hz, todo lo que pasara de 50 Hz se plegaba
-// sobre la senal.
-//
-// TIENEN QUE SER IGUALES EN EL MODULO 1 Y EN EL MODULO 3. Si el modelo
-// se entrena con el acelerometro filtrado a 21 Hz y la protesis lo lee
-// sin filtro, recibe una senal que nunca vio.
-#define MPU_DLPF_CFG      4   // acelerometro 21 Hz, retardo 8.5 ms. Giroscopio 20 Hz, 8.3 ms
-#define MPU_ACCEL_FS_SEL  0   // +/-2 g, 16384 LSB/g
-#define MPU_GYRO_FS_SEL   0   // +/-250 grados/s, 131 LSB por grado/s
+// ======================== CANALES ========================
+// Al modelo entran los 8 opticos y el acelerometro (configuracion B).
+#define NUM_IMU            3            // ax, ay, az
+#define TOTAL_FEATURES     (NUM_OPT + NUM_IMU)             // 11
+// Al CSV van ademas el giroscopio y la trama oscura de cada canal.
+#define NUM_IMU_CSV        6            // ax, ay, az, gx, gy, gz
+#define TOTAL_CSV          (NUM_OPT + NUM_IMU_CSV + NUM_OPT)  // 22 + timestamp
 
-// ======================== MUESTREO ========================
-#define INTERVALO_MS    10          // 10 ms entre muestras → 100 Hz
-#define NUM_LMG         5           // fotodiodos OPT101
-
-// Canales de IMU que entran AL MODELO: solo el acelerometro.
-// El cuarto canal anterior (qw = |a|/2 saturado) era una funcion
-// determinista de los otros tres y se elimino. Con 3, el vector queda
-// en 8 canales, la misma forma con la que se valido el pipeline sobre
-// NinaPro DB5 (5 sEMG + 3 ACC), asi que el mismo codigo sirve para las
-// dos entradas.
-#define NUM_IMU         3           // ax, ay, az
-#define TOTAL_FEATURES  (NUM_LMG + NUM_IMU)   // 8
-
-// Canales que se GUARDAN EN EL CSV: los 6 ejes crudos de la IMU.
-// Los bytes del giroscopio ya viajan en la misma lectura I2C de 14
-// bytes, asi que almacenarlos no cuesta tiempo de bus. El filtrado a
-// los 8 canales del modelo ocurre en preprocesamiento.py.
-#define NUM_IMU_CSV     6           // ax, ay, az, gx, gy, gz
-#define TOTAL_CSV       (NUM_LMG + NUM_IMU_CSV)   // 11 + timestamp
-
-// Cerrojo en tiempo de compilacion. Que el firmware emita un numero de
-// canales distinto al que espera el modelo no produce ningun error: el
-// CSV sale con otra forma y el fallo aparece mucho despues, en el
-// entrenamiento o peor, en la inferencia. Estas aserciones lo
-// convierten en un error de compilacion.
-static_assert(TOTAL_FEATURES == 8,
-              "TOTAL_FEATURES debe ser 8 (5 LMG + 3 ACC), la misma forma que "
-              "la validacion preliminar sobre NinaPro DB5 y que NUM_FEATURES "
-              "del Modulo 3.");
-static_assert(TOTAL_CSV == 11,
-              "El CSV guarda 11 senales (5 LMG + 6 ejes de IMU) mas el "
-              "timestamp. El giroscopio se guarda aunque el modelo no lo use; "
-              "el descarte ocurre en preprocesamiento.py.");
+static_assert(TOTAL_FEATURES == 8 + 3,
+              "Al modelo entran 8 canales opticos y 3 del acelerometro.");
+static_assert(TOTAL_CSV == 22,
+              "El CSV guarda 22 senales mas el timestamp: v1..v8, ax..gz y "
+              "amb1..amb8.");
 
 #endif
