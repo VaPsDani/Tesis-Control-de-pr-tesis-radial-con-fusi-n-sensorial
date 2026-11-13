@@ -3,6 +3,12 @@ perdida_cuantizacion.py - Perdida por cuantizacion INT8 (A21), pliegue a pliegue
 =================================================================================
 Protesis transradial - Etapa 4
 
+ETAPA LMG/NINAPRO, HOY TRABAJO FUTURO (2026-11-13):
+  Con el cambio a QRE1113/OMG la cuantizacion INT8 y el despliegue en el
+  ESP32 quedan fuera del alcance. Este script no se adapta a los 8 canales
+  opticos: se conserva porque experimentos/cuantizacion_int8, ya publicado
+  sobre NinaPro, importa de convertir_tflite. Ver archivo/README.md.
+
 PARA CADA PLIEGUE de la ablacion (corrida con --guardar_modelos):
   1. Carga el modelo reentrenado del pliegue.
   2. Lo cuantiza a INT8 con un representative dataset de 1000 ventanas de

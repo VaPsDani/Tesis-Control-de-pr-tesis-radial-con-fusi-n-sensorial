@@ -3,6 +3,12 @@ convertir_tflite.py - Conversion a TensorFlow Lite para Microcontroladores
 =============================================================================
 Protesis transradial - Fusion sensorial y Deep Learning
 
+ETAPA LMG/NINAPRO, HOY TRABAJO FUTURO (2026-11-13):
+  Con el cambio a QRE1113/OMG la cuantizacion INT8 y el despliegue en el
+  ESP32 quedan fuera del alcance. Este script no se adapta a los 8 canales
+  opticos: se conserva porque experimentos/cuantizacion_int8, ya publicado
+  sobre NinaPro, importa de convertir_tflite. Ver archivo/README.md.
+
 PROCESO DE CUANTIZACION:
   1. Cargar el modelo entrenado (.keras)
   2. Convertir a TFLite con cuantizacion INT8 (8-bit simetrica)

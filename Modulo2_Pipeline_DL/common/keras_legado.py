@@ -8,7 +8,7 @@ POR QUE:
   conversor no fusiona en su operacion nativa UNIDIRECTIONAL_SEQUENCE_LSTM,
   y la cuantizacion INT8 de ese bucle revienta el proceso (TF 2.16 y 2.21).
   Con Keras 2 (tf_keras) la BiLSTM sale como dos LSTM nativas, todo INT8,
-  y TFLite Micro la ejecuta. Ver claude/viabilidad-tflite-micro.md.
+  y TFLite Micro la ejecuta. Ver archivo/claude/viabilidad-tflite-micro.md.
 
 DESDE 2026-09-25:
   Todo entrenamiento nuevo de produccion y de ablacion con datos propios
