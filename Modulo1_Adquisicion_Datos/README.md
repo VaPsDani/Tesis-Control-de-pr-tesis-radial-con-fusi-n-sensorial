@@ -32,6 +32,11 @@ Placa: DevKit ESP32 WROOM de 38 pines. La tabla vive en `config.h`
 En todos los módulos: JST pin 1 (VCC) a **3,3 V**, pin 2 a GND, y **pin 5 (Led)
 sin conectar**. El MPU6050 va por I2C en SDA = GPIO21 y SCL = GPIO22, a 400 kHz.
 
+Los OUT de los módulos 7 y 8 (GPIO25 y 26) son del ADC2, que el driver de WiFi
+toma para sí. Por eso el firmware apaga WiFi y Bluetooth al arrancar y lo
+informa con la línea `[RADIO]`. No usa ninguna librería externa: solo las del
+núcleo ESP32.
+
 ## Lectura óptica
 
 Cada QRE1113 tiene un LED IR de 940 nm y un fototransistor en el mismo

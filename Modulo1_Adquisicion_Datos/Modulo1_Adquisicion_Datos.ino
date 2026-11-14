@@ -43,6 +43,7 @@
  */
 
 #include <Wire.h>
+#include <WiFi.h>
 #include "config.h"
 #include "optica_omg.h"
 #include "sensor_imu.h"
@@ -157,6 +158,12 @@ void setup() {
     Serial.begin(BAUDIOS);
     Wire.begin(PIN_SDA, PIN_SCL);
     Wire.setClock(I2C_FREQ);
+
+    // Radios apagados de forma explicita: los OUT de los modulos 7 y 8
+    // (GPIO25 y 26) son ADC2, que el driver de WiFi toma para si.
+    WiFi.mode(WIFI_OFF);
+    btStop();
+    Serial.println("[RADIO] WiFi y Bluetooth apagados (ADC2 libre para los modulos 7 y 8)");
 
     optica.begin();
     emitirVersion();
