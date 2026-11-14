@@ -29,7 +29,7 @@ repositorio y comparten instalación:
 | Programa | Para qué | Cuándo |
 |---|---|---|
 | `Modulo2_Pipeline_DL/captura_sesion.py` | Sesiones de los 10 participantes | La campaña |
-| `Modulo2_Pipeline_DL/banco_modulos/banco.py` | Elegir entre las 6 variantes del PCB | Antes de la campaña |
+| `Modulo2_Pipeline_DL/caracterizacion_qre/capturar.py` | Prueba preliminar de los 8 módulos QRE1113 | Antes de la campaña |
 
 Cinco pasos. Python 3.12 desde python.org, marcando **Add python.exe to
 PATH** en el instalador.
@@ -55,7 +55,7 @@ pip install -r Modulo2_Pipeline_DL/requirements-captura.txt
 ```
 
 Eso instala pyserial, numpy, pandas y matplotlib, y **nada más**. TensorFlow
-no se instala: ni la sesión ni el banco lo usan. Tkinter ya viene con Python
+no se instala: ni la sesión ni la caracterización lo usan. Tkinter ya viene con Python
 en Windows. En Linux hace falta `sudo apt install python3-tk`.
 
 **No uses Docker.** Los dos programas necesitan el puerto COM del ESP32, una
@@ -72,7 +72,7 @@ python Modulo2_Pipeline_DL/captura_sesion.py --simulado
 ```
 
 ```bash
-python Modulo2_Pipeline_DL/banco_modulos/banco.py capturar --variante PRUEBA --ronda 1 --simulado --escala 0.5
+python Modulo2_Pipeline_DL/caracterizacion_qre/capturar.py --simulado --carcasa sin_carcasa --escala 0.05
 ```
 
 ```bash
@@ -92,7 +92,7 @@ python Modulo2_Pipeline_DL/captura_sesion.py --puerto COM3 --participante S01
 ```
 
 ```bash
-python Modulo2_Pipeline_DL/banco_modulos/banco.py capturar --variante SMD_11mm --ronda 1 --puerto COM3
+python Modulo2_Pipeline_DL/caracterizacion_qre/capturar.py --puerto COM3 --carcasa con_carcasa --participante P01
 ```
 
 Cada vez que abras una consola nueva hay que volver a activar el entorno con
@@ -150,17 +150,20 @@ en el marco aparece un recuadro vacío, pero el operador ve un aviso al iniciar.
 python Modulo2_Pipeline_DL/captura_sesion.py --puerto COM3 --participante S01
 ```
 
-4. Una vez al día, con nadie puesto el brazalete, pulse **Autotest del ciclo
-   (T)**. Confirma que el muestreo cabe en los 10 ms de los 100 Hz. Antes
-   del resultado, el registro muestra dos líneas que hay que comprobar: `[FW] version=M1-2026.10.22` y la del acelerómetro, que tiene que
-   terminar en `OK` y decir `DLPF_CFG=4` y `AFS_SEL=0`. Es la lectura de los
-   registros desde la propia placa, no lo que el código manda. La misma
-   línea queda guardada en el JSON de cada sesión.
-5. Con el participante ya con el brazalete puesto y en reposo, pulse
-   **Autocalibrar LED (A)**. Dura unos 15 s y al final pide una contracción
-   máxima de 3 s, que hay que pedirle en voz alta cuando aparezca el aviso.
+4. Con el participante ya con el brazalete puesto y en reposo, pulse
+   **Autotest (T)**. Mide 1000 ciclos y confirma que el muestreo cabe en los
+   10 ms de los 100 Hz, y por cada uno de los 8 módulos da V_enc, V_apag, v
+   y sus banderas: tienen que decir `OK` (`TOPE_ADC` es solo informativo).
+   Antes del resultado, el registro muestra la versión, que tiene que ser
+   `M1-2026.11.13-QRE`, y la línea del acelerómetro, que tiene que terminar
+   en `OK` y decir `DLPF_CFG=4` y `AFS_SEL=0`. El resumen del autotest queda
+   en el JSON de la sesión.
+5. Anote en `placas_por_posicion` qué placa física (numerada 1 a 8) va en
+   cada posición del brazalete.
 
-Los dos botones abren el puerto, mandan el comando al firmware, muestran su
+Ya no hay autocalibración: la corriente de los LED es fija.
+
+El botón abre el puerto, mandan el comando al firmware, muestran su
 respuesta en el registro del operador y **cierran el puerto al terminar**, de
 modo que ya no hace falta el monitor serie del IDE de Arduino. Se
 deshabilitan mientras la sesión corre, porque el puerto no se puede abrir dos
@@ -194,13 +197,13 @@ explicación posible.
 
 ### 2. Prueba de conexión
 
-Pulse **Probar conexión**. Se abre una ventana con los cinco canales en crudo.
+Pulse **Probar conexión**. Se abre una ventana con los ocho canales en crudo.
 
 **Pida tres contracciones fuertes** y mire la columna de estado.
 
 | Lo que ve | Qué significa |
 |---|---|
-| Los cinco dicen "responde" | Buena colocación, puede empezar |
+| Los ocho dicen "responde" | Buena colocación, puede empezar |
 | Uno dice "plano" | Módulo despegado, LED apagado o cable suelto |
 | La tasa no está cerca de 100 | El adaptador USB no sostiene los baudios |
 | Aparecen huecos | Se están perdiendo muestras |
@@ -271,7 +274,7 @@ Vigile el panel de adquisición.
 | muestras por segundo | Entre 95 y 105, en verde |
 | huecos | Cero. En rojo desde el primero |
 | cola | Estable, sin crecer |
-| Monitor de los 5 canales | Cinco trazos que se mueven, ninguno plano ni pegado arriba |
+| Monitor de los 8 canales | Ocho trazos que se mueven, ninguno plano ni pegado arriba |
 
 Si el puerto se cae, la sesión **se pausa sola**, el participante ve una
 pantalla de espera y el CSV queda a salvo. Revise el cable, espere a que el
@@ -392,8 +395,8 @@ clases con los tiempos que haya puestos.
 |---|---|
 | `could not open port` | Puerto equivocado, o el monitor serie del IDE de Arduino lo tiene tomado |
 | Tasa de 50 en vez de 100 | El adaptador USB no sostiene 921600 |
-| Todo plano en la prueba | El firmware no está adquiriendo, o los LED no se autocalibraron |
-| Un canal plano | Módulo despegado o LED muerto. Ver el manual de armado |
+| Todo plano en la prueba | El firmware no está adquiriendo |
+| Un canal plano | Módulo despegado, LED que no enciende o cable del JST suelto. Ver el autotest y el manual de armado |
 | La ventana del participante tapa la del operador | Salga de pantalla completa con Escape |
 | Aviso de imágenes faltantes | Faltan PNG en `assets/`. La sesión corre igual |
 | `ya existe. Los CSV de sesion nunca se sobrescriben` | Está repitiendo una sesión en el mismo segundo. Espere o cambie de carpeta |

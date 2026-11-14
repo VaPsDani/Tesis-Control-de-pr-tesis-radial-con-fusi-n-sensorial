@@ -1,4 +1,4 @@
-# Hoja de verificación de sesión
+# Hoja de verificación de sesión (OMG, QRE1113)
 
 Participante `S____`  ·  subject_id `____`  ·  Fecha `__________`  ·  Hora inicio `______`
 
@@ -7,8 +7,13 @@ Participante `S____`  ·  subject_id `____`  ·  Fecha `__________`  ·  Hora in
 ## Antes de que llegue (5 min)
 
 - [ ] Laptop cargada y enchufada, Windows sin actualizaciones pendientes
-- [ ] ESP32 conectado, LED de la placa encendido
+- [ ] ESP32 conectado con un cable USB **de datos**, LED de la placa encendido
 - [ ] El puerto COM no esta abierto en el IDE de Arduino ni en otro programa
+- [ ] Los 8 JST con el pin 1 en **3V3** (nunca en 5V) y el pin 5 **sin conectar**
+- [ ] Placas numeradas 1 a 8 y en su posición del brazalete. Anotar el orden
+      en el campo `placas_por_posicion` de la app: `________________`
+- [ ] Iluminación de la sala **igual que en las otras sesiones** (las mismas
+      luces encendidas, cortinas igual)
 - [ ] Brazalete y correa a la mano, piel del antebrazo limpia y seca
 
 ## Arranque de la app
@@ -24,28 +29,28 @@ python Modulo2_Pipeline_DL\captura_sesion.py --puerto COM__ --participante S__
       circunferencia antebrazo `____` cm  posición del brazalete `____` cm
       punto de cierre de la correa `________`
 
-## Con el brazalete ya puesto, botones de "Antes de iniciar"
+## Con el brazalete ya puesto, botón "Autotest (T)"
 
-Solo una vez al día, con el participante fuera:
+Una vez, al armar el equipo con la **carcasa final**, en el monitor serie:
 
-- [ ] **Autotest del ciclo (T)**: el registro dice `OK` y el ciclo cabe en 10 ms
-- [ ] En las líneas que salen antes: `[FW] version=M1-2026.10.22` y la línea
-      `[IMU]` con `DLPF_CFG=4`, `AFS_SEL=0` y `OK`
+- [ ] `C` (asentamiento) hecho con la carcasa final, y los tiempos sugeridos
+      aplicados con `E` y `O`. Valores: T_ON_US `____`  T_OFF_US `____`
 
-Con **cada** participante, brazalete colocado y ajustado:
+Con **cada** participante, brazalete colocado y la correa ajustada:
 
-- [ ] **Autocalibrar LED (A)**, con el brazo en reposo. Tarda unos 15 s
-  - [ ] Cuando el registro pida contracción máxima, pedírsela durante 3 s
-  - [ ] Reposo de cada canal entre **500 y 900 mV** (objetivo 700, el 35 % de 2000)
-  - [ ] Ningún canal marcado **DEBIL**
-  - [ ] Dispersión max/min **menor que 1.5**
+- [ ] **Autotest (T)**, con el brazo en reposo y quieto. Tarda unos 10 s
+  - [ ] `[FW] version=M1-2026.11.13-QRE` (o posterior con QRE)
+  - [ ] `[AUTOTEST] ciclo ... OK`: el máximo cabe en 10 ms
+  - [ ] Los 8 módulos dicen **OK**: ninguno `SATURADO`, `SIN_SENAL` ni
+        `LED_NO_ENCIENDE`. `TOPE_ADC` es solo informativo
+  - [ ] `[IMU]` con `DLPF_CFG=4`, `AFS_SEL=0` y `OK`
   - [ ] El registro termina con "Puerto libre"
 
 ## Prueba de conexión (botón Probar conexión)
 
 Pedir **3 contracciones fuertes** y mirar la ventana.
 
-- [ ] Los **5 canales** dicen `responde`, ninguno `plano`
+- [ ] Los **8 canales** dicen `responde`, ninguno `plano`
 - [ ] Tasa entre **95 y 105** muestras/s
 - [ ] Huecos en **0**
 - [ ] Cerrar la ventana de prueba antes de Iniciar
@@ -85,7 +90,7 @@ Vigilar el panel del operador cada minuto.
 | muestras/s | 95 a 105 | Anotar en observaciones, seguir |
 | huecos | 0 | Anotar el minuto, seguir |
 | cola | estable | Cerrar otros programas |
-| 5 trazos | todos se mueven | **Pausar**, revisar el módulo, reanudar |
+| 8 trazos | todos se mueven | **Pausar**, revisar el módulo, reanudar |
 
 - [ ] Gesto equivocado: pulsar **Descartar repeticion** y seguir
 - [ ] Movimiento en la calibración: **Abortar** y repetir la sesión completa

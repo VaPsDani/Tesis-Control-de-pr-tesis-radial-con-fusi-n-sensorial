@@ -1,16 +1,19 @@
 # Módulo 2, pipeline de aprendizaje profundo
 
-Preprocesamiento, entrenamiento, validación y exportación del modelo que corre
-en el Módulo 3.
+Captura, preprocesamiento, entrenamiento, validación, estadística y
+caracterización de los módulos ópticos. Todo fuera de línea, con 8 canales OMG
+(QRE1113) y el acelerómetro: configuración A (`solo_omg`, 8 canales) y B
+(`omg_imu`, 11). Los nombres de los canales salen de `common/canales.py`.
 
 ## Estructura
 
 | Carpeta | Qué contiene |
 |---|---|
-| `common/` | Código compartido por todos los experimentos: partición y verificación de fuga, normalización, bucle de entrenamiento, métricas y arquitectura |
+| `common/` | Código compartido por todos los experimentos: canales, partición y verificación de fuga, normalización, bucle de entrenamiento, métricas y arquitectura |
 | `experimentos/` | Un experimento por carpeta, cada uno con su README y su pregunta |
-| `produccion/` | El pipeline que genera el modelo desplegado, sobre datos propios |
+| `produccion/` | El pipeline sobre datos propios: preprocesamiento, fases, entrenamiento final y pérdida INT8 fuera de línea |
 | `captura/` | Aplicación de sesión de captura, con `captura_sesion.py` como entrada |
+| `caracterizacion_qre/` | Prueba preliminar de los módulos: `capturar.py` (secuencia guiada) y `analizar.py` (tabla 6.1 y figuras) |
 | `herramientas/` | Perfilado de GPU, colas de trabajos y análisis auxiliares |
 | `tests/` | Pruebas de las piezas que no deben romperse en silencio |
 
@@ -22,12 +25,15 @@ directamente sin instalar nada ni fijar `PYTHONPATH`.
 
 | Carpeta | Pregunta que responde |
 |---|---|
-| `ablacion_imu/` | ¿Aporta la IMU sobre la LMG sola, y cambia eso con el brazo en movimiento? Es la comparación central del trabajo |
+| `ablacion_imu/` | ¿Aporta la IMU sobre la OMG sola, y cambia eso con el brazo en movimiento? Es la comparación central del trabajo |
 | `validacion_preliminar_emg/` | ¿El pipeline funciona, antes de tener datos propios? Validación algorítmica sobre NinaPro DB5 |
 | `lmg_wavelength/` | Ventana, canales, longitud de onda y modelos clásicos, sobre el dataset público de LMG |
 | `ablacion_fases/` | ¿Qué tramo del gesto conviene que entre al entrenamiento? |
-| `optica_espaciador/` | ¿LED verde con espaciador o infrarrojo en contacto? |
-| `cuantizacion_int8/` | ¿Cuánta exactitud se pierde al pasar el modelo a INT8 para el ESP32? |
+| `cuantizacion_int8/` | ¿Cuánta exactitud se pierde al pasar el modelo a INT8? Sobre NinaPro, ya publicado |
+
+`ablacion_fases/`, `lmg_wavelength/` y `validacion_preliminar_emg/` son de la
+etapa LMG y están publicados: no se tocan sus resultados.
+`optica_espaciador/` se archivó (`archivo/`).
 
 ## Entorno
 
@@ -75,10 +81,11 @@ Quedan aparte, a propósito:
 | `requirements-captura.txt` | La computadora de captura, sin TensorFlow |
 | `requirements-tf216-historico.txt` | Registro del entorno con TF 2.16 y Keras 3 con que salieron los resultados preliminares ya publicados. No se mantiene |
 
-## Qué modelo se despliega (A22)
+## Configuración final (A22)
 
-Se despliega la configuración, A (`solo_omg`) o B (`omg_imu`), con **mayor F1
-macro fuera de línea**. Ese número es, para cada configuración, la media sobre
+La configuración final, A (`solo_omg`) o B (`omg_imu`), es la de **mayor F1
+macro fuera de línea**. No se despliega en el ESP32: es la que se entrena con
+todos los participantes y la que se cuantiza para medir la pérdida INT8. Ese número es, para cada configuración, la media sobre
 los participantes de prueba del F1 macro de 5 clases calculado con todas sus
 ventanas de evaluación, las de las dos condiciones juntas, en la corrida mixta
 de `experimentos/ablacion_imu` (GroupKFold k = 5 por sujeto). Si las dos medias
@@ -87,7 +94,9 @@ coinciden en cuatro decimales, gana la de menos canales.
 La regla está en código, no solo aquí: `regla_de_despliegue()` en
 `ablacion_imu.py` la aplica y deja el resultado en `regla_de_despliegue` del
 JSON de la ablación. Después, `produccion/entrenar_modelo.py --modo final
---composicion <la elegida>` entrena el modelo que se convierte a INT8.
+--composicion <la elegida>` entrena el modelo final, y
+`produccion/perdida_cuantizacion.py` mide pliegue a pliegue la diferencia de
+F1 macro entre el flotante y el INT8.
 
 La regla se fijó antes de ver resultados con datos propios. El desempate por
 número de canales es una propuesta de la sesión de implementación que el
@@ -99,7 +108,8 @@ artículo no menciona.
 |---|---|---|
 | NinaPro DB5 | `~/data/NinaPro_DB5/`, 30 archivos .mat | Descarga en https://ninapro.hevs.ch/instructions/DB5.html |
 | `lmg_wavelength_dataset` | `~/data/lmg_wavelength_dataset/` | Clonar de New Dexterity |
-| Sesiones propias | `Modulo2_Pipeline_DL/sesiones/` | Las escribe la app de captura |
+| Sesiones propias | `Modulo2_Pipeline_DL/sesiones/` | Las escribe la app de captura. Solo firmware `M1-2026.11.13-QRE` o posterior: `preprocesamiento.py` rechaza los CSV LMG |
+| Caracterización | `Modulo2_Pipeline_DL/caracterizacion_qre/capturas/` | Pruebas preliminares, no son parte del conjunto de datos |
 
 Ninguno se versiona: todos están excluidos por `.gitignore`.
 
@@ -109,6 +119,7 @@ Ninguno se versiona: todos están excluidos por `.gitignore`.
 python -m pytest Modulo2_Pipeline_DL/tests -q
 ```
 
-Cubren la verificación de fuga entre sujetos, la normalización y la
-construcción del protocolo de captura. Son rápidas y no necesitan GPU ni
-datasets.
+Cubren la verificación de fuga entre sujetos, la normalización, el formato
+del CSV OMG, el rechazo de los CSV LMG, el protocolo de captura, el número de
+parámetros del modelo con 8 y 11 canales y el análisis de la caracterización.
+Son rápidas y no necesitan datasets.

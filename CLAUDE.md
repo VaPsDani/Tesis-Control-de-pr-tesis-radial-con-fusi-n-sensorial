@@ -1,8 +1,19 @@
 # Instrucciones para Claude en este repositorio
 
-Tesis de control de prótesis transradial con LMG e IMU sobre ESP32. Tres
-módulos: adquisición, pipeline de aprendizaje profundo e inferencia con
-control.
+Tesis de control de prótesis transradial con OMG (optomiografía, 8 módulos
+QRE1113) e IMU sobre ESP32. Todo se evalúa fuera de línea: no hay despliegue
+en el ESP32, ni mano, ni servos. La cuantización INT8 solo se usa para medir
+fuera de línea cuánto se degrada el modelo.
+
+| Carpeta | Qué es |
+|---|---|
+| `Modulo1_Adquisicion_Datos/` | Firmware del ESP32 que adquiere los 8 canales ópticos y la IMU |
+| `Modulo2_Pipeline_DL/` | Captura, preprocesamiento, entrenamiento, validación, estadística y caracterización |
+| `archivo/` | Lo de la etapa LMG (OPT101) que salió del alcance, incluido el antiguo Módulo 3 |
+
+La versión LMG completa está en el tag `lmg-final-2026-11-13`. "LMG" se usa
+solo para el dataset público `lmg_wavelength`, los experimentos ya publicados
+y el código archivado.
 
 ## Inicio de cada sesión
 
@@ -52,6 +63,9 @@ INT8 cuando sí existía.
   reentreno, ver `common/entrenamiento.py`.
 - **No romper los experimentos ya publicados** ni el tag
   `si2-groupkfold-repeticion`.
-- **El dataset externo no se versiona**, va en `.gitignore`.
+- **El dataset externo no se versiona**, va en `.gitignore`. Tampoco los
+  datos de personas: `sesiones/` y las capturas de `caracterizacion_qre/`.
+- **Una sola fuente de verdad para los canales:** `common/canales.py`. Nada
+  de `v1..v8` escrito a mano en otro archivo.
 - Si algo que pide el usuario no coincide con el código real, decírselo en
   vez de improvisar.

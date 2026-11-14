@@ -10,8 +10,9 @@ Código: `common/modelo.py` (`construir_modelo`, `compilar_modelo`,
 
 ## Arquitectura, CNN-BiLSTM-Attention
 
-Entrada: ventana de 20 pasos (200 ms a 100 Hz) por C canales. C = 5 en la
-configuración A (solo LMG) y C = 8 en la B (LMG y acelerómetro).
+Entrada: ventana de 20 pasos (200 ms a 100 Hz) por C canales. C = 8 en la
+configuración A (`solo_omg`, los 8 módulos QRE1113) y C = 11 en la B
+(`omg_imu`, los 8 ópticos y el acelerómetro).
 
 | # | Capa | Configuración | Salida |
 |---|---|---|---|
@@ -49,14 +50,15 @@ decodificador que actúe de consulta.
 Medido con `count_params()` en TensorFlow 2.21 y tf_keras 2.21, y
 coincidente con el cálculo a mano.
 
-| | Configuración A, C = 5 | Configuración B, C = 8 |
+| | Configuración A, C = 8 | Configuración B, C = 11 |
 |---|---|---|
-| Total | 76 357 | 76 933 |
-| Entrenables | 75 973 | 76 549 |
+| Total | 76 933 | 77 509 |
+| Entrenables | 76 549 | 77 125 |
 | No entrenables (medias y varianzas de BatchNormalization) | 384 | 384 |
 
-Desglose para C = 8: Conv1D 1 600, BN 256, Conv1D 24 704, BN 512, BiLSTM
-41 216, atención 4 160, Dense 4 160, salida 325.
+Solo la primera Conv1D depende de C: 3 × C × 64 + 64. Desglose para C = 11:
+Conv1D 2 176, BN 256, Conv1D 24 704, BN 512, BiLSTM 41 216, atención 4 160,
+Dense 4 160, salida 325. Los totales los comprueba `tests/test_modelo.py`.
 
 ## Entrenamiento
 
@@ -96,9 +98,11 @@ La semilla base es `--seed`, 42 por defecto.
 | Paso | Valor |
 |---|---|
 | Ventana y paso | 20 y 2 muestras, 200 y 20 ms a 100 Hz |
-| Normalización de la LMG | z por canal con la media y la desviación del bloque de calibración |
+| Señal óptica | v = V_apag − V_enc por módulo, en mV (firmware `M1-2026.11.13-QRE`) |
+| Normalización de los ópticos | z por canal con la media y la desviación del bloque de calibración |
 | Normalización del acelerómetro | g menos la media del bloque de calibración, sin dividir |
 | Etiquetado | Variante `dinamica_meseta` de `produccion/fases.py`, versión 4 |
 
 Todo sale de `produccion/preprocesamiento.py`, `preparar_sesion`, que es la
-misma función para la ablación, la producción y la conversión INT8.
+misma función para la ablación, la producción y la pérdida INT8 fuera de
+línea. Los nombres de los canales salen de `common/canales.py`.

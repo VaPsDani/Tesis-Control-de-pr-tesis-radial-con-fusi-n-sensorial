@@ -20,6 +20,6 @@ pyserial==3.5
 numpy==1.26.4
 pandas==3.0.5
 
-# Grafico del banco de variantes (banco_modulos/banco.py analizar).
+# Graficos de la caracterizacion (caracterizacion_qre/analizar.py).
 # Si solo vas a capturar sesiones, no hace falta.
 matplotlib==3.11.1
