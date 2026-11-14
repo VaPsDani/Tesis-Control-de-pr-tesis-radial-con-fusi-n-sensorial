@@ -3,11 +3,11 @@ convertir_tflite.py - Conversion a TensorFlow Lite para Microcontroladores
 =============================================================================
 Protesis transradial - Fusion sensorial y Deep Learning
 
-ETAPA LMG/NINAPRO, HOY TRABAJO FUTURO (2026-11-13):
-  Con el cambio a QRE1113/OMG la cuantizacion INT8 y el despliegue en el
-  ESP32 quedan fuera del alcance. Este script no se adapta a los 8 canales
-  opticos: se conserva porque experimentos/cuantizacion_int8, ya publicado
-  sobre NinaPro, importa de convertir_tflite. Ver archivo/README.md.
+ALCANCE DESDE EL CAMBIO A QRE1113/OMG (2026-11-13):
+  La cuantizacion INT8 se usa SOLO FUERA DE LINEA, para medir cuanto se
+  degrada el modelo frente al flotante. No hay despliegue en el ESP32. El
+  experimento ya publicado experimentos/cuantizacion_int8 (NinaPro)
+  importa de convertir_tflite: sus funciones genericas no cambian.
 
 PROCESO DE CUANTIZACION:
   1. Cargar el modelo entrenado (.keras)
@@ -31,7 +31,7 @@ ENTORNO:
 
 USO:
   python convertir_tflite.py --modelo resultados/modelo_final.keras
-      --info resultados/final_lmg_imu.json --sesiones "../sesiones/*.csv"
+      --info resultados/final_omg_imu.json --sesiones "../sesiones/*.csv"
   (todo en una linea)
 
   --info es el JSON que deja entrenar_modelo.py --modo final: de ahi salen
@@ -147,8 +147,8 @@ def ejecutar_tflite(tflite_model: bytes, X: np.ndarray) -> np.ndarray:
 def escala_entrada(tflite_model: bytes):
     """
     Paso y cero de la cuantizacion de la ENTRADA, que es uno solo para los
-    8 canales (cuantizacion por tensor). Con la LMG en z y el acelerometro
-    en g, el paso lo fija el canal de mayor rango: si es grande, al
+    11 canales (cuantizacion por tensor). Con los opticos en z y el
+    acelerometro en g, el paso lo fija el canal de mayor rango: si es grande, al
     acelerometro le quedan pocos niveles.
     """
     it = tf.lite.Interpreter(model_content=tflite_model)
@@ -217,13 +217,10 @@ def verificar_operaciones(tflite_model: bytes):
             "Entrene y convierta con tf_keras (requirements.txt).")
 
 
-def exportar_a_c_array(ruta_tflite: str, output_dir: str = "output",
-                       copiar_al_modulo3: bool = False):
+def exportar_a_c_array(ruta_tflite: str, output_dir: str = "output"):
     """
-    Convierte el .tflite a un archivo .h (C array) para TFLite Micro en ESP32.
-
-    Con copiar_al_modulo3, el archivo se copia ademas al Modulo 3 para su
-    compilacion.
+    Convierte el .tflite a un archivo .h (C array) para TFLite Micro. Hoy
+    no hay despliegue: queda en output_dir como registro del modelo.
     """
     with open(ruta_tflite, "rb") as f:
         tflite_data = f.read()
@@ -267,29 +264,16 @@ def exportar_a_c_array(ruta_tflite: str, output_dir: str = "output",
 
     print(f"[HEADER] Archivo .h generado: {ruta_h}")
 
-    # Copiar al Modulo 3, SOLO si se pide. Antes se copiaba siempre, a una
-    # ruta calculada desde output_dir que solo existia si la salida estaba
-    # dentro del repositorio, y una conversion de prueba pisaba el modelo
-    # del firmware.
-    if copiar_al_modulo3:
-        destino_mod3 = os.path.normpath(os.path.join(
-            _M2, "..", "Modulo3_Inferencia_Control", "modelo_gestos_tflite.h"))
-        with open(destino_mod3, "w") as f:
-            f.write("\n".join(hex_lines))
-        print(f"[HEADER] Copiado a Modulo 3: {destino_mod3}")
-
 
 def main():
     import json
     parser = argparse.ArgumentParser(
-        description="Convertir modelo Keras a TFLite INT8 para ESP32")
+        description="Convertir modelo Keras a TFLite INT8 (comparacion fuera de linea)")
     parser.add_argument("--modelo", required=True, help="modelo .keras")
     parser.add_argument("--info", required=True,
                         help="JSON de entrenar_modelo.py --modo final")
     parser.add_argument("--sesiones", required=True, help="patron de los CSV")
     parser.add_argument("--output_dir", default="output")
-    parser.add_argument("--copiar_al_modulo3", action="store_true",
-                        help="copia el .h a Modulo3_Inferencia_Control")
     args = parser.parse_args()
 
     with open(args.info, encoding="utf-8") as f:
@@ -302,13 +286,8 @@ def main():
     v = P.preparar_sesiones(args.sesiones)
     X = ventanas_de_calibracion(v, entrenamiento, composicion)
     ruta_tflite = convertir_a_tflite(args.modelo, X, args.output_dir)
-    exportar_a_c_array(ruta_tflite, args.output_dir, args.copiar_al_modulo3)
-
+    exportar_a_c_array(ruta_tflite, args.output_dir)
     print("\n[DONE] Proceso completado.")
-    if not args.copiar_al_modulo3:
-        print("  - Revise el modelo y copie modelo_gestos_tflite.h al Modulo 3,")
-        print("    o repita con --copiar_al_modulo3")
-    print("  - Compile con el IDE de Arduino")
 
 
 if __name__ == "__main__":

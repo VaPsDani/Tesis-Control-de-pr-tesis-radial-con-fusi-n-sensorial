@@ -4,15 +4,17 @@ modelo.py - Arquitectura CNN-BiLSTM-Attention para clasificacion de gestos
 Protesis transradial - Fusion sensorial y Deep Learning
 
 ARQUITECTURA:
-  Entrada: (window_size=20, num_features=8) → 20 pasos temporales × 8 canales
-           - 5 canales LMG (fotodiodos OPT101) + 3 del acelerometro
-           - Es la forma con la que se valido el pipeline sobre NinaPro
-             DB5 (5 sEMG + 3 ACC), asi que el mismo codigo sirve para
-             las dos entradas sin tocar la arquitectura
+  Entrada: (window_size=20, num_features=C) → 20 pasos temporales × C canales
+           - Configuracion A (solo_omg): C = 8, los 8 modulos QRE1113
+           - Configuracion B (omg_imu): C = 11, los 8 opticos + ax, ay, az
+           - La validacion preliminar sobre NinaPro DB5 uso C = 8 (5 sEMG
+             + 3 ACC), que es el valor por defecto
+           Solo la primera Conv1D depende de C: 3 x C x 64 + 64 pesos.
+           76 933 parametros con C = 8 y 77 509 con C = 11.
 
   Capa 1 (Conv1D):  Filtros=64, kernel=3, activacion=ReLU
-    → Extrae patrones espaciales entre canales de sensores LMG+ACC
-    → Ej: correlacion entre el fotodiodo 1 y la componente az del
+    → Extrae patrones espaciales entre canales opticos y del acelerometro
+    → Ej: correlacion entre el modulo optico 1 y la componente az del
       acelerometro durante un gesto
 
   Capa 2 (Conv1D):  Filtros=128, kernel=3, activacion=ReLU
@@ -34,7 +36,7 @@ ARQUITECTURA:
     → Distribucion de probabilidad sobre: Rest, Pinch, Tripod, Power, Ext.
 
 ARQUITECTURA (resumen):
-  Input(20,8) → Conv1D(64) → Conv1D(128) → BiLSTM(64) → Attention → Dense(64) → Softmax(5)
+  Input(20,C) → Conv1D(64) → Conv1D(128) → BiLSTM(64) → Attention → Dense(64) → Softmax(5)
 """
 
 import tensorflow as tf
@@ -112,7 +114,7 @@ def construir_modelo(
 
     Args:
         window_size: Pasos temporales de la ventana deslizante (20)
-        num_features: Canales de sensores (8: 5 LMG + 3 acelerometro)
+        num_features: Canales de entrada: 8 (solo_omg) u 11 (omg_imu)
         num_clases: Gestos a clasificar (5: Rest, Pinch, Tripod, Power, Ext.)
         l2_reg: Factor de regularizacion L2
         dropout_rate: Tasa de dropout en la capa densa
@@ -178,9 +180,9 @@ def compilar_modelo(
         modelo: Modelo de Keras sin compilar
         lr: Tasa de aprendizaje inicial de Adam
         label_smoothing: Suavizado de etiquetas de la crossentropy.
-            0.0 (default) reproduce exactamente la ruta LMG del hardware
-            fisico. La ruta de validacion sobre NinaPro DB5
-            (entrenamiento_cv.py) pasa 0.1, que es el valor con el que se
+            0.0 por defecto. common/entrenamiento.py, que usan el
+            pipeline OMG y la validacion sobre NinaPro DB5
+            (validar_pipeline.py), pasa 0.1, que es el valor con el que se
             obtuvo la referencia SI2 de 82.98%; cambiarlo romperia la
             comparabilidad entre esquemas de particion.
     """

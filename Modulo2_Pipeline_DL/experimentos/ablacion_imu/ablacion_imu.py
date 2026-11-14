@@ -1,13 +1,13 @@
 """
-ablacion_imu.py - Aporta la IMU sobre la LMG sola?
+ablacion_imu.py - Aporta la IMU sobre la OMG sola?
 ===================================================
 Protesis transradial - Experimento central del trabajo
 
 DISENO FACTORIAL 2x2:
 
   Factor A, que alimenta al modelo
-    solo_lmg   5 canales opticos
-    lmg_imu    5 canales opticos + 3 del acelerometro
+    solo_omg   8 canales opticos
+    omg_imu    8 canales opticos + 3 del acelerometro
 
   Factor B, condicion postural de las repeticiones evaluadas
     estatica   el brazo no se mueve
@@ -49,7 +49,7 @@ TRES MODOS DE ENTRENAMIENTO, TRES PREGUNTAS DISTINTAS (--entrenamiento):
       modelo nunca ve la relacion entre postura y senal optica, que es
       justo lo que tendria que aprender para compensarla.
 
-      Por eso, si lmg_imu cae mas que solo_lmg, la lectura correcta es
+      Por eso, si omg_imu cae mas que solo_omg, la lectura correcta es
       que LA FUSION INERCIAL NECESITA VARIACION POSTURAL EN LOS DATOS DE
       ENTRENAMIENTO, no que la IMU no compense la postura. Esa segunda
       pregunta la responde el modo mixto.
@@ -78,7 +78,7 @@ PREPROCESAMIENTO (A18):
   produccion/preprocesamiento.py, preparar_sesiones(). Fases del
   detector (la preparacion y la reaccion quedan fuera), repeticiones
   descartadas fuera, y normalizacion con la calibracion de cada sesion:
-  LMG en z, acelerometro en g menos la media de la calibracion.
+  Opticos en z, acelerometro en g menos la media de la calibracion.
 
 DESBALANCE (A13):
   Pesos por clase, total / (5 x ventanas de la clase), calculados en
@@ -124,7 +124,7 @@ from metricas import graficar_matriz_confusion, metricas, por_sujeto
 from validacion import autotest_verificador, generar_particiones
 
 CONDICIONES = list(D.CONDICIONES_POSTURALES)     # estatica, dinamica
-COMPOSICIONES = list(D.COMPOSICIONES)            # solo_lmg, lmg_imu
+COMPOSICIONES = list(D.COMPOSICIONES)            # solo_omg, omg_imu
 
 
 def configuracion_de_celda(args, composicion: str, condicion: str) -> dict:
@@ -144,7 +144,7 @@ def configuracion_de_celda(args, composicion: str, condicion: str) -> dict:
         "lr": args.lr,
         "early_stopping_start": args.early_stopping_start,
         "semilla": args.seed,
-        "normalizacion": "calibracion: lmg z, acelerometro g - media",
+        "normalizacion": "calibracion: opticos z, acelerometro g - media",
         "fases": "dinamica_meseta",
         "desbalance": "pesos por clase del train de cada pliegue",
         "entrenamiento": args.entrenamiento,
@@ -362,7 +362,7 @@ def caida_entre_posturas(celdas: dict) -> dict:
       estatica_a_dinamica
           El modelo solo vio el brazo quieto. La caida mide que ocurre
           cuando el entrenamiento NO incluye variacion postural. Si
-          lmg_imu cae mas, la lectura correcta es que la fusion inercial
+          omg_imu cae mas, la lectura correcta es que la fusion inercial
           necesita variacion postural en los datos de entrenamiento, no
           que la IMU no compense la postura: con el brazo fijo el
           acelerometro lee casi siempre el mismo vector de gravedad y el
@@ -430,7 +430,7 @@ def desplazamiento_de_distribucion(v: D.Ventanas, args,
       la condicion dinamica caen fuera de esa distribucion por la fisica
       del protocolo, no por azar.
 
-      Cuando eso ocurre, una caida de lmg_imu NO significa que la IMU no
+      Cuando eso ocurre, una caida de omg_imu NO significa que la IMU no
       compense la postura: significa que se le pidio predecir con
       entradas que nunca vio. La comprobacion existe para que eso quede
       declarado en el reporte y no se lea al reves.
@@ -439,8 +439,8 @@ def desplazamiento_de_distribucion(v: D.Ventanas, args,
     modelo, y por canal del acelerometro.
     """
     vu = v
-    X = D.seleccionar_canales(vu, "lmg_imu")
-    idx_imu = [D.COMPOSICIONES["lmg_imu"].index(c) for c in D.CANALES_IMU]
+    X = D.seleccionar_canales(vu, "omg_imu")
+    idx_imu = [D.COMPOSICIONES["omg_imu"].index(c) for c in D.CANALES_IMU]
 
     entrena = X[vu.condicion == D.CONDICION_ESTATICA]
     evalua = X[vu.condicion == D.CONDICION_DINAMICA]
@@ -481,7 +481,7 @@ def desplazamiento_de_distribucion(v: D.Ventanas, args,
         "lectura": (
             "DESPLAZAMIENTO DE DISTRIBUCION: los valores del acelerometro en "
             "test caen fuera de los que el modelo vio en entrenamiento. Una "
-            "caida de lmg_imu mide que la fusion inercial necesita variacion "
+            "caida de omg_imu mide que la fusion inercial necesita variacion "
             "postural en los datos de entrenamiento, no que la IMU no "
             "compense la postura."
             if hay_desplazamiento else

@@ -77,7 +77,7 @@ Quedan aparte, a propósito:
 
 ## Qué modelo se despliega (A22)
 
-Se despliega la configuración, A (`solo_lmg`) o B (`lmg_imu`), con **mayor F1
+Se despliega la configuración, A (`solo_omg`) o B (`omg_imu`), con **mayor F1
 macro fuera de línea**. Ese número es, para cada configuración, la media sobre
 los participantes de prueba del F1 macro de 5 clases calculado con todas sus
 ventanas de evaluación, las de las dos condiciones juntas, en la corrida mixta

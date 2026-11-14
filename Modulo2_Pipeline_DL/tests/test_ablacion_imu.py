@@ -46,14 +46,14 @@ def test_las_cuatro_celdas_identicas_pasan_la_verificacion():
 
 def test_una_semilla_distinta_en_una_celda_falla():
     def con_semilla_rara(c, k, args):
-        return args_falsos(seed=7) if (c, k) == ("lmg_imu", "dinamica") else args
+        return args_falsos(seed=7) if (c, k) == ("omg_imu", "dinamica") else args
     with pytest.raises(AssertionError):
         A.verificar_identidad_de_configuracion(configs_de(con_semilla_rara))
 
 
 def test_un_numero_de_epocas_distinto_falla():
     def con_epocas_raras(c, k, args):
-        return args_falsos(epochs=5) if c == "solo_lmg" else args
+        return args_falsos(epochs=5) if c == "solo_omg" else args
     with pytest.raises(AssertionError):
         A.verificar_identidad_de_configuracion(configs_de(con_epocas_raras))
 
@@ -61,21 +61,21 @@ def test_un_numero_de_epocas_distinto_falla():
 def test_la_composicion_solo_cambia_los_canales():
     n = 40
     v = D.Ventanas(
-        X=np.random.RandomState(0).randn(n, 20, 8).astype(np.float32),
+        X=np.random.RandomState(0).randn(n, 20, 11).astype(np.float32),
         y=np.zeros(n, dtype=int), sujeto=np.ones(n, dtype=int),
         repeticion=np.ones(n, dtype=int),
         condicion=np.array(["estatica"] * n, dtype=object),
         bloque_tipo=np.array(["contraccion"] * n, dtype=object))
-    solo = D.seleccionar_canales(v, "solo_lmg")
-    con = D.seleccionar_canales(v, "lmg_imu")
-    assert solo.shape == (n, 20, 5)
-    assert con.shape == (n, 20, 8)
-    # Los cinco opticos son exactamente los mismos numeros en las dos.
-    assert np.array_equal(solo, con[:, :, :5])
+    solo = D.seleccionar_canales(v, "solo_omg")
+    con = D.seleccionar_canales(v, "omg_imu")
+    assert solo.shape == (n, 20, 8)
+    assert con.shape == (n, 20, 11)
+    # Los ocho opticos son exactamente los mismos numeros en las dos.
+    assert np.array_equal(solo, con[:, :, :8])
 
 
 def test_composicion_desconocida_falla():
-    v = D.Ventanas(np.zeros((2, 20, 8), dtype=np.float32), np.zeros(2, dtype=int),
+    v = D.Ventanas(np.zeros((2, 20, 11), dtype=np.float32), np.zeros(2, dtype=int),
                    np.ones(2, dtype=int), np.ones(2, dtype=int),
                    np.array(["estatica"] * 2, dtype=object),
                    np.zeros(2, dtype=int))
@@ -94,30 +94,30 @@ def celda(acc_por_sujeto):
 
 def test_la_caida_se_mide_de_estatica_a_dinamica():
     celdas = {
-        "solo_lmg|estatica": celda({1: 0.80, 2: 0.70}),
-        "solo_lmg|dinamica": celda({1: 0.60, 2: 0.50}),   # cae 0.20
-        "lmg_imu|estatica": celda({1: 0.82, 2: 0.72}),
-        "lmg_imu|dinamica": celda({1: 0.77, 2: 0.67}),    # cae 0.05
+        "solo_omg|estatica": celda({1: 0.80, 2: 0.70}),
+        "solo_omg|dinamica": celda({1: 0.60, 2: 0.50}),   # cae 0.20
+        "omg_imu|estatica": celda({1: 0.82, 2: 0.72}),
+        "omg_imu|dinamica": celda({1: 0.77, 2: 0.67}),    # cae 0.05
     }
     r = A.caida_entre_posturas(celdas)
-    assert r["solo_lmg"]["caida_absoluta"] == pytest.approx(0.20)
-    assert r["lmg_imu"]["caida_absoluta"] == pytest.approx(0.05)
+    assert r["solo_omg"]["caida_absoluta"] == pytest.approx(0.20)
+    assert r["omg_imu"]["caida_absoluta"] == pytest.approx(0.05)
     # La IMU aguanta mejor: la diferencia de caidas es positiva.
     assert r["diferencia_de_caidas"]["absoluta"] == pytest.approx(0.15)
 
 
 def test_la_caida_relativa_usa_el_valor_estatico():
     celdas = {
-        "solo_lmg|estatica": celda({1: 0.50}),
-        "solo_lmg|dinamica": celda({1: 0.25}),
-        "lmg_imu|estatica": celda({1: 0.80}),
-        "lmg_imu|dinamica": celda({1: 0.40}),
+        "solo_omg|estatica": celda({1: 0.50}),
+        "solo_omg|dinamica": celda({1: 0.25}),
+        "omg_imu|estatica": celda({1: 0.80}),
+        "omg_imu|dinamica": celda({1: 0.40}),
     }
     r = A.caida_entre_posturas(celdas)
     # Las dos pierden la mitad, aunque en puntos absolutos una pierda el
     # doble que la otra.
-    assert r["solo_lmg"]["caida_relativa"] == pytest.approx(0.5)
-    assert r["lmg_imu"]["caida_relativa"] == pytest.approx(0.5)
+    assert r["solo_omg"]["caida_relativa"] == pytest.approx(0.5)
+    assert r["omg_imu"]["caida_relativa"] == pytest.approx(0.5)
 
 
 def test_sin_caida_la_diferencia_es_cero():
@@ -183,10 +183,10 @@ def tabla_por_sujeto(f1_por_celda, n_sujetos=10):
 
 
 def test_el_confirmatorio_usa_f1_y_dos_contrastes():
-    df = tabla_por_sujeto({("solo_lmg", "estatica"): 0.50,
-                           ("solo_lmg", "dinamica"): 0.45,
-                           ("lmg_imu", "estatica"): 0.60,
-                           ("lmg_imu", "dinamica"): 0.58})
+    df = tabla_por_sujeto({("solo_omg", "estatica"): 0.50,
+                           ("solo_omg", "dinamica"): 0.45,
+                           ("omg_imu", "estatica"): 0.60,
+                           ("omg_imu", "dinamica"): 0.58})
     r = E.analisis_confirmatorio(df)
     assert r["disponible"]
     assert r["metrica"] == "f1_macro"
@@ -196,9 +196,9 @@ def test_el_confirmatorio_usa_f1_y_dos_contrastes():
 
 
 def test_el_confirmatorio_avisa_si_falta_la_metrica():
-    df = tabla_por_sujeto({("solo_lmg", "estatica"): 0.5,
-                           ("solo_lmg", "dinamica"): 0.5,
-                           ("lmg_imu", "estatica"): 0.5,
-                           ("lmg_imu", "dinamica"): 0.5})
+    df = tabla_por_sujeto({("solo_omg", "estatica"): 0.5,
+                           ("solo_omg", "dinamica"): 0.5,
+                           ("omg_imu", "estatica"): 0.5,
+                           ("omg_imu", "dinamica"): 0.5})
     r = E.analisis_confirmatorio(df.drop(columns=["f1_macro"]))
     assert r["disponible"] is False

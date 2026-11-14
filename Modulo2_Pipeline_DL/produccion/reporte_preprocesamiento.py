@@ -21,7 +21,7 @@ Para cada CSV de sesion, con EXACTAMENTE el preprocesamiento del modelo
 
   3. RANGO DE CADA CANAL YA NORMALIZADO, en reposo y en gesto. La entrada
      del modelo INT8 usa UNA sola escala para los 8 canales, asi que
-     importa cuanto mas grandes son los valores de la LMG en z que los
+     importa cuanto mas grandes son los valores opticos en z que los
      del acelerometro en g.
 
 Uso:
@@ -119,7 +119,7 @@ def rangos_normalizados(v: P.Ventanas) -> pd.DataFrame:
                 continue
             p1, p50, p99 = np.percentile(x, [1, 50, 99])
             filas.append({"clase": nombre, "canal": c,
-                          "unidad": "z" if c in P.CANALES_LMG else "g",
+                          "unidad": "z" if c in P.CANALES_OPT else "g",
                           "p1": round(float(p1), 3),
                           "mediana": round(float(p50), 3),
                           "p99": round(float(p99), 3),
@@ -166,10 +166,10 @@ def main():
     rangos = rangos_normalizados(v)
     print("\n=== RANGO DE CADA CANAL NORMALIZADO (entrada del modelo) ===")
     print(rangos.to_string(index=False))
-    lmg = rangos[rangos.unidad == "z"].max_abs.max()
+    opt = rangos[rangos.unidad == "z"].max_abs.max()
     acc = rangos[rangos.unidad == "g"].max_abs.max()
-    print(f"\n  Mayor valor absoluto: LMG {lmg:.2f} z, acelerometro {acc:.2f} g, "
-          f"razon {lmg / max(acc, 1e-9):.1f}")
+    print(f"\n  Mayor valor absoluto: opticos {opt:.2f} z, acelerometro {acc:.2f} g, "
+          f"razon {opt / max(acc, 1e-9):.1f}")
 
 
 if __name__ == "__main__":

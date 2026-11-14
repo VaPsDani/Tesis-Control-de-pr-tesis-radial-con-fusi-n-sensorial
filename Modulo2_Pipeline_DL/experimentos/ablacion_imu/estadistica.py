@@ -12,7 +12,7 @@ REGLA DE ANALISIS FIJADA EL 2026-09-26, ANTES DE CAPTURAR NINGUN DATO
 
   CONFIRMATORIO (lo que decide, y lo unico que se declara como tal)
     Dos contrastes, sobre F1 MACRO y solo sobre esa metrica:
-      1. aporte de la IMU con el brazo quieto      lmg_imu - solo_lmg
+      1. aporte de la IMU con el brazo quieto      omg_imu - solo_omg
       2. aporte de la IMU con el brazo en movimiento
     Prueba: Wilcoxon de los rangos con signo, DE DOS COLAS, pareado por
     sujeto. Correccion de HOLM entre los dos, con alfa global de 0.05.
@@ -38,11 +38,11 @@ REGLA DE ANALISIS FIJADA EL 2026-09-26, ANTES DE CAPTURAR NINGUN DATO
 
 QUE SE CONTRASTA:
 
-  Efecto principal de A    lmg_imu frente a solo_lmg
+  Efecto principal de A    omg_imu frente a solo_omg
   Efecto principal de B    dinamica frente a estatica
-  Interaccion              (lmg_imu - solo_lmg) en dinamica
+  Interaccion              (omg_imu - solo_omg) en dinamica
                            menos
-                           (lmg_imu - solo_lmg) en estatica
+                           (omg_imu - solo_omg) en estatica
 
   La interaccion, SOBRE UNA CORRIDA EN MODO MIXTO, dice si la IMU aporta
   mas cuando el brazo se mueve. Es EXPLORATORIA: con n = 10 tiene poca
@@ -78,7 +78,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import wilcoxon
 
-COMPOSICIONES = ["solo_lmg", "lmg_imu"]
+COMPOSICIONES = ["solo_omg", "omg_imu"]
 CONDICIONES = ["estatica", "dinamica"]
 
 # --- regla confirmatoria fijada el 2026-09-26 (ver cabecera) ---
@@ -165,12 +165,12 @@ def analizar(df: pd.DataFrame, metrica: str) -> dict:
 
     # Efectos principales: se promedia el otro factor dentro de cada
     # sujeto, que es lo que hace el ANOVA de medidas repetidas.
-    efecto_a = ((v[("lmg_imu", "estatica")] + v[("lmg_imu", "dinamica")]) / 2
-                - (v[("solo_lmg", "estatica")] + v[("solo_lmg", "dinamica")]) / 2)
-    efecto_b = ((v[("solo_lmg", "dinamica")] + v[("lmg_imu", "dinamica")]) / 2
-                - (v[("solo_lmg", "estatica")] + v[("lmg_imu", "estatica")]) / 2)
-    aporte_estatica = v[("lmg_imu", "estatica")] - v[("solo_lmg", "estatica")]
-    aporte_dinamica = v[("lmg_imu", "dinamica")] - v[("solo_lmg", "dinamica")]
+    efecto_a = ((v[("omg_imu", "estatica")] + v[("omg_imu", "dinamica")]) / 2
+                - (v[("solo_omg", "estatica")] + v[("solo_omg", "dinamica")]) / 2)
+    efecto_b = ((v[("solo_omg", "dinamica")] + v[("omg_imu", "dinamica")]) / 2
+                - (v[("solo_omg", "estatica")] + v[("omg_imu", "estatica")]) / 2)
+    aporte_estatica = v[("omg_imu", "estatica")] - v[("solo_omg", "estatica")]
+    aporte_dinamica = v[("omg_imu", "dinamica")] - v[("solo_omg", "dinamica")]
     interaccion = aporte_dinamica - aporte_estatica
 
     salida = {
@@ -180,7 +180,7 @@ def analizar(df: pd.DataFrame, metrica: str) -> dict:
                              for a in COMPOSICIONES for b in CONDICIONES},
         "sd_por_celda": {f"{a}|{b}": float(v[(a, b)].std(ddof=1))
                          for a in COMPOSICIONES for b in CONDICIONES},
-        "efecto_A_imu": contraste(efecto_a, "lmg_imu - solo_lmg"),
+        "efecto_A_imu": contraste(efecto_a, "omg_imu - solo_omg"),
         "efecto_B_postura": contraste(efecto_b, "dinamica - estatica"),
         "aporte_imu_en_estatica": contraste(aporte_estatica,
                                             "IMU con el brazo quieto"),
@@ -218,7 +218,7 @@ def analizar_caida(df: pd.DataFrame, metrica: str) -> dict:
     OJO CON LA LECTURA: ese modo esta sesgado contra la IMU. Con el brazo
     fijo el acelerometro lee casi siempre el mismo vector de gravedad, y
     el modelo nunca ve la relacion entre postura y senal optica, que es
-    lo que tendria que aprender para compensarla. Si lmg_imu cae mas, lo
+    lo que tendria que aprender para compensarla. Si omg_imu cae mas, lo
     que se concluye es que la fusion inercial necesita variacion postural
     en los datos de entrenamiento, NO que la IMU no compense la postura.
     Esa pregunta la responde la interaccion del modo mixto.
@@ -248,7 +248,7 @@ def analizar_caida(df: pd.DataFrame, metrica: str) -> dict:
 
     salida = {"metrica": metrica, "n_sujetos": len(ancha), "por_composicion": resumen}
     if len(COMPOSICIONES) == 2:
-        a, b = COMPOSICIONES            # solo_lmg, lmg_imu
+        a, b = COMPOSICIONES            # solo_omg, omg_imu
         salida["diferencia_de_caidas"] = contraste(
             caidas[a] - caidas[b], f"caida({a}) - caida({b})")
         salida["lectura"] = (
@@ -465,7 +465,7 @@ def main():
                 "\n   ESTE MODO ESTA SESGADO CONTRA LA IMU: con el brazo fijo"
                 "\n   el acelerometro lee casi siempre el mismo vector de"
                 "\n   gravedad, y el modelo nunca ve la relacion entre postura"
-                "\n   y senal optica. Si lmg_imu cae mas, la conclusion es que"
+                "\n   y senal optica. Si omg_imu cae mas, la conclusion es que"
                 "\n   la fusion inercial NECESITA variacion postural en el"
                 "\n   entrenamiento, no que la IMU no compense la postura."
                 "\n"

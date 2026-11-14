@@ -6,7 +6,7 @@ Protesis transradial - Captura con voluntarios
 LA HIPOTESIS A CONTRASTAR:
   El margen de entrada del bloque de reposo se fijo en 2000 ms razonando
   que volver a reposo es mas lento que salir de el, sobre todo con una
-  senal optica: el LMG refleja deformacion muscular y volumen sanguineo,
+  senal optica: la OMG refleja deformacion muscular y volumen sanguineo,
   y la hiperemia reactiva posterior a una contraccion sostenida tiene
   constantes de tiempo de segundos.
 
@@ -63,10 +63,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from preprocesamiento import COLUMNAS_MODELO
+from preprocesamiento import CANALES_OPT, COLUMNAS_MODELO  # noqa: F401
 
 NOMBRES = ["Rest", "Pinch", "Tripod", "Power", "Finger_Ext"]
-CANALES_LMG = ["v1", "v2", "v3", "v4", "v5"]
 PERIODO_MS = 10
 
 
@@ -125,9 +124,9 @@ def main():
     cal = df[(df["es_calibracion"] == 1) & (df["en_margen"] == 0)]
     if len(cal) == 0:
         raise SystemExit("El CSV no tiene bloque de calibracion utilizable.")
-    basal = {c: float(cal[c].mean()) for c in CANALES_LMG}
+    basal = {c: float(cal[c].mean()) for c in CANALES_OPT}
     print(f"Referencia basal (calibracion, {len(cal)} muestras):")
-    for c in CANALES_LMG:
+    for c in CANALES_OPT:
         print(f"  {c}: {basal[c]:.4f}")
 
     # Agrupar cada bloque de reposo por el gesto que lo precede.
@@ -147,11 +146,11 @@ def main():
     n_min = min(b - a for lst in por_predecesor.values() for a, b in lst)
     t_s = np.arange(n_min) * PERIODO_MS / 1000.0
 
-    fig, axes = plt.subplots(1, len(CANALES_LMG), figsize=(22, 4.2),
+    fig, axes = plt.subplots(1, len(CANALES_OPT), figsize=(4.4 * len(CANALES_OPT), 4.2),
                              sharex=True)
     informe = {"basal": basal, "por_predecesor": {}}
 
-    for j, canal in enumerate(CANALES_LMG):
+    for j, canal in enumerate(CANALES_OPT):
         ax = axes[j]
         ax.axhline(basal[canal], color="k", ls=":", lw=1.5,
                    label="basal (calibracion)")
@@ -182,7 +181,7 @@ def main():
         ax.set_title(canal)
         ax.set_xlabel("s desde el inicio del reposo")
         if j == 0:
-            ax.set_ylabel("LMG (mV)")
+            ax.set_ylabel("v (mV)")
             ax.legend(fontsize=7)
         ax.grid(alpha=0.3)
 

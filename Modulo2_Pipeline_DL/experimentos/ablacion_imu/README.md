@@ -1,6 +1,6 @@
 # Ablación de la IMU
 
-**Pregunta que responde:** ¿aporta la unidad inercial algo sobre la LMG sola, y
+**Pregunta que responde:** ¿aporta la unidad inercial algo sobre la OMG sola, y
 ese aporte cambia cuando el brazo se mueve?
 
 Es la comparación central del trabajo. **Ningún trabajo publicado de
@@ -12,8 +12,8 @@ el mismo protocolo en todas las celdas.
 
 | | estática | dinámica |
 |---|---|---|
-| **solo_lmg** (5 canales ópticos) | celda 1 | celda 2 |
-| **lmg_imu** (5 ópticos + 3 del acelerómetro) | celda 3 | celda 4 |
+| **solo_omg** (8 canales ópticos) | celda 1 | celda 2 |
+| **omg_imu** (8 ópticos + 3 del acelerómetro) | celda 3 | celda 4 |
 
 - **Factor A, composición de la entrada.** Lo único que cambia son las columnas
   que alimentan al modelo.
@@ -58,8 +58,8 @@ De ahí la lectura correcta:
 
 | Si sale | Lo que significa | Lo que NO significa |
 |---|---|---|
-| `lmg_imu` cae más que `solo_lmg` | Que la fusión inercial **necesita variación postural en los datos de entrenamiento** | Que la IMU no compense la postura |
-| `lmg_imu` cae menos | Que la IMU aporta robustez incluso sin haber visto la postura en entrenamiento | |
+| `omg_imu` cae más que `solo_omg` | Que la fusión inercial **necesita variación postural en los datos de entrenamiento** | Que la IMU no compense la postura |
+| `omg_imu` cae menos | Que la IMU aporta robustez incluso sin haber visto la postura en entrenamiento | |
 
 El reporte de este modo incluye una **comprobación del rango del acelerómetro
 en entrenamiento frente al de test**, canal por canal y sobre los valores ya
@@ -82,7 +82,7 @@ siempre la distancia dentro de una misma corrida.
 | Selección de época | Validación interna sobre un sujeto separado del train, nunca del test, y reentreno con todo el train |
 | Preprocesamiento | El **mismo de producción**, porque es la misma función: `produccion/preprocesamiento.py`, `preparar_sesiones()` |
 | Fases | Variante `dinamica_meseta`: la preparación y la reacción quedan fuera, el reposo entra solo estable, y el reposo en movimiento entra entero como Rest |
-| Normalización | Con **el bloque de calibración de cada sesión**: LMG en z, acelerómetro en g menos la media, sin dividir. Igual que el firmware |
+| Normalización | Con **el bloque de calibración de cada sesión**: ópticos en z, acelerómetro en g menos la media, sin dividir. Igual que el firmware |
 | Desbalance | Pesos por clase, total / (5 × ventanas de la clase), calculados en cada pliegue solo con las ventanas de entrenamiento |
 | Repeticiones descartadas | Fuera |
 | Ventana y stride | 200 ms y 20 ms |
@@ -112,7 +112,7 @@ pliegue comparten modelo:
 
 | Contraste | Qué mide |
 |---|---|
-| Efecto principal de A | `lmg_imu` frente a `solo_lmg` |
+| Efecto principal de A | `omg_imu` frente a `solo_omg` |
 | Efecto principal de B | dinámica frente a estática |
 | Aporte de la IMU en cada condición | por separado, quieto y en movimiento |
 | **Interacción** | si el aporte de la IMU es mayor con el brazo en movimiento |

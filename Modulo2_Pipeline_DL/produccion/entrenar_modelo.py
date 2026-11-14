@@ -6,7 +6,7 @@ Protesis transradial - Fusion sensorial y Deep Learning
 EL MISMO MECANISMO QUE LA ABLACION DE LA IMU:
   - Datos: produccion/preprocesamiento.py, preparar_sesiones(). Fases,
     repeticiones descartadas fuera, y normalizacion con la calibracion de
-    cada sesion, igual que el firmware: LMG en z, acelerometro en g menos
+    cada sesion, igual que el firmware: opticos en z, acelerometro en g menos
     la media. Es la misma funcion que usa la ablacion (A18).
   - Particion: GroupKFold por sujeto, k = 5 (8 sujetos entrenan y 2 son
     de prueba), o LOSO como complemento (A14). Con verificacion de fuga.
@@ -161,7 +161,7 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--sesiones", default=os.path.join(_M2, "sesiones", "*.csv"))
     ap.add_argument("--modo", choices=["cv", "loso", "final"], default="cv")
-    ap.add_argument("--composicion", choices=list(P.COMPOSICIONES), default="lmg_imu")
+    ap.add_argument("--composicion", choices=list(P.COMPOSICIONES), default="omg_imu")
     ap.add_argument("--excluir", type=int, nargs="*",
                     help="subject_id que no entran al modelo final")
     ap.add_argument("--folds", type=int, default=5)

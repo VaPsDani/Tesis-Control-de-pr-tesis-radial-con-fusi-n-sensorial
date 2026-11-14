@@ -29,10 +29,13 @@ ETIQUETADO:
     3 = Power
     4 = Finger_Extension
 
-ESQUEMA DEL CSV DE CAPTURA:
-  subject_id, repetition_id, timestamp_ms, v1..v5,
+ESQUEMA DEL CSV DE CAPTURA (firmware M1-2026.11.13-QRE):
+  subject_id, repetition_id, timestamp_ms, v1..v8,
   ax, ay, az, gx, gy, gz, label, bloque_tipo, condicion_postural,
-  en_margen, es_calibracion, fase
+  en_margen, es_calibracion, fase, amb1..amb8
+
+  v1..v8 son los 8 modulos QRE1113: v = V_apag - V_enc en mV, mayor con
+  mas luz. amb1..amb8 es la trama oscura (V_apag).
 
   condicion_postural es estatica o dinamica, POR REPETICION: de las 6
   repeticiones de cada gesto, 3 se hacen con el brazo quieto y 3
@@ -47,7 +50,12 @@ ESQUEMA DEL CSV DE CAPTURA:
   dinamica + meseta como clase del gesto y el reposo estable como Rest;
   en_margen se sigue grabando, pero ya no decide que filas entran.
 
-  De esas, SOLO 8 entran al modelo: v1..v5 + ax, ay, az.
+  De esas, SOLO 11 entran al modelo: v1..v8 + ax, ay, az. Los nombres
+  salen de common/canales.py, la unica fuente de verdad.
+
+  Los CSV del firmware LMG (5 canales opticos, M1-2026.10.22 o
+  anteriores) se rechazan con un error claro: otro sensor, otra
+  polaridad y otro numero de canales. Ver verificar_formato_omg().
 
   EL FILTRADO DE CANALES OCURRE AQUI, NO EN EL FIRMWARE.
   El giroscopio (gx, gy, gz) se graba porque sus bytes ya viajan en la
@@ -58,12 +66,10 @@ ESQUEMA DEL CSV DE CAPTURA:
 
   El cuarto canal de IMU de la version anterior (qw, la magnitud
   saturada del acelerometro) se elimino: era una funcion determinista de
-  ax, ay, az. Con 8 canales el vector tiene la misma forma con la que se
-  valido el pipeline sobre NinaPro DB5 (5 sEMG + 3 ACC), asi que el mismo
-  codigo sirve para las dos entradas.
+  ax, ay, az.
 
 ESTRUCTURA DE SALIDA:
-  X: (num_ventanas, window_size, num_features)  → (N, 20, 8)
+  X: (num_ventanas, window_size, num_features)  → (N, 20, 11)
   y: (num_ventanas,)  → one-hot encoding (N, 5)
 """
 
@@ -72,19 +78,25 @@ import os
 from dataclasses import dataclass, field
 from typing import List, Tuple
 
+import sys
+
 import numpy as np
 import pandas as pd
+
+_COMMON = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       "common")
+if _COMMON not in sys.path:
+    sys.path.insert(0, _COMMON)
+from canales import CANALES_ACC, CANALES_AMB, CANALES_GIRO, CANALES_OPT  # noqa: E402
 
 # ============================================================
 # ESQUEMA DEL CSV
 # ============================================================
-# Los 8 canales que consume el modelo, EN ESTE ORDEN. Debe coincidir
-# exactamente con el empaquetado de muestra[] en el Modulo 3; si los dos
-# se desincronizan no hay error, el modelo recibe canales permutados.
-COLUMNAS_MODELO = ["v1", "v2", "v3", "v4", "v5", "ax", "ay", "az"]
+# Los 11 canales que consume el modelo, EN ESTE ORDEN.
+COLUMNAS_MODELO = CANALES_OPT + CANALES_ACC
 
-# Se graban pero NO entran al modelo.
-COLUMNAS_NO_MODELO = ["gx", "gy", "gz"]
+# Se graban pero NO entran al modelo: giroscopio y trama oscura.
+COLUMNAS_NO_MODELO = CANALES_GIRO + CANALES_AMB
 
 # Columnas de protocolo que anade el script de captura.
 COLUMNAS_METADATOS = [
@@ -97,24 +109,22 @@ COLUMNAS_METADATOS = [
 # pertenece a ninguna de las dos condiciones.
 CONDICIONES_POSTURALES = ("estatica", "dinamica")
 
-NUM_CANALES_MODELO = len(COLUMNAS_MODELO)   # 8
+NUM_CANALES_MODELO = len(COLUMNAS_MODELO)   # 11
 
 
 # ============================================================
 # NUCLEO COMPARTIDO: CARGA, NORMALIZACION Y VENTANEO
 # ============================================================
-# La ablacion de la IMU, el entrenamiento de produccion y la conversion
+# La ablacion de la IMU, el entrenamiento de produccion y la perdida
 # INT8 pasan por estas funciones y por ninguna otra. Si dos caminos
-# preprocesaran distinto, el modelo que se evalua en el articulo no seria
-# el que se despliega en el ESP32.
+# preprocesaran distinto, el modelo que se cuantiza no seria el que se
+# evalua en el articulo.
 
-CANALES_LMG = COLUMNAS_MODELO[:5]       # v1..v5
-CANALES_ACC = COLUMNAS_MODELO[5:]       # ax, ay, az
-# Configuraciones del articulo (A16): A con los 5 canales LMG, B con los
-# 5 LMG y los 3 del acelerometro. Mismas ventanas, mismas etiquetas.
+# Configuraciones del articulo: A con los 8 canales opticos, B con los 8
+# opticos y los 3 del acelerometro. Mismas ventanas, mismas etiquetas.
 COMPOSICIONES = {
-    "solo_lmg": CANALES_LMG,
-    "lmg_imu": CANALES_LMG + CANALES_ACC,
+    "solo_omg": CANALES_OPT,
+    "omg_imu": CANALES_OPT + CANALES_ACC,
 }
 NOMBRES_CLASES = ["Rest", "Pinch", "Tripod", "Power", "Finger_Ext"]
 PERIODO_MS = 10
@@ -129,7 +139,40 @@ CLAVES_SEGMENTO = ("subject_id", "repetition_id", "label", "bloque_tipo",
                    "condicion_postural")
 
 
-def cargar_sesion(ruta: str) -> pd.DataFrame:
+def verificar_formato_omg(df: pd.DataFrame, ruta: str,
+                          permitir_lmg: bool = False):
+    """
+    Rechaza los CSV del firmware LMG: 5 canales opticos, o una version de
+    firmware sin "QRE" en el JSON de la sesion (M1-2026.10.22 o
+    anteriores). Otro sensor, otra polaridad y otro numero de canales: no
+    se mezclan. permitir_lmg=True lo salta, solo para inspeccionar datos
+    viejos a sabiendas.
+    """
+    if permitir_lmg:
+        return
+    faltan = [c for c in CANALES_OPT if c not in df.columns]
+    if faltan:
+        raise ValueError(
+            f"{os.path.basename(ruta)}: faltan las columnas {faltan}. Es un "
+            f"CSV del firmware LMG (5 canales opticos, M1-2026.10.22 o "
+            f"anterior) y no se mezcla con los OMG de 8 canales. Para leerlo "
+            f"igual, permitir_lmg=True.")
+    meta = os.path.splitext(ruta)[0] + ".json"
+    if os.path.exists(meta):
+        try:
+            with open(meta, encoding="utf-8") as f:
+                version = (json.load(f).get("adquisicion") or {}).get(
+                    "version_firmware")
+        except (OSError, ValueError):
+            version = None
+        if version and "QRE" not in version:
+            raise ValueError(
+                f"{os.path.basename(ruta)}: grabado con el firmware {version}, "
+                f"anterior al QRE1113 (M1-2026.11.13-QRE). No se mezcla. Para "
+                f"leerlo igual, permitir_lmg=True.")
+
+
+def cargar_sesion(ruta: str, permitir_lmg: bool = False) -> pd.DataFrame:
     """
     Lee el CSV de una sesion con la columna fase VIGENTE.
 
@@ -140,6 +183,7 @@ def cargar_sesion(ruta: str) -> pd.DataFrame:
     """
     from fases import FASES_VERSION
     df = pd.read_csv(ruta)
+    verificar_formato_omg(df, ruta, permitir_lmg)
     vigente = False
     ruta_json = os.path.splitext(ruta)[0] + "_fases.json"
     if "fase" in df.columns and os.path.exists(ruta_json):
@@ -188,7 +232,7 @@ def normalizar(X: np.ndarray, mu: np.ndarray, sd: np.ndarray) -> np.ndarray:
     """
     La normalizacion del articulo, igual que en el firmware.
 
-      LMG (A8)            z por canal: (x - media) / desviacion, ambas de
+      Opticos (A8)        z por canal: (x - media) / desviacion, ambas de
                           la calibracion.
       Acelerometro (A9)   (x - media de la calibracion), en g. NO se
                           divide: el firmware ya entrega el acelerometro en
@@ -196,10 +240,10 @@ def normalizar(X: np.ndarray, mu: np.ndarray, sd: np.ndarray) -> np.ndarray:
                           desviacion de un brazo quieto, que es casi solo
                           ruido, inflaria la escala sin sentido fisico.
 
-    X: (..., 8) en el orden de COLUMNAS_MODELO.
+    X: (..., 11) en el orden de COLUMNAS_MODELO.
     """
     Xn = np.asarray(X, dtype=np.float32) - mu
-    k = len(CANALES_LMG)
+    k = len(CANALES_OPT)
     Xn[..., :k] = Xn[..., :k] / (sd[:k] + EPS_CALIBRACION)
     return Xn.astype(np.float32)
 
@@ -374,6 +418,7 @@ class SlidingWindowPreprocessor:
         excluir_margenes: bool = None,
         excluir_calibracion: bool = True,
         variante_fases: str = "dinamica_meseta",
+        permitir_lmg: bool = False,
     ) -> pd.DataFrame:
         """
         Carga el CSV de captura y selecciona los canales del modelo.
@@ -399,20 +444,21 @@ class SlidingWindowPreprocessor:
                 post-contraccion que vera el clasificador en uso.
 
         Returns:
-            DataFrame filtrado. self.feature_cols queda fijado a las 8
+            DataFrame filtrado. self.feature_cols queda fijado a las 11
             columnas del modelo.
         """
         # Las fases se calculan sobre la sesion ENTERA, antes de filtrar,
         # con la misma funcion que usa todo lo demas (cargar_sesion).
         mascara_fases = None
         if variante_fases is not None:
-            df = cargar_sesion(ruta)
+            df = cargar_sesion(ruta, permitir_lmg)
             from fases import mascara_entrenamiento
             mascara_fases = mascara_entrenamiento(
                 df["fase"].astype(str).values, df["label"].values,
                 variante_fases)
         else:
             df = pd.read_csv(ruta)
+            verificar_formato_omg(df, ruta, permitir_lmg)
         if excluir_margenes is None:
             excluir_margenes = mascara_fases is None
 

@@ -6,10 +6,11 @@ alcance:
 - **Sensor:** del OPT101 con LED aparte (LMG, leído con dos ADS1115) al
   QRE1113GR, que trae LED y fototransistor en el mismo encapsulado (OMG,
   optomiografía, leído con el ADC interno del ESP32). De 5 a 8 canales.
-- **Alcance:** todo se evalúa fuera de línea. Sin cuantización INT8 ni
-  despliegue en el ESP32, sin mano impresa, servos, PCA9685, FSR, prueba en
-  línea ni medición de latencia. Sin banco de variantes de módulo ni
-  índice I.
+- **Alcance:** todo se evalúa fuera de línea. Sin despliegue en el ESP32,
+  sin mano impresa, servos, PCA9685, FSR, prueba en línea ni medición de
+  latencia. Sin banco de variantes de módulo ni índice I. La cuantización
+  INT8 se conserva solo para medir fuera de línea cuánto se degrada el
+  modelo.
 
 Lo que salió del alcance se movió aquí con `git mv`, sin borrar nada, para
 que su historial siga disponible.
@@ -38,10 +39,11 @@ copiarlos aquí. Las copias idénticas están en
 ## Lo que no se movió
 
 La conversión INT8 (`Modulo2_Pipeline_DL/produccion/convertir_tflite.py` y
-`perdida_cuantizacion.py`) y `Benchmark_Inferencia/` siguen en su lugar.
+`perdida_cuantizacion.py`) sigue en su lugar y se adaptó a los canales
+nuevos: sirve para comparar fuera de línea el modelo flotante con el INT8.
 El experimento ya publicado `experimentos/cuantizacion_int8`, sobre
-NinaPro, importa de `convertir_tflite`. Pertenecen a la etapa LMG/NinaPro y
-hoy son trabajo futuro.
+NinaPro, importa de `convertir_tflite`. `Benchmark_Inferencia/`, que mide
+la inferencia en el ESP32, es de la etapa LMG y hoy es trabajo futuro.
 
 Este código archivado no se mantiene: puede no correr con el pipeline
 actual de 8 canales.

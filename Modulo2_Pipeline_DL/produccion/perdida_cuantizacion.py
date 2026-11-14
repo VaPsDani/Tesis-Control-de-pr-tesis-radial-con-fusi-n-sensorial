@@ -3,11 +3,11 @@ perdida_cuantizacion.py - Perdida por cuantizacion INT8 (A21), pliegue a pliegue
 =================================================================================
 Protesis transradial - Etapa 4
 
-ETAPA LMG/NINAPRO, HOY TRABAJO FUTURO (2026-11-13):
-  Con el cambio a QRE1113/OMG la cuantizacion INT8 y el despliegue en el
-  ESP32 quedan fuera del alcance. Este script no se adapta a los 8 canales
-  opticos: se conserva porque experimentos/cuantizacion_int8, ya publicado
-  sobre NinaPro, importa de convertir_tflite. Ver archivo/README.md.
+ALCANCE DESDE EL CAMBIO A QRE1113/OMG (2026-11-13):
+  La cuantizacion INT8 se usa SOLO FUERA DE LINEA, para medir cuanto se
+  degrada el modelo frente al flotante. No hay despliegue en el ESP32. El
+  experimento ya publicado experimentos/cuantizacion_int8 (NinaPro)
+  importa de convertir_tflite: sus funciones genericas no cambian.
 
 PARA CADA PLIEGUE de la ablacion (corrida con --guardar_modelos):
   1. Carga el modelo reentrenado del pliegue.
@@ -27,7 +27,7 @@ ablacion guardo durante el entrenamiento (predicciones.npz). Si no, los
 datos o el modelo no son los mismos y la comparacion no vale.
 
 Regla acordada para la Etapa 4: si la perdida supera 1 punto porcentual,
-se aplica una ganancia fija al acelerometro en Python y en el firmware.
+se aplica una ganancia fija al acelerometro en el preprocesamiento.
 
 Uso:
   python perdida_cuantizacion.py --ablacion resultados_ablacion --sesiones "../sesiones/*.csv"
@@ -66,7 +66,7 @@ def main():
     ap.add_argument("--ablacion", required=True,
                     help="carpeta de salida de ablacion_imu.py --guardar_modelos")
     ap.add_argument("--sesiones", required=True)
-    ap.add_argument("--composicion", default="lmg_imu", choices=list(P.COMPOSICIONES))
+    ap.add_argument("--composicion", default="omg_imu", choices=list(P.COMPOSICIONES))
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
 

@@ -24,7 +24,7 @@ QUE SE ESCRIBE:
     preprocesamiento.py lo usa para detectar una columna fase obsoleta.
 
 DATOS DE LA CAPTURA QUE USA:
-  - v1..v5 como senal; ax..gz como confirmacion (IMU).
+  - v1..v8 (common/canales.py) como senal; ax..gz como confirmacion (IMU).
   - El bloque de calibracion (es_calibracion == 1, fuera de margen) como
     base de respaldo, y como base unica con --modo_base calibracion.
   - Los huecos de timestamp (pausas) parten la sesion en tramos
@@ -65,9 +65,13 @@ if AQUI not in sys.path:
 
 from fases import (FASE_DESCARTADA, FASES_VERSION, ParametrosFases,  # noqa: E402
                    estadisticas_base, etiquetar_fases, firma)
+_COMMON = os.path.join(os.path.dirname(AQUI), "common")
+if _COMMON not in sys.path:
+    sys.path.insert(0, _COMMON)
+from canales import CANALES_ACC, CANALES_GIRO, CANALES_OPT  # noqa: E402
 
-COLUMNAS_LMG = ["v1", "v2", "v3", "v4", "v5"]
-COLUMNAS_IMU = ["ax", "ay", "az", "gx", "gy", "gz"]
+COLUMNAS_OPT = CANALES_OPT
+COLUMNAS_IMU = CANALES_ACC + CANALES_GIRO
 HUECO_PERIODOS = 3          # mismo criterio que preprocesamiento.py
 MIN_MUESTRAS_CALIB = 50
 
@@ -103,7 +107,7 @@ def anotar_df(df: pd.DataFrame, p: Optional[ParametrosFases] = None,
         fase (array de str), informes (lista de dict por gesto), fs (Hz)
     """
     p = p or ParametrosFases()
-    x = df[COLUMNAS_LMG].to_numpy(np.float64)
+    x = df[COLUMNAS_OPT].to_numpy(np.float64)
     imu = (df[COLUMNAS_IMU].to_numpy(np.float64)
            if all(c in df.columns for c in COLUMNAS_IMU) else None)
     lab = df["label"].to_numpy(np.int64)

@@ -13,8 +13,8 @@ produccion preprocesen distinto, porque no hay dos codigos.
 
 LO QUE SI ES DE AQUI:
   - Los niveles del factor A (que canales entran al modelo).
-  - seleccionar_canales(), que es lo UNICO que cambia entre solo_lmg y
-    lmg_imu: las cuatro celdas del 2x2 parten de las mismas ventanas.
+  - seleccionar_canales(), que es lo UNICO que cambia entre solo_omg y
+    omg_imu: las cuatro celdas del 2x2 parten de las mismas ventanas.
   - El generador de sesiones sinteticas, para probar sin piloto.
 """
 
@@ -36,10 +36,11 @@ from typing import List
 import numpy as np
 import pandas as pd
 
-from preprocesamiento import (CANALES_ACC, CANALES_LMG,  # noqa: F401
+from preprocesamiento import (CANALES_ACC, CANALES_OPT,  # noqa: F401
                               COLUMNAS_MODELO, COMPOSICIONES,
                               CONDICIONES_POSTURALES, NOMBRES_CLASES,
                               Ventanas, preparar_sesiones)
+from canales import CANALES_AMB, CANALES_GIRO, NUM_OPT  # noqa: E402
 
 # Niveles del factor B, tal como se escriben en el CSV.
 CONDICION_ESTATICA, CONDICION_DINAMICA = CONDICIONES_POSTURALES
@@ -65,7 +66,7 @@ def seleccionar_canales(v: Ventanas, composicion: str) -> np.ndarray:
     """
     Devuelve X con los canales del nivel pedido del factor A.
 
-    Es lo UNICO que cambia entre solo_lmg y lmg_imu: las mismas ventanas,
+    Es lo UNICO que cambia entre solo_omg y omg_imu: las mismas ventanas,
     las mismas filas, el mismo orden.
     """
     if composicion not in COMPOSICIONES:
@@ -95,6 +96,11 @@ GRAVEDAD = {
 }
 
 
+# Cuanto se mueve cada canal optico con la postura, en el simulador.
+PESO_POSTURA = np.array([1.0, 0.7, 0.5, 0.8, 0.6, 0.9, 0.4, 0.75])
+assert len(PESO_POSTURA) == NUM_OPT
+
+
 def generar_sesiones_sinteticas(directorio: str, n_sujetos: int = 10,
                                 semilla: int = 42) -> str:
     """
@@ -110,14 +116,16 @@ def generar_sesiones_sinteticas(directorio: str, n_sujetos: int = 10,
       - SUELTA: al empezar el reposo la senal vuelve en 400 ms.
       - POSTURA: el acelerometro sigue el vector de gravedad de la postura
         con una constante de tiempo de 0.3 s, y la senal optica cambia
-        con la postura. Esto ultimo es la premisa del trabajo: la LMG se
-        mueve con el brazo aunque la mano no haga nada.
+        con la postura. Esto ultimo es la premisa del trabajo: la senal
+        optica se mueve con el brazo aunque la mano no haga nada.
+      - TRAMA OSCURA: amb1..amb8 cerca del tope del ADC, como dentro de
+        la carcasa.
       - En las DINAMICAS el brazo va a la primera posicion durante la
         preparacion, con la mano relajada, y vuelve a la mesa despues de
         soltar el gesto. En el REPOSO EN MOVIMIENTO recorre las tres
         posiciones sin gesto.
-    Asi la celda lmg_imu tiene, por construccion, informacion que
-    solo_lmg no tiene en la condicion dinamica: el acelerometro dice en
+    Asi la celda omg_imu tiene, por construccion, informacion que
+    solo_omg no tiene en la condicion dinamica: el acelerometro dice en
     que postura esta el brazo.
     """
     from protocolo import (TIPO_CONTRACCION, TIPO_PREPARACION,
@@ -167,16 +175,17 @@ def generar_sesiones_sinteticas(directorio: str, n_sujetos: int = 10,
                 acc += (GRAVEDAD[postura] - acc) * (dt / tau)
                 desvio_postura = float(np.linalg.norm(acc - GRAVEDAD["mesa"]))
 
-                lmg = (rng.randn(5) * 0.4 + offset + nivel
-                       + 0.8 * desvio_postura * np.array([1.0, 0.7, 0.5, 0.8, 0.6]))
+                opt = (rng.randn(NUM_OPT) * 0.4 + offset + nivel
+                       + 0.8 * desvio_postura * PESO_POSTURA)
                 filas.append([
                     sujeto, b.repetition_id, t,
-                    *np.round(lmg, 4),
+                    *np.round(opt, 4),
                     *np.round(acc + rng.randn(3) * 0.02, 4),
                     *np.round(rng.randn(3) * 0.5, 4),
                     b.label, b.tipo, b.condicion_postural,
                     b.en_margen(b.t_inicio_ms + t_rel), b.es_calibracion,
                     f"S{sujeto:02d}", pos, 0, 0,
+                    *np.round(3050 + rng.randn(NUM_OPT) * 2, 1),
                 ])
                 t += PERIODO_MS
             if b.tipo in (TIPO_CONTRACCION, TIPO_REPOSO_DINAMICO):
@@ -186,12 +195,12 @@ def generar_sesiones_sinteticas(directorio: str, n_sujetos: int = 10,
             elif b.tipo != TIPO_REPOSO:
                 nivel_previo = 0.0
 
-        columnas = ["subject_id", "repetition_id", "timestamp_ms",
-                    "v1", "v2", "v3", "v4", "v5", "ax", "ay", "az",
-                    "gx", "gy", "gz", "label", "bloque_tipo",
-                    "condicion_postural", "en_margen", "es_calibracion",
-                    "id_participante", "posicion_brazo", "ts_pc_ms",
-                    "descartada"]
+        columnas = (["subject_id", "repetition_id", "timestamp_ms"]
+                    + CANALES_OPT + CANALES_ACC + CANALES_GIRO
+                    + ["label", "bloque_tipo",
+                       "condicion_postural", "en_margen", "es_calibracion",
+                       "id_participante", "posicion_brazo", "ts_pc_ms",
+                       "descartada"] + CANALES_AMB)
         ruta = os.path.join(directorio, f"s{sujeto:02d}_sintetica.csv")
         pd.DataFrame(filas, columns=columnas).to_csv(ruta, index=False)
         rutas.append(ruta)

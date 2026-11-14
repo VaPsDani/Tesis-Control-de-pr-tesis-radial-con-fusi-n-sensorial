@@ -4,11 +4,11 @@
 # Dos trabajos en paralelo, cada uno en orden:
 #   A  ablacion mixta (k = 5, guarda el modelo de cada pliegue), estadistica
 #      confirmatoria y exploratoria, perdida por cuantizacion INT8 de
-#      lmg_imu pliegue a pliegue (A21, A23), y el modelo final de la
+#      omg_imu pliegue a pliegue (A21, A23), y el modelo final de la
 #      configuracion que elige la regla A22, convertido a INT8 con el .h
 #      para el Modulo 3.
 #   B  prueba de generalizacion postural (entrena con estaticas, A17) y
-#      LOSO de produccion con lmg_imu, como complemento (A14).
+#      LOSO de produccion con omg_imu, como complemento (A14).
 # Dos y no tres: con 9 GB de RAM en WSL, tres procesos de TensorFlow
 # arriesgan quedarse sin memoria.
 #
@@ -38,7 +38,7 @@ echo "$(date -Is) inicio, sesiones: $SES"
     python -u "$AB/estadistica.py" --csv "$OUT/ablacion_mixto/ablacion_imu_por_sujeto.csv" \
         > "$OUT/A2_estadistica.txt" 2>&1 &&
     python -u "$M2/produccion/perdida_cuantizacion.py" --ablacion "$OUT/ablacion_mixto" \
-        --sesiones "$SES" --composicion lmg_imu > "$OUT/A3_perdida_int8.log" 2>&1 &&
+        --sesiones "$SES" --composicion omg_imu > "$OUT/A3_perdida_int8.log" 2>&1 &&
     ELEGIDA=$(python -c "import json; print(json.load(open('$OUT/ablacion_mixto/ablacion_imu.json'))['regla_de_despliegue']['elegida'])") &&
     python -u "$M2/produccion/entrenar_modelo.py" --sesiones "$SES" --modo final \
         --composicion "$ELEGIDA" --output "$OUT/produccion_final" > "$OUT/A4_produccion_final.log" 2>&1 &&
@@ -51,7 +51,7 @@ echo "$(date -Is) inicio, sesiones: $SES"
     python -u "$AB/ablacion_imu.py" --sesiones "$SES" --entrenamiento estatica_a_dinamica \
         --output "$OUT/ablacion_estatica_a_dinamica" > "$OUT/B1_estatica_a_dinamica.log" 2>&1 &&
     python -u "$M2/produccion/entrenar_modelo.py" --sesiones "$SES" --modo loso \
-        --composicion lmg_imu --output "$OUT/produccion_loso" > "$OUT/B2_produccion_loso.log" 2>&1
+        --composicion omg_imu --output "$OUT/produccion_loso" > "$OUT/B2_produccion_loso.log" 2>&1
     echo "$(date -Is) trabajo B terminado, codigo $?"
 ) &
 wait

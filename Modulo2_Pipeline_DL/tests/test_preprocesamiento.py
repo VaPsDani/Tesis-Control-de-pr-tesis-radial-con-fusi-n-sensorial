@@ -21,19 +21,39 @@ sys.path.insert(0, os.path.join(os.path.dirname(AQUI), "experimentos",
 
 
 # ---------- normalizacion ----------
-def test_la_lmg_va_en_z_y_el_acelerometro_solo_resta_la_media():
-    mu = np.array([1, 2, 3, 4, 5, 0.1, 0.2, 0.9], dtype=np.float32)
-    sd = np.array([2, 2, 2, 2, 2, 0.01, 0.01, 0.01], dtype=np.float32)
-    x = np.array([[[3, 4, 5, 6, 7, 0.6, 0.2, 1.4]]], dtype=np.float32)
+def test_los_opticos_van_en_z_y_el_acelerometro_solo_resta_la_media():
+    mu = np.array([1, 2, 3, 4, 5, 6, 7, 8, 0.1, 0.2, 0.9], dtype=np.float32)
+    sd = np.array([2] * 8 + [0.01] * 3, dtype=np.float32)
+    x = np.array([[[3, 4, 5, 6, 7, 8, 9, 10, 0.6, 0.2, 1.4]]], dtype=np.float32)
     z = P.normalizar(x, mu, sd)[0, 0]
-    assert np.allclose(z[:5], 1.0, atol=1e-6)            # (x - mu) / sd
+    assert np.allclose(z[:8], 1.0, atol=1e-6)            # (x - mu) / sd
     # El acelerometro NO se divide: con sd = 0.01 dividir daria 50.
-    assert np.allclose(z[5:], [0.5, 0.0, 0.5], atol=1e-6)
+    assert np.allclose(z[8:], [0.5, 0.0, 0.5], atol=1e-6)
+
+
+def test_un_csv_del_firmware_lmg_se_rechaza(tmp_path):
+    import json
+    import pytest
+    viejo = tmp_path / "lmg.csv"
+    pd.DataFrame({c: [0.0] for c in ["v1", "v2", "v3", "v4", "v5", "ax", "ay",
+                                      "az", "label", "timestamp_ms"]}).to_csv(viejo, index=False)
+    with pytest.raises(ValueError, match="firmware LMG"):
+        P.cargar_sesion(str(viejo))
+    # Con 8 canales pero grabado con un firmware sin QRE, tambien.
+    nuevo = tmp_path / "s.csv"
+    pd.DataFrame({c: [0.0] for c in P.COLUMNAS_MODELO}).to_csv(nuevo, index=False)
+    json.dump({"adquisicion": {"version_firmware": "M1-2026.10.22"}},
+              open(tmp_path / "s.json", "w"))
+    with pytest.raises(ValueError, match="M1-2026.10.22"):
+        P.verificar_formato_omg(pd.read_csv(nuevo), str(nuevo))
+    # El indicador explicito lo deja pasar.
+    P.verificar_formato_omg(pd.read_csv(viejo), str(viejo), permitir_lmg=True)
 
 
 def _calibracion(n_filas, margen_ini=100, margen_fin=50, semilla=0):
     rng = np.random.RandomState(semilla)
-    df = pd.DataFrame(rng.randn(n_filas, 8) * 3 + 10, columns=P.COLUMNAS_MODELO)
+    df = pd.DataFrame(rng.randn(n_filas, len(P.COLUMNAS_MODELO)) * 3 + 10,
+                      columns=P.COLUMNAS_MODELO)
     df["es_calibracion"] = 1
     m = np.zeros(n_filas, dtype=int)
     m[:margen_ini] = 1
@@ -176,12 +196,12 @@ def test_el_f1_macro_usa_siempre_las_cinco_clases():
 def test_la_calibracion_int8_solo_usa_sujetos_de_entrenamiento():
     from convertir_tflite import ventanas_de_calibracion
     n = 300
-    X = np.zeros((n, 20, 8), dtype=np.float32)
+    X = np.zeros((n, 20, 11), dtype=np.float32)
     sujeto = np.repeat([1, 2, 3], 100)
     X[:, :, 0] = sujeto[:, None]                 # el canal 0 dice el sujeto
     v = P.Ventanas(X, np.zeros(n, int), sujeto, np.ones(n),
                    np.array(["estatica"] * n, dtype=object),
                    np.array(["reposo"] * n, dtype=object))
-    cal = ventanas_de_calibracion(v, [1, 2], "lmg_imu", n=150)
-    assert cal.shape == (150, 20, 8)
+    cal = ventanas_de_calibracion(v, [1, 2], "omg_imu", n=150)
+    assert cal.shape == (150, 20, 11)
     assert set(np.unique(cal[:, 0, 0])) <= {1.0, 2.0}
