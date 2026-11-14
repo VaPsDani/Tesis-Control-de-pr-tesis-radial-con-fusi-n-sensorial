@@ -70,8 +70,8 @@
 //   6      | GPIO33 (ADC1_CH5)          | GPIO17
 //   7      | GPIO25 (ADC2_CH8)          | GPIO16
 //   8      | GPIO26 (ADC2_CH9)          | GPIO4
-// El ADC2 (25 y 26) funciona porque el firmware apaga WiFi y Bluetooth
-// al arrancar (setup, linea [RADIO]).
+// El ADC2 (25 y 26) funciona porque el WiFi nunca se inicia y el
+// Bluetooth se apaga al arrancar (setup, linea [RADIO]).
 // NO USAR: 0 y 12 (arranque), 6 a 11 (flash: SD2, SD3, CMD, CLK, SD0,
 // SD1), 1 y 3 (serie). El 2 solo como indicador (LED de la placa).
 // Libres: 14, 5, 15. 16 y 17 valen porque es WROOM (en WROVER son de la

@@ -33,8 +33,8 @@ En todos los módulos: JST pin 1 (VCC) a **3,3 V**, pin 2 a GND, y **pin 5 (Led)
 sin conectar**. El MPU6050 va por I2C en SDA = GPIO21 y SCL = GPIO22, a 400 kHz.
 
 Los OUT de los módulos 7 y 8 (GPIO25 y 26) son del ADC2, que el driver de WiFi
-toma para sí. Por eso el firmware apaga WiFi y Bluetooth al arrancar y lo
-informa con la línea `[RADIO]`. No usa ninguna librería externa: solo las del
+toma para sí. Por eso el firmware nunca inicia el WiFi (ni incluye `WiFi.h`)
+y apaga el Bluetooth al arrancar, y lo informa con la línea `[RADIO]`. No usa ninguna librería externa: solo las del
 núcleo ESP32.
 
 ## Lectura óptica
