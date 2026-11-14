@@ -70,3 +70,6 @@ Modulo2_Pipeline_DL/experimentos/ablacion_imu/resultados/sesiones_sinteticas/
 
 # Capturas de caracterizacion QRE: datos de personas, no se suben.
 Modulo2_Pipeline_DL/caracterizacion_qre/capturas/
+
+# Resultados de la caracterizacion QRE: salen de datos de personas.
+Modulo2_Pipeline_DL/caracterizacion_qre/resultados/
