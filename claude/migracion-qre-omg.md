@@ -92,7 +92,7 @@ banco, indice, NUM_LMG, v5, COLUMNAS_LMG, CANALES_LMG, solo_lmg, lmg_imu.
 | `experimentos/lmg_wavelength/` | Dataset público LMG |
 | `experimentos/ablacion_fases/` | Publicado, sobre el dataset público |
 | `experimentos/cuantizacion_int8/` | Publicado sobre NinaPro. Importa de `convertir_tflite` solo `representative_dataset_gen`, `verificar_operaciones` y `convertir_a_tflite`, que no dependen de los canales |
-| `produccion/convertir_tflite.py`, `perdida_cuantizacion.py` | No se mueven ni se adaptan. Se marcan como etapa LMG/NinaPro y trabajo futuro |
+| `produccion/convertir_tflite.py`, `perdida_cuantizacion.py` | No se mueven. **Cambio posterior del usuario:** el INT8 se usará para medir fuera de línea cuánto se degrada el modelo, así que se adaptaron a `solo_omg` y `omg_imu` en el bloque 4. Sin despliegue: se quitó `--copiar_al_modulo3` |
 | `Benchmark_Inferencia/` | Igual: etapa LMG, trabajo futuro |
 | `common/keras_legado.py`, `common/metricas.py` | Sus menciones de LMG se refieren al dataset público |
 | `requirements-tf216-historico.txt` | Registro histórico |
