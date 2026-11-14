@@ -23,10 +23,9 @@ SINCRONIZACION - el punto critico del modulo:
   caso, muy dentro del margen de 1000 ms de los bloques de contraccion.
 
 ANCHO DE BANDA:
-  12 campos por linea son ~122 bytes. A 100 Hz eso son 12200 B/s, y
-  115200 baudios 8N1 solo dan 11520 B/s: el enlace se quedaba un 6%
-  corto y el buffer se habria desbordado durante la sesion. De ahi los
-  921600 baudios (92160 B/s, 13% de uso).
+  23 campos por linea son ~182 bytes en el peor caso. A 100 Hz eso son
+  18200 B/s, y 115200 baudios 8N1 solo dan 11520 B/s. De ahi los 921600
+  baudios (92160 B/s, ~20% de uso).
 
   Aun con el enlace holgado, el buffer del SO (tipicamente 4 KB) se
   desborda si el hilo lector se detiene ~300 ms. Por eso el lector es un
@@ -50,25 +49,28 @@ DETECCION DE PERDIDA DE MUESTRAS:
 import csv
 import os
 import queue
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-# Campos que emite el firmware, en orden.
-CAMPOS_FIRMWARE = ["timestamp_ms", "v1", "v2", "v3", "v4", "v5",
-                   "ax", "ay", "az", "gx", "gy", "gz"]
+_COMMON = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       "common")
+if _COMMON not in sys.path:
+    sys.path.insert(0, _COMMON)
+from canales import (CAMPOS_FIRMWARE, CANALES_ACC, CANALES_AMB,  # noqa: E402
+                     CANALES_GIRO, CANALES_OPT, NUM_OPT)
 
-# Esquema del CSV. Los nombres de las primeras 18 columnas NO se cambian:
-# los leen preprocesamiento.py, anotar_fases.py y verificar_piloto.py.
-# Las columnas nuevas se ANADEN al final, que es donde no rompen nada.
+# Esquema del CSV. Las columnas que leen preprocesamiento.py,
+# anotar_fases.py y verificar_piloto.py van por nombre. La trama oscura
+# (amb1..amb8) va al final.
 #
 # OJO CON LA PALABRA FASE: aqui bloque_tipo es calibracion, preparacion,
 # contraccion o reposo. La columna fase de fases.py es otra cosa, reposo,
 # dinamica, meseta o reaccion, y se calcula despues sobre el CSV cerrado.
-CAMPOS_CSV = ["subject_id", "repetition_id", "timestamp_ms",
-              "v1", "v2", "v3", "v4", "v5",
-              "ax", "ay", "az", "gx", "gy", "gz",
+CAMPOS_CSV = (["subject_id", "repetition_id", "timestamp_ms"]
+              + CANALES_OPT + CANALES_ACC + CANALES_GIRO + [
               "label", "bloque_tipo", "en_margen", "es_calibracion",
               # Anadidas para la sesion guiada:
               "condicion_postural", # estatica o dinamica, POR REPETICION
@@ -77,6 +79,7 @@ CAMPOS_CSV = ["subject_id", "repetition_id", "timestamp_ms",
                                     # vacia salvo en contracciones dinamicas
               "ts_pc_ms",           # reloj de la PC, epoch en ms
               "descartada"]         # 1 si el operador anulo la repeticion
+              + CANALES_AMB)        # trama oscura de cada canal, V_apag
 
 from config_captura import (BAUDIOS_DEFECTO, FLUSH_CADA_N,  # noqa: E402
                             GRACIA_ARRANQUE_S, HUECO_MAX_MS, PERIODO_MS,
@@ -88,7 +91,7 @@ BAUDIOS = BAUDIOS_DEFECTO      # se conserva el nombre anterior
 @dataclass
 class Muestra:
     t_esp32: int
-    valores: List[float]        # v1..v5, ax, ay, az, gx, gy, gz (11)
+    valores: List[float]        # v1..v8, ax..gz, amb1..amb8 (22)
     t_pc: float                 # time.monotonic() a la llegada
     # Reloj de pared de la PC, en ms desde epoch. El espaciado entre
     # muestras se toma SIEMPRE del reloj del ESP32, que es el bueno. Este
@@ -106,7 +109,7 @@ class Estadisticas:
     muestras_perdidas_est: int = 0
     lineas_malformadas: int = 0
     backlog: int = 0
-    ultimo_lmg: List[float] = field(default_factory=lambda: [0.0] * 5)
+    ultimo_opt: List[float] = field(default_factory=lambda: [0.0] * NUM_OPT)
 
 
 class LectorSerie(threading.Thread):
@@ -145,12 +148,14 @@ class LectorSerie(threading.Thread):
         self.version_firmware: Optional[str] = None
         # TODAS las lineas informativas, en orden, para poder mostrarlas en
         # vivo en la ventana del operador mientras corre un comando del
-        # firmware como la autocalibracion. banner se queda corto a
+        # firmware como el autotest. banner se queda corto a
         # proposito, porque va al JSON; esto es para la pantalla.
         self.info: List[str] = []
-        # Lineas [OPTICA_*] del firmware: config del ADC, duty de cada LED
-        # y reposo por canal en mV (S-barra-r del indice de rendimiento).
+        # Lineas [OPTICA_*] del firmware: configuracion de la trama (T_ON_US,
+        # T_OFF_US, N_MUESTRAS, capacidad de los LED, VCC, R1, R2) y pines.
         self.optica: dict = {}
+        # Lineas [AUTOTEST] del ultimo 'T', para el JSON de la sesion.
+        self.autotest: List[str] = []
 
     # ---------- ciclo de vida ----------
     def abrir(self):
@@ -212,8 +217,9 @@ class LectorSerie(threading.Thread):
                 time.sleep(espera)
             t_esp32 = int(n * PERIODO_MS)
             fase = n / 100.0
-            valores = [500 + 100 * math.sin(fase + i) for i in range(5)]
+            valores = [500 + 100 * math.sin(fase + i) for i in range(NUM_OPT)]
             valores += [0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
+            valores += [3000.0] * NUM_OPT
             if self._marcador_pendiente is not None:
                 self.marcadores.append((t_esp32, self._marcador_pendiente))
                 self._marcador_pendiente = None
@@ -242,9 +248,14 @@ class LectorSerie(threading.Thread):
                 self._marcador_pendiente = None
             return
 
+        if texto.startswith("[AUTOTEST]"):
+            if len(self.autotest) < 40:
+                self.autotest.append(texto)
+            return
+
         if texto.startswith("[OPTICA_"):
-            # Ganancia de los LED y reposo por canal (S-barra-r). Llegan
-            # al enviar 'L', antes de la primera muestra, y van al JSON.
+            # Configuracion de la trama y pines. Llegan al enviar 'L',
+            # antes de la primera muestra, y van al JSON.
             etiqueta, _, resto = texto.partition(" ")
             clave = etiqueta.strip("[]").lower()      # optica_duty, ...
             if clave == "optica_config":
@@ -267,9 +278,8 @@ class LectorSerie(threading.Thread):
 
         if texto.startswith("["):
             # Mensajes informativos del firmware: [INIT], [OK], [READY],
-            # [AUTOTEST]. Se guardan para el JSON, acotados, porque el
-            # autotest del ciclo es parte del estado del equipo ese dia.
-            if len(self.banner) < 40:
+            # [PINES], [IMU]. Se guardan para el JSON, acotados.
+            if len(self.banner) < 60:
                 self.banner.append(texto)
             return
 
@@ -300,7 +310,7 @@ class LectorSerie(threading.Thread):
         self._t_ultimo_esp32 = m.t_esp32
 
         self.stats.total += 1
-        self.stats.ultimo_lmg = m.valores[:5]
+        self.stats.ultimo_opt = m.valores[:NUM_OPT]
         self.t_ultimo_dato = m.t_pc
 
         ahora = m.t_pc
@@ -398,11 +408,12 @@ class EscritorCSV:
         self._f.flush()
 
     def escribir(self, m: Muestra, bloque, t_rel_ms: int):
+        n_sen = NUM_OPT + len(CANALES_ACC) + len(CANALES_GIRO)
         fila = [
             self.subject_id,
             bloque.repetition_id,
             m.t_esp32,
-            *[f"{v:.4f}" for v in m.valores],
+            *[f"{v:.4f}" for v in m.valores[:n_sen]],
             bloque.label,
             bloque.tipo,
             bloque.en_margen(bloque.t_inicio_ms + t_rel_ms),
@@ -412,6 +423,7 @@ class EscritorCSV:
             bloque.posicion_en(bloque.t_inicio_ms + t_rel_ms),
             m.ts_pc_ms,
             0,          # descartada: se marca al cerrar, si hubo descartes
+            *[f"{v:.1f}" for v in m.valores[n_sen:]],
         ]
         self._w.writerow(fila)
         self.filas_escritas += 1

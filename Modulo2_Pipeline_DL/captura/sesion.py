@@ -82,7 +82,9 @@ class Sesion:
         # Se marcan en el CSV al cerrar y quedan siempre en el JSON.
         self.descartadas = []
 
-        # Comando del firmware en curso: autocalibracion o autotest.
+        # Comando del firmware en curso: el autotest.
+        # Lineas [AUTOTEST] del ultimo 'T', para el JSON.
+        self.ultimo_autotest = []
         self._cmd = None
         self._after_cmd = None
 
@@ -91,7 +93,6 @@ class Sesion:
         self.lector_prueba = None
         self.cola_prueba = queue.Queue(maxsize=20000)
 
-        self.op.btn_autocal.config(command=self.autocalibrar)
         self.op.btn_autotest.config(command=self.autotest)
         self.op.btn_probar.config(command=self.probar_conexion)
         self.op.btn_iniciar.config(command=self.iniciar)
@@ -100,26 +101,15 @@ class Sesion:
         self.op.btn_abortar.config(command=self.abortar)
         self.op.protocol("WM_DELETE_WINDOW", self.abortar)
 
-    # ---------- comandos del firmware (A y T) ----------
-    def autocalibrar(self):
-        """
-        Autocalibracion optica: ajusta la corriente de cada LED.
-
-        Con AUTOCAL_VERIFICAR_GESTO_MAX activo, el firmware pide ademas
-        una contraccion maxima de 3 s para comprobar que nada recorta. El
-        aviso aparece en este mismo registro, hay que leerselo en voz
-        alta al participante cuando salga.
-        """
-        self._comando_firmware(
-            "A", "AUTOCALIBRACION DE LOS LED", limite_s=90,
-            aviso="Participante en REPOSO. Cuando el firmware lo pida, "
-                  "pidale una contraccion MAXIMA de 3 s.")
-
+    # ---------- comandos del firmware (T) ----------
     def autotest(self):
-        """Mide el ciclo de muestreo real y dice si cabe en 10 ms."""
+        """
+        Mide el ciclo real y las senales en reposo de cada canal, con sus
+        banderas. El resumen va al JSON de la sesion.
+        """
         self._comando_firmware(
-            "T", "AUTOTEST DEL CICLO DE MUESTREO", limite_s=30,
-            aviso="No hace falta que el participante haga nada.")
+            "T", "AUTOTEST", limite_s=40,
+            aviso="Participante con el brazalete puesto, en REPOSO y quieto.")
 
     def _comando_firmware(self, comando: str, titulo: str,
                           limite_s: float, aviso: str = ""):
@@ -169,7 +159,7 @@ class Sesion:
         self.op.log(f"--- {titulo} ---")
         if aviso:
             self.op.log(f"    {aviso}")
-        for b in (self.op.btn_autocal, self.op.btn_autotest,
+        for b in (self.op.btn_autotest,
                   self.op.btn_probar, self.op.btn_iniciar):
             b.config(state="disabled")
         self._tick_comando()
@@ -203,6 +193,8 @@ class Sesion:
 
     def _terminar_comando(self, sin_respuesta: bool):
         titulo = self._cmd["titulo"] if self._cmd else "COMANDO"
+        if self.lector_prueba and self.lector_prueba.autotest:
+            self.ultimo_autotest = list(self.lector_prueba.autotest)
         if self.lector_prueba:
             self.lector_prueba.detener()
             self.lector_prueba = None
@@ -212,14 +204,14 @@ class Sesion:
                         f"puerto y que la placa este encendida.")
         else:
             self.op.log(f"--- {titulo}: terminado. Puerto libre.")
-        for b in (self.op.btn_autocal, self.op.btn_autotest,
+        for b in (self.op.btn_autotest,
                   self.op.btn_probar, self.op.btn_iniciar):
             b.config(state="normal")
 
     # ---------- prueba de conexion ----------
     def probar_conexion(self):
         """
-        Abre el puerto, muestra los 5 canales en crudo y no graba nada.
+        Abre el puerto, muestra los 8 canales en crudo y no graba nada.
 
         Sirve para verificar la colocacion del brazalete con tres
         contracciones fuertes antes de gastar los 9 minutos de la sesion.
@@ -326,7 +318,7 @@ class Sesion:
         self.t0 = time.monotonic()
         self.t_pausa_acum = 0.0
         self.corriendo = True
-        for _b in (self.op.btn_autocal, self.op.btn_autotest,
+        for _b in (self.op.btn_autotest,
                    self.op.btn_probar, self.op.btn_iniciar):
             _b.config(state="disabled")
         self.op.btn_pausa.config(state="normal")
@@ -697,10 +689,16 @@ class Sesion:
                 "muestras_perdidas_est": s.muestras_perdidas_est if s else 0,
                 "lineas_malformadas": s.lineas_malformadas if s else 0,
             } if s else {},
-            # Ganancia de los LED y reposo por canal al iniciar la sesion.
-            # Vacio si el firmware es anterior a la Tarea 3; reposo en 0
-            # si nunca se autocalibro.
+            # Configuracion optica al iniciar la sesion, tal como la emitio
+            # el firmware al recibir L: T_ON_US, T_OFF_US, N_MUESTRAS,
+            # capacidad de los LED, VCC, R1, R2 y la tabla de pines.
             "optica": self.lector.optica if self.lector else {},
+            # Ultimo autotest (T) antes de la sesion: ciclo y banderas
+            # por canal. Vacio si no se corrio.
+            "autotest": self.ultimo_autotest,
+            # Placa fisica (1 a 8) en cada posicion del brazalete.
+            "placas_por_posicion": self.op.metadatos().get(
+                "placas_por_posicion", ""),
         }
         os.makedirs(os.path.dirname(self.ruta_json) or ".", exist_ok=True)
         with open(self.ruta_json, "w", encoding="utf-8") as f:

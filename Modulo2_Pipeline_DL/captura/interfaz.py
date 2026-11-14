@@ -10,8 +10,8 @@ DOS VENTANAS CON PUBLICOS DISTINTOS:
                 falta y en que estado esta. Sin numeros de diagnostico,
                 que solo distraen.
 
-  Operador      Controles, metadatos y monitor en vivo de los 5 canales
-                LMG. Sirve para detectar un sensor despegado ANTES de
+  Operador      Controles, metadatos y monitor en vivo de los 8 canales
+                opticos. Sirve para detectar un sensor despegado ANTES de
                 perder la sesion entera, y para vigilar la tasa de
                 muestreo.
 
@@ -34,7 +34,7 @@ from config_captura import (BAUDIOS_DEFECTO, CONDICION_DINAMICA,
                             CONDICION_ESTATICA, TEXTO_CONDICION,
                             COLOR_CALIBRACION, COLOR_CONTRACCION,
                             COLOR_FIN, COLOR_PAUSA, COLOR_PREPARACION,
-                            COLOR_RAMPA, COLOR_REPOSO, COLOR_TEXTO, COLORES_LMG,
+                            COLOR_RAMPA, COLOR_REPOSO, COLOR_TEXTO, COLORES_OPT,
                             DIR_IMAGENES, DIR_IMAGENES_ALT, DIR_SALIDA_DEFECTO,
                             FUENTE_CUENTA, FUENTE_FASE, FUENTE_GESTO,
                             FUENTE_INSTRUCCION, FUENTE_PIE, FUENTE_POSICION,
@@ -46,6 +46,7 @@ from config_captura import (BAUDIOS_DEFECTO, CONDICION_DINAMICA,
                             TEXTO_MOVIMIENTO_LENTO, TEXTO_MOVIMIENTO_REPOSO,
                             TEXTO_POSICION, TEXTO_POSTURA_REFERENCIA,
                             INDICACION_GESTO)
+from adquisicion import NUM_OPT
 from protocolo import (TIPO_CALIBRACION, TIPO_CONTRACCION, TIPO_PREPARACION,
                        TIPO_REPOSO, TIPO_REPOSO_DINAMICO, TIPOS_CON_RECORRIDO,
                        LABEL_REST, NOMBRES_GESTOS)
@@ -437,9 +438,9 @@ class VentanaParticipante(tk.Toplevel):
 # ============================================================
 # MONITOR DE SENALES (Canvas nativo)
 # ============================================================
-class MonitorLMG(tk.Canvas):
+class MonitorOPT(tk.Canvas):
     """
-    Traza los 5 canales LMG en tiempo real.
+    Traza los 8 canales opticos en tiempo real.
 
     Sirve para lo unico que importa durante la sesion: ver si un sensor
     se despego. Una linea plana o saturada canta a la vista mucho antes
@@ -452,15 +453,15 @@ class MonitorLMG(tk.Canvas):
         super().__init__(master, width=ancho, height=alto, bg="#101010",
                          highlightthickness=0, **kw)
         self.ancho, self.alto = ancho, alto
-        self._series = [[] for _ in range(5)]
+        self._series = [[] for _ in range(NUM_OPT)]
         self._lineas = [self.create_line(0, 0, 0, 0, fill=c, width=1)
-                        for c in COLORES_LMG]
-        for i, c in enumerate(COLORES_LMG):
-            self.create_text(10 + i * 60, 12, text=f"v{i+1}", fill=c,
+                        for c in COLORES_OPT]
+        for i, c in enumerate(COLORES_OPT):
+            self.create_text(10 + i * 45, 12, text=f"v{i+1}", fill=c,
                              anchor="w", font=("Consolas", 10))
 
     def anadir(self, valores):
-        for i in range(5):
+        for i in range(NUM_OPT):
             s = self._series[i]
             s.append(valores[i])
             if len(s) > self.N_PUNTOS:
@@ -495,7 +496,7 @@ class VentanaPrueba(tk.Toplevel):
     """
     Verificacion de la colocacion del brazalete ANTES de empezar.
 
-    Muestra los 5 canales en crudo, en mV, y el recorrido de cada uno
+    Muestra los 8 canales en crudo, en mV (v = V_apag - V_enc), y el recorrido de cada uno
     desde que se abrio la ventana. Se pide al participante que haga tres
     contracciones fuertes: un canal que no se mueva delata un modulo
     despegado o un LED muerto, y eso se arregla en un minuto ahora o
@@ -509,24 +510,24 @@ class VentanaPrueba(tk.Toplevel):
     def __init__(self, master, al_cerrar=None):
         super().__init__(master)
         self.title("Prueba de conexion")
-        self.geometry("720x560")
+        self.geometry("720x720")
         self._al_cerrar = al_cerrar
-        self._min = [None] * 5
-        self._max = [None] * 5
+        self._min = [None] * NUM_OPT
+        self._max = [None] * NUM_OPT
 
         tk.Label(self, text="Pida TRES contracciones fuertes",
                  font=("Helvetica", 20, "bold")).pack(pady=(12, 2))
         tk.Label(self, font=("Helvetica", 11), justify="left",
-                 text="Los cinco canales deben moverse. Un canal plano "
+                 text="Los ocho canales deben moverse. Un canal plano "
                       "significa modulo despegado, LED apagado o cable "
                       "suelto.").pack(pady=(0, 8))
 
         f = ttk.Frame(self)
         f.pack(pady=4)
         self._val, self._rec, self._ok = [], [], []
-        for i in range(5):
+        for i in range(NUM_OPT):
             tk.Label(f, text=f"v{i+1}", font=("Consolas", 16, "bold"),
-                     fg=COLORES_LMG[i]).grid(row=i, column=0, padx=6, pady=3)
+                     fg=COLORES_OPT[i]).grid(row=i, column=0, padx=6, pady=3)
             lv = tk.Label(f, text="-", font=("Consolas", 16), width=12,
                           anchor="e")
             lv.grid(row=i, column=1, padx=4)
@@ -538,10 +539,10 @@ class VentanaPrueba(tk.Toplevel):
             self._val.append(lv)
             self._rec.append(lr)
             self._ok.append(lo)
-        tk.Label(f, text="mV", font=("Consolas", 10)).grid(row=5, column=1)
-        tk.Label(f, text="recorrido", font=("Consolas", 10)).grid(row=5, column=2)
+        tk.Label(f, text="mV", font=("Consolas", 10)).grid(row=NUM_OPT, column=1)
+        tk.Label(f, text="recorrido", font=("Consolas", 10)).grid(row=NUM_OPT, column=2)
 
-        self.monitor = MonitorLMG(self, ancho=660, alto=240)
+        self.monitor = MonitorOPT(self, ancho=660, alto=240)
         self.monitor.pack(pady=8)
 
         self.lbl_tasa = tk.Label(self, text="tasa: -", font=("Consolas", 12))
@@ -551,7 +552,7 @@ class VentanaPrueba(tk.Toplevel):
         self.protocol("WM_DELETE_WINDOW", self.cerrar)
 
     def actualizar(self, stats):
-        for i, v in enumerate(stats.ultimo_lmg[:5]):
+        for i, v in enumerate(stats.ultimo_opt[:NUM_OPT]):
             self._min[i] = v if self._min[i] is None else min(self._min[i], v)
             self._max[i] = v if self._max[i] is None else max(self._max[i], v)
             recorrido = self._max[i] - self._min[i]
@@ -563,11 +564,11 @@ class VentanaPrueba(tk.Toplevel):
         self.lbl_tasa.config(
             text=f"tasa: {stats.tasa_hz:.0f} muestras/s   "
                  f"huecos: {stats.huecos}   total: {stats.total}")
-        self.monitor.anadir(stats.ultimo_lmg)
+        self.monitor.anadir(stats.ultimo_opt)
 
     def reiniciar_recorrido(self):
-        self._min = [None] * 5
-        self._max = [None] * 5
+        self._min = [None] * NUM_OPT
+        self._max = [None] * NUM_OPT
 
     def cerrar(self):
         if self._al_cerrar:
@@ -588,7 +589,7 @@ class VentanaOperador(tk.Tk):
         self._construir_controles()
         self._construir_estado()
 
-        self.monitor = MonitorLMG(self)
+        self.monitor = MonitorOPT(self)
         self.monitor.pack(pady=8)
 
         self._log = tk.Text(self, height=8, width=72, bg="#f4f4f4",
@@ -640,7 +641,10 @@ class VentanaOperador(tk.Tk):
                   ("longitud_antebrazo_cm", 8, ""),
                   ("circunferencia_antebrazo_cm", 8, ""),
                   ("posicion_brazalete_cm", 8, ""),
-                  ("punto_cierre_correa", 10, "")]
+                  ("punto_cierre_correa", 10, ""),
+                  # Que placa fisica (numerada 1 a 8) va en cada posicion
+                  # del brazalete, de la posicion 1 a la 8.
+                  ("placas_por_posicion", 16, "1,2,3,4,5,6,7,8")]
         for i, (nombre, ancho, defecto) in enumerate(campos):
             ttk.Label(g, text=nombre).grid(row=i // 2, column=(i % 2) * 2,
                                            sticky="w", padx=4, pady=2)
@@ -667,10 +671,9 @@ class VentanaOperador(tk.Tk):
         # ademas obliga a cerrarlo despues porque el puerto no se comparte.
         f0 = ttk.LabelFrame(self, text="Antes de iniciar")
         f0.pack(fill="x", padx=8, pady=4)
-        self.btn_autocal  = ttk.Button(f0, text="Autocalibrar LED (A)")
-        self.btn_autotest = ttk.Button(f0, text="Autotest del ciclo (T)")
+        self.btn_autotest = ttk.Button(f0, text="Autotest (T)")
         self.btn_probar   = ttk.Button(f0, text="Probar conexion")
-        for b in (self.btn_autocal, self.btn_autotest, self.btn_probar):
+        for b in (self.btn_autotest, self.btn_probar):
             b.pack(side="left", padx=4, pady=4)
 
         # Fila 2: la sesion.
@@ -719,7 +722,7 @@ class VentanaOperador(tk.Tk):
         self.lbl["huecos"].config(
             text=str(s.huecos), fg="#a00000" if s.huecos else "#1f6f3a")
 
-        self.monitor.anadir(s.ultimo_lmg)
+        self.monitor.anadir(s.ultimo_opt)
 
     def log(self, texto: str):
         self._log.insert("end", texto + "\n")

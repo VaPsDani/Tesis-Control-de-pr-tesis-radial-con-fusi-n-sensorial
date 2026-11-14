@@ -189,7 +189,9 @@ COLOR_FIN         = "#000000"
 COLOR_TEXTO       = "#ffffff"
 COLOR_RAMPA       = "#ffd24a"
 
-COLORES_LMG = ["#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231"]
+# Un color por canal optico (8).
+COLORES_OPT = ["#e6194b", "#3cb44b", "#ffe119", "#4363d8",
+               "#f58231", "#911eb4", "#42d4f4", "#f032e6"]
 
 # Tamanos pensados para leerse a un metro de la pantalla.
 FUENTE_FASE        = ("Helvetica", 44, "bold")

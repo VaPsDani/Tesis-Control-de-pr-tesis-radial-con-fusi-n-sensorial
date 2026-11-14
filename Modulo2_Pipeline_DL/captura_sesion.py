@@ -46,7 +46,7 @@ from sesion import Sesion
 
 
 def main():
-    p = argparse.ArgumentParser(description="Captura de sesiones LMG")
+    p = argparse.ArgumentParser(description="Captura de sesiones OMG")
     p.add_argument("--puerto", type=str, default=PUERTO_DEFECTO)
     p.add_argument("--baudios", type=int, default=BAUDIOS_DEFECTO,
                    help="Por defecto el del firmware")

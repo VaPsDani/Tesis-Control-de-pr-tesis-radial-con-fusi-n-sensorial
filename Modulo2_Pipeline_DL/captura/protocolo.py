@@ -75,7 +75,7 @@ MARGENES POR TIPO DE BLOQUE:
   Reposo       2000 / 500 ms
     Volver a reposo es mas lento que salir de el: extension de los dedos
     a neutro (300-500 ms), actividad post-contraccion residual y, sobre
-    todo, hiperemia reactiva. El LMG es una senal optica que refleja
+    todo, hiperemia reactiva. La OMG es una senal optica que refleja
     deformacion muscular y volumen sanguineo, con constantes de tiempo de
     segundos, no de milisegundos.
 
