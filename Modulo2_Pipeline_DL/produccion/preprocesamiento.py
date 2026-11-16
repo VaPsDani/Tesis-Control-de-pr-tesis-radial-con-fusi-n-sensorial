@@ -87,7 +87,8 @@ _COMMON = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
                        "common")
 if _COMMON not in sys.path:
     sys.path.insert(0, _COMMON)
-from canales import CANALES_ACC, CANALES_AMB, CANALES_GIRO, CANALES_OPT  # noqa: E402
+from canales import (CANALES_ACC, CANALES_AMB, CANALES_GIRO,  # noqa: E402
+                     CANALES_OPT, NUM_OPT)
 
 # ============================================================
 # ESQUEMA DEL CSV
@@ -142,21 +143,27 @@ CLAVES_SEGMENTO = ("subject_id", "repetition_id", "label", "bloque_tipo",
 def verificar_formato_omg(df: pd.DataFrame, ruta: str,
                           permitir_lmg: bool = False):
     """
-    Rechaza los CSV del firmware LMG: 5 canales opticos, o una version de
-    firmware sin "QRE" en el JSON de la sesion (M1-2026.10.22 o
-    anteriores). Otro sensor, otra polaridad y otro numero de canales: no
-    se mezclan. permitir_lmg=True lo salta, solo para inspeccionar datos
-    viejos a sabiendas.
+    Rechaza los CSV que no son del firmware OMG con NUM_OPT modulos:
+      - los del firmware LMG (v1..v5 sin trama oscura amb, o una version
+        de firmware sin "QRE" en el JSON de la sesion, M1-2026.10.22 o
+        anteriores): otro sensor y otra polaridad.
+      - los grabados con otro numero de modulos que NUM_OPT de
+        common/canales.py: les faltan canales o traen de mas.
+    No se mezclan. permitir_lmg=True lo salta, solo para inspeccionar
+    datos viejos a sabiendas.
     """
     if permitir_lmg:
         return
-    faltan = [c for c in CANALES_OPT if c not in df.columns]
-    if faltan:
+    faltan = [c for c in CANALES_OPT + CANALES_AMB if c not in df.columns]
+    sobra = f"v{NUM_OPT + 1}" in df.columns
+    if faltan or sobra:
+        detalle = (f"faltan las columnas {faltan}" if faltan
+                   else f"trae la columna v{NUM_OPT + 1}")
         raise ValueError(
-            f"{os.path.basename(ruta)}: faltan las columnas {faltan}. Es un "
-            f"CSV del firmware LMG (5 canales opticos, M1-2026.10.22 o "
-            f"anterior) y no se mezcla con los OMG de 8 canales. Para leerlo "
-            f"igual, permitir_lmg=True.")
+            f"{os.path.basename(ruta)}: {detalle}. Se esperan {NUM_OPT} "
+            f"modulos (NUM_OPT de common/canales.py). Es un CSV del firmware "
+            f"LMG (v1..v5 sin amb) o grabado con otro numero de modulos, y "
+            f"no se mezcla. Para leerlo igual, permitir_lmg=True.")
     meta = os.path.splitext(ruta)[0] + ".json"
     if os.path.exists(meta):
         try:

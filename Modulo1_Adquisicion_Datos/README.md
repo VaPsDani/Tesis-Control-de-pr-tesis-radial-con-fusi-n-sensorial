@@ -37,6 +37,23 @@ toma para sí. Por eso el firmware nunca inicia el WiFi (ni incluye `WiFi.h`)
 y apaga el Bluetooth al arrancar, y lo informa con la línea `[RADIO]`. No usa ninguna librería externa: solo las del
 núcleo ESP32.
 
+## Número de módulos: el interruptor
+
+Se usan los módulos 1 a `NUM_OPT` de la tabla de arriba. **Hoy `NUM_OPT = 4`**,
+para las pruebas con 4 módulos: sus 4 OUT quedan en ADC1. El diseño final es 8.
+
+Para cambiarlo hay que tocar **dos números y nada más**, y tienen que ser
+iguales:
+
+- `#define NUM_OPT` en `Modulo1_Adquisicion_Datos/config.h`
+- `NUM_OPT` en `Modulo2_Pipeline_DL/common/canales.py`
+
+Todo lo demás sale de ahí: el CSV (15 campos con 4 módulos, 23 con 8), la
+captura, el preprocesamiento, las composiciones (4 y 7 canales, u 8 y 11) y los
+tests. Si los dos números no coinciden, la captura descarta todas las líneas.
+Las sesiones grabadas con un número de módulos no se mezclan con las de otro:
+`preprocesamiento.py` las rechaza.
+
 ## Lectura óptica
 
 Cada QRE1113 tiene un LED IR de 940 nm y un fototransistor en el mismo

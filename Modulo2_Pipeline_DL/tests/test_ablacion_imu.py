@@ -61,21 +61,23 @@ def test_un_numero_de_epocas_distinto_falla():
 def test_la_composicion_solo_cambia_los_canales():
     n = 40
     v = D.Ventanas(
-        X=np.random.RandomState(0).randn(n, 20, 11).astype(np.float32),
+        X=np.random.RandomState(0).randn(n, 20, len(D.COLUMNAS_MODELO)).astype(np.float32),
         y=np.zeros(n, dtype=int), sujeto=np.ones(n, dtype=int),
         repeticion=np.ones(n, dtype=int),
         condicion=np.array(["estatica"] * n, dtype=object),
         bloque_tipo=np.array(["contraccion"] * n, dtype=object))
     solo = D.seleccionar_canales(v, "solo_omg")
     con = D.seleccionar_canales(v, "omg_imu")
-    assert solo.shape == (n, 20, 8)
-    assert con.shape == (n, 20, 11)
-    # Los ocho opticos son exactamente los mismos numeros en las dos.
-    assert np.array_equal(solo, con[:, :, :8])
+    k = len(D.CANALES_OPT)
+    assert solo.shape == (n, 20, k)
+    assert con.shape == (n, 20, k + 3)
+    # Los opticos son exactamente los mismos numeros en las dos.
+    assert np.array_equal(solo, con[:, :, :k])
 
 
 def test_composicion_desconocida_falla():
-    v = D.Ventanas(np.zeros((2, 20, 11), dtype=np.float32), np.zeros(2, dtype=int),
+    v = D.Ventanas(np.zeros((2, 20, len(D.COLUMNAS_MODELO)), dtype=np.float32),
+                   np.zeros(2, dtype=int),
                    np.ones(2, dtype=int), np.ones(2, dtype=int),
                    np.array(["estatica"] * 2, dtype=object),
                    np.zeros(2, dtype=int))

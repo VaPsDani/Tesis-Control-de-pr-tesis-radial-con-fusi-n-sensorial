@@ -14,7 +14,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(AQUI), "caracterizacion_qre"))
 
 import analizar as A                                      # noqa: E402
 import capturar as C                                      # noqa: E402
-from canales import CANALES_AMB, CANALES_OPT              # noqa: E402
+from canales import NUM_OPT                               # noqa: E402
+
+N = NUM_OPT
+MEDIO = N // 2          # modulo con peso 0.5 en los datos fabricados
 
 DELTA = {"Pinch": 20.0, "Tripod": 40.0, "Power": 80.0, "Finger_Ext": 60.0}
 SIGMA = 2.0
@@ -22,21 +25,21 @@ SIGMA = 2.0
 
 def sintetico(semilla=0):
     """
-    Reposo: v = 100 + ruido de sd 2 en los 8 modulos. Gesto: + DELTA por
-    el modulo (k + 1) / 8. Movimiento: sd 10. Luz encendida: V_apag baja
-    100 mV respecto de apagada. V_enc = amb - v.
+    Reposo: v = 100 + ruido de sd 2 en los N modulos. Gesto: + DELTA por
+    el modulo k / N. Movimiento: sd 10. Luz encendida: V_apag baja 100 mV
+    respecto de apagada. V_enc = amb - v.
     """
     rng = np.random.RandomState(semilla)
     filas, t = [], 0
-    peso = (np.arange(8) + 1) / 8.0
+    peso = (np.arange(N) + 1) / float(N)
     for f in C.plan():
         for _ in range(int(f["duracion_s"] * 100)):
-            v = 100 + rng.randn(8) * SIGMA
+            v = 100 + rng.randn(N) * SIGMA
             if f["fase"] == "gesto":
                 v = v + DELTA[f["gesto"]] * peso
             if f["fase"] == "movimiento":
-                v = 100 + rng.randn(8) * 10
-            amb = np.full(8, 3000.0 if f["fase"] != "luz_encendida" else 2900.0)
+                v = 100 + rng.randn(N) * 10
+            amb = np.full(N, 3000.0 if f["fase"] != "luz_encendida" else 2900.0)
             filas.append([t, f["fase"], f["gesto"], f["repeticion"], f["posicion"],
                           *v, 0, 0, 1, 0, 0, 0, *amb, 0])
             t += 10
@@ -48,13 +51,13 @@ def test_deltas_sigma_luz_y_movimiento_salen_como_se_fabricaron():
     assert m["sigma_mV"].to_numpy() == pytest.approx(SIGMA, rel=0.1)
     for g, d in DELTA.items():
         col = f"DeltaS_{A.NOMBRE_GESTO[g]}_mV"
-        assert m.loc[8, col] == pytest.approx(d, abs=1.0)          # peso 1
-        assert m.loc[4, col] == pytest.approx(d / 2, abs=1.0)      # peso 0.5
-    # El minimo es la pinza: 20 / 2 = 10 en el modulo 8.
-    assert m.loc[8, "DeltaS_sigma_min"] == pytest.approx(10, rel=0.15)
+        assert m.loc[N, col] == pytest.approx(d, abs=1.0)          # peso 1
+        assert m.loc[MEDIO, col] == pytest.approx(d / 2, abs=1.0)  # peso 0.5
+    # El minimo es la pinza: 20 / 2 = 10 en el modulo N.
+    assert m.loc[N, "DeltaS_sigma_min"] == pytest.approx(10, rel=0.15)
     assert m["luz_sobre_V_apag_mV"].to_numpy() == pytest.approx(-100.0)
-    assert m.loc[8, "sd_movimiento_mV"] == pytest.approx(10, rel=0.15)
-    assert m.loc[8, "movimiento_sobre_DeltaS_min"] == pytest.approx(0.5, rel=0.2)
+    assert m.loc[N, "sd_movimiento_mV"] == pytest.approx(10, rel=0.15)
+    assert m.loc[N, "movimiento_sobre_DeltaS_min"] == pytest.approx(0.5, rel=0.2)
     # V_enc = amb - v.
     assert m.loc[1, "V_enc_reposo_mV"] == pytest.approx(2900.0, abs=1.0)
 
@@ -80,7 +83,7 @@ def test_salidas_completas(tmp_path):
     ruta = tmp_path / "P01_sin_carcasa.csv"
     sintetico().to_csv(ruta, index=False)
     log_t = tmp_path / "t.txt"
-    log_t.write_text("[AUTOTEST] modulo 5: V_enc=200.0 V_apag=3080.0 v=2880.0 "
+    log_t.write_text("[AUTOTEST] modulo 2: V_enc=200.0 V_apag=3080.0 v=2880.0 "
                      "sd_v=1.20 mV SATURADO\n", encoding="utf-8")
     sal = tmp_path / "res"
     assert A.main(["--csv", str(ruta), "--log_t", str(log_t), "--salida", str(sal)]) == 0
@@ -88,5 +91,5 @@ def test_salidas_completas(tmp_path):
               "figura_6_3.png", "resumen.md", "metricas_modulos.csv"):
         assert (sal / f).exists(), f
     t = pd.read_csv(sal / "tabla_6_1.csv")
-    assert t["satura"].tolist() == [False] * 4 + [True] + [False] * 3
+    assert t["satura"].tolist() == [False, True] + [False] * (N - 2)
     assert "no forma parte del conjunto de datos" in (sal / "resumen.md").read_text(encoding="utf-8")

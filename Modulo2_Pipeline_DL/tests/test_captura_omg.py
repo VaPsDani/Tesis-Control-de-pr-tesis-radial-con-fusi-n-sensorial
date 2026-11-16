@@ -10,13 +10,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(AQUI), "caracterizacion_qre"))
 
 import adquisicion as A                                   # noqa: E402
 import capturar as C                                      # noqa: E402
-from canales import CANALES_AMB, CANALES_OPT              # noqa: E402
+from canales import CANALES_AMB, CANALES_OPT, NUM_OPT     # noqa: E402
 
 
-def test_el_firmware_emite_23_campos_y_el_csv_los_guarda_todos():
-    assert len(A.CAMPOS_FIRMWARE) == 1 + 8 + 6 + 8
-    assert A.CAMPOS_CSV[3:11] == CANALES_OPT
-    assert A.CAMPOS_CSV[-8:] == CANALES_AMB
+def test_el_firmware_emite_todos_los_campos_y_el_csv_los_guarda():
+    # 23 campos con 8 modulos, 15 con 4.
+    assert len(A.CAMPOS_FIRMWARE) == 1 + NUM_OPT + 6 + NUM_OPT
+    assert A.CAMPOS_CSV[3:3 + NUM_OPT] == CANALES_OPT
+    assert A.CAMPOS_CSV[-NUM_OPT:] == CANALES_AMB
 
 
 def test_el_escritor_pone_cada_valor_en_su_columna(tmp_path):
@@ -29,12 +30,15 @@ def test_el_escritor_pone_cada_valor_en_su_columna(tmp_path):
     ruta = str(tmp_path / "s.csv")
     e = A.EscritorCSV(ruta, subject_id=7)
     e.abrir()
-    valores = [float(i) for i in range(1, 9)] + [0.1] * 6 + [3000.0 + i for i in range(8)]
+    valores = ([float(i) for i in range(1, NUM_OPT + 1)] + [0.1] * 6
+               + [3000.0 + i for i in range(NUM_OPT)])
     e.escribir(A.Muestra(123, valores, 0.0, 0), Bloque(), 0)
     e.cerrar()
     fila = list(csv.DictReader(open(ruta, encoding="utf-8")))[0]
-    assert float(fila["v8"]) == 8.0 and float(fila["amb1"]) == 3000.0
-    assert float(fila["amb8"]) == 3007.0 and fila["label"] == "2"
+    assert float(fila[CANALES_OPT[-1]]) == float(NUM_OPT)
+    assert float(fila["amb1"]) == 3000.0
+    assert float(fila[CANALES_AMB[-1]]) == 3000.0 + NUM_OPT - 1
+    assert fila["label"] == "2"
 
 
 def test_el_plan_de_caracterizacion_tiene_lo_pedido():

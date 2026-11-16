@@ -11,8 +11,9 @@ pytest.importorskip("tensorflow")
 from modelo import construir_modelo                     # noqa: E402
 
 
-@pytest.mark.parametrize("canales,esperado", [(8, 76933), (11, 77509)])
-def test_parametros_con_8_y_11_canales(canales, esperado):
+@pytest.mark.parametrize("canales,esperado", [(8, 76933), (11, 77509),
+                                               (4, 76165), (7, 76741)])
+def test_parametros_con_8_11_4_y_7_canales(canales, esperado):
     m = construir_modelo(window_size=20, num_features=canales)
     assert m.input_shape == (None, 20, canales)
     assert m.count_params() == esperado

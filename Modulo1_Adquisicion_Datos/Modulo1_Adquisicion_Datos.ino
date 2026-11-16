@@ -163,7 +163,7 @@ void setup() {
     // que ademas enlazaria su pila entera (de 24% a 70% de la flash). El
     // Bluetooth se apaga explicitamente.
     btStop();
-    Serial.println("[RADIO] WiFi sin iniciar y Bluetooth apagado (ADC2 libre para los modulos 7 y 8)");
+    Serial.println("[RADIO] WiFi sin iniciar y Bluetooth apagado (ADC2 libre)");
 
     optica.begin();
     emitirVersion();
@@ -178,8 +178,12 @@ void setup() {
     optica.imprimirConfig();
     imu.imprimirConfig();
 
-    Serial.println("[INFO] timestamp_ms,v1,v2,v3,v4,v5,v6,v7,v8,ax,ay,az,gx,gy,gz,"
-                   "amb1,amb2,amb3,amb4,amb5,amb6,amb7,amb8");
+    // Cabecera de las columnas, con los NUM_OPT modulos en uso.
+    Serial.print("[INFO] timestamp_ms");
+    for (uint8_t k = 1; k <= NUM_OPT; k++) Serial.printf(",v%u", k);
+    Serial.print(",ax,ay,az,gx,gy,gz");
+    for (uint8_t k = 1; k <= NUM_OPT; k++) Serial.printf(",amb%u", k);
+    Serial.println();
     Serial.println("[READY] L iniciar, S detener, M marcar, K configuracion, "
                    "T autotest, C asentamiento, X diafonia, D<0-3> capacidad "
                    "de los LED, E<us> T_ON_US, O<us> T_OFF_US.");

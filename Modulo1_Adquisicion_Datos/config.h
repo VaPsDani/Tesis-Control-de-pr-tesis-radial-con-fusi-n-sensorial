@@ -58,7 +58,14 @@
 //           en alto lo enciende: ~20 mA con 3,3 V (VF ~1,2 V a 20 mA).
 //   5 Led   tres LED externos del PCB (D1 a D3, R3) que NO se usan: SIN
 //           CONECTAR.
-#define NUM_OPT            8
+// NUMERO DE MODULOS CONECTADOS: el interruptor. Se usan los modulos 1 a
+// NUM_OPT de la tabla de abajo. TIENE QUE SER IGUAL a NUM_OPT de
+// Modulo2_Pipeline_DL/common/canales.py: si no, la captura descarta todas
+// las lineas. Hoy 4 (pruebas con 4 modulos). El diseno final es 8.
+#define NUM_OPT            4
+#define NUM_OPT_MAX        8            // filas de la tabla de pines
+static_assert(NUM_OPT >= 1 && NUM_OPT <= NUM_OPT_MAX,
+              "NUM_OPT va de 1 a 8, las filas de la tabla de pines.");
 
 // TABLA DE PINES. Modulo k (1 a 8) -> OUT al ADC, IR al LED.
 //   Modulo | OUT (ADC)                  | IR (LED)
@@ -76,9 +83,10 @@
 // SD1), 1 y 3 (serie). El 2 solo como indicador (LED de la placa).
 // Libres: 14, 5, 15. 16 y 17 valen porque es WROOM (en WROVER son de la
 // PSRAM).
-static const uint8_t PIN_OUT[NUM_OPT] = {36, 39, 34, 35, 32, 33, 25, 26};
-static const uint8_t PIN_IR[NUM_OPT]  = {13, 27, 23, 19, 18, 17, 16, 4};
-static const char *const CANAL_ADC[NUM_OPT] = {
+// Con NUM_OPT = 4 se usan solo las 4 primeras filas: todos los OUT en ADC1.
+static const uint8_t PIN_OUT[NUM_OPT_MAX] = {36, 39, 34, 35, 32, 33, 25, 26};
+static const uint8_t PIN_IR[NUM_OPT_MAX]  = {13, 27, 23, 19, 18, 17, 16, 4};
+static const char *const CANAL_ADC[NUM_OPT_MAX] = {
     "ADC1_CH0", "ADC1_CH3", "ADC1_CH6", "ADC1_CH7",
     "ADC1_CH4", "ADC1_CH5", "ADC2_CH8", "ADC2_CH9"};
 
@@ -151,17 +159,13 @@ static const char *const CANAL_ADC[NUM_OPT] = {
 #define MPU_GYRO_FS_SEL    0   // +/-250 grados/s, 131 LSB por grado/s
 
 // ======================== CANALES ========================
-// Al modelo entran los 8 opticos y el acelerometro (configuracion B).
+// Al modelo entran los NUM_OPT opticos y el acelerometro (configuracion B):
+// 11 con 8 modulos, 7 con 4.
 #define NUM_IMU            3            // ax, ay, az
-#define TOTAL_FEATURES     (NUM_OPT + NUM_IMU)             // 11
-// Al CSV van ademas el giroscopio y la trama oscura de cada canal.
+#define TOTAL_FEATURES     (NUM_OPT + NUM_IMU)
+// Al CSV van ademas el giroscopio y la trama oscura de cada canal:
+// 2 x NUM_OPT + 6 senales y el timestamp (22 con 8 modulos, 14 con 4).
 #define NUM_IMU_CSV        6            // ax, ay, az, gx, gy, gz
-#define TOTAL_CSV          (NUM_OPT + NUM_IMU_CSV + NUM_OPT)  // 22 + timestamp
-
-static_assert(TOTAL_FEATURES == 8 + 3,
-              "Al modelo entran 8 canales opticos y 3 del acelerometro.");
-static_assert(TOTAL_CSV == 22,
-              "El CSV guarda 22 senales mas el timestamp: v1..v8, ax..gz y "
-              "amb1..amb8.");
+#define TOTAL_CSV          (NUM_OPT + NUM_IMU_CSV + NUM_OPT)
 
 #endif

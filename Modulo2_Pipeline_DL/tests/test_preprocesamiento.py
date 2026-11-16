@@ -22,13 +22,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(AQUI), "experimentos",
 
 # ---------- normalizacion ----------
 def test_los_opticos_van_en_z_y_el_acelerometro_solo_resta_la_media():
-    mu = np.array([1, 2, 3, 4, 5, 6, 7, 8, 0.1, 0.2, 0.9], dtype=np.float32)
-    sd = np.array([2] * 8 + [0.01] * 3, dtype=np.float32)
-    x = np.array([[[3, 4, 5, 6, 7, 8, 9, 10, 0.6, 0.2, 1.4]]], dtype=np.float32)
+    n = len(P.CANALES_OPT)
+    mu = np.array(list(range(1, n + 1)) + [0.1, 0.2, 0.9], dtype=np.float32)
+    sd = np.array([2] * n + [0.01] * 3, dtype=np.float32)
+    x = np.array([[list(range(3, n + 3)) + [0.6, 0.2, 1.4]]], dtype=np.float32)
     z = P.normalizar(x, mu, sd)[0, 0]
-    assert np.allclose(z[:8], 1.0, atol=1e-6)            # (x - mu) / sd
+    assert np.allclose(z[:n], 1.0, atol=1e-6)            # (x - mu) / sd
     # El acelerometro NO se divide: con sd = 0.01 dividir daria 50.
-    assert np.allclose(z[8:], [0.5, 0.0, 0.5], atol=1e-6)
+    assert np.allclose(z[n:], [0.5, 0.0, 0.5], atol=1e-6)
 
 
 def test_un_csv_del_firmware_lmg_se_rechaza(tmp_path):
@@ -37,17 +38,30 @@ def test_un_csv_del_firmware_lmg_se_rechaza(tmp_path):
     viejo = tmp_path / "lmg.csv"
     pd.DataFrame({c: [0.0] for c in ["v1", "v2", "v3", "v4", "v5", "ax", "ay",
                                       "az", "label", "timestamp_ms"]}).to_csv(viejo, index=False)
-    with pytest.raises(ValueError, match="firmware LMG"):
+    with pytest.raises(ValueError, match="firmware"):
         P.cargar_sesion(str(viejo))
-    # Con 8 canales pero grabado con un firmware sin QRE, tambien.
+    # Con los canales del firmware QRE pero grabado con uno sin QRE, tambien.
     nuevo = tmp_path / "s.csv"
-    pd.DataFrame({c: [0.0] for c in P.COLUMNAS_MODELO}).to_csv(nuevo, index=False)
+    pd.DataFrame({c: [0.0] for c in P.COLUMNAS_MODELO + P.CANALES_AMB}).to_csv(
+        nuevo, index=False)
     json.dump({"adquisicion": {"version_firmware": "M1-2026.10.22"}},
               open(tmp_path / "s.json", "w"))
     with pytest.raises(ValueError, match="M1-2026.10.22"):
         P.verificar_formato_omg(pd.read_csv(nuevo), str(nuevo))
     # El indicador explicito lo deja pasar.
     P.verificar_formato_omg(pd.read_csv(viejo), str(viejo), permitir_lmg=True)
+
+
+def test_un_csv_con_otro_numero_de_modulos_se_rechaza(tmp_path):
+    import pytest
+    from canales import NUM_OPT
+    # Un modulo de mas, con su trama oscura.
+    mas = ([f"v{i}" for i in range(1, NUM_OPT + 2)] + ["ax", "ay", "az"]
+           + [f"amb{i}" for i in range(1, NUM_OPT + 2)])
+    ruta = tmp_path / "mas.csv"
+    pd.DataFrame({c: [0.0] for c in mas}).to_csv(ruta, index=False)
+    with pytest.raises(ValueError, match=f"v{NUM_OPT + 1}"):
+        P.verificar_formato_omg(pd.read_csv(ruta), str(ruta))
 
 
 def _calibracion(n_filas, margen_ini=100, margen_fin=50, semilla=0):
@@ -196,12 +210,12 @@ def test_el_f1_macro_usa_siempre_las_cinco_clases():
 def test_la_calibracion_int8_solo_usa_sujetos_de_entrenamiento():
     from convertir_tflite import ventanas_de_calibracion
     n = 300
-    X = np.zeros((n, 20, 11), dtype=np.float32)
+    X = np.zeros((n, 20, len(P.COLUMNAS_MODELO)), dtype=np.float32)
     sujeto = np.repeat([1, 2, 3], 100)
     X[:, :, 0] = sujeto[:, None]                 # el canal 0 dice el sujeto
     v = P.Ventanas(X, np.zeros(n, int), sujeto, np.ones(n),
                    np.array(["estatica"] * n, dtype=object),
                    np.array(["reposo"] * n, dtype=object))
     cal = ventanas_de_calibracion(v, [1, 2], "omg_imu", n=150)
-    assert cal.shape == (150, 20, 11)
+    assert cal.shape == (150, 20, len(P.COLUMNAS_MODELO))
     assert set(np.unique(cal[:, 0, 0])) <= {1.0, 2.0}

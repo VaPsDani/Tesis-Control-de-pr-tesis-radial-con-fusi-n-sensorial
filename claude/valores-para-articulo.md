@@ -8,6 +8,10 @@ el tag `lmg-final-2026-11-13`.
 Rutas abreviadas: `M1` es `Modulo1_Adquisicion_Datos` y `M2` es
 `Modulo2_Pipeline_DL`.
 
+**Hoy el repositorio está en `NUM_OPT = 4`** (pruebas con 4 módulos, 4 y 7
+canales, 76 165 y 76 741 parámetros). Las cifras de 8 y 11 canales de este
+documento son las del diseño final.
+
 **Pendiente de medir** marca lo que solo se sabe con la placa armada. Esos
 valores no se inventan: se llenan con la salida de `T`, `C` y `X`.
 

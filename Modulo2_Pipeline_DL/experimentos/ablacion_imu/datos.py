@@ -97,7 +97,7 @@ GRAVEDAD = {
 
 
 # Cuanto se mueve cada canal optico con la postura, en el simulador.
-PESO_POSTURA = np.array([1.0, 0.7, 0.5, 0.8, 0.6, 0.9, 0.4, 0.75])
+PESO_POSTURA = np.array([1.0, 0.7, 0.5, 0.8, 0.6, 0.9, 0.4, 0.75])[:NUM_OPT]
 assert len(PESO_POSTURA) == NUM_OPT
 
 
