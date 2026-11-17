@@ -9,9 +9,10 @@ fuera de línea cuánto se degrada el modelo.
 |---|---|
 | `Modulo1_Adquisicion_Datos/` | Firmware del ESP32 que adquiere los 8 canales ópticos y la IMU |
 | `Modulo2_Pipeline_DL/` | Captura, preprocesamiento, entrenamiento, validación, estadística y caracterización |
-| `archivo/` | Lo de la etapa LMG (OPT101) que salió del alcance, incluido el antiguo Módulo 3 |
 
-La versión LMG completa está en el tag `lmg-final-2026-11-13`. "LMG" se usa
+Lo de la etapa LMG (OPT101, el antiguo Módulo 3 de inferencia y control, el
+banco de módulos y el benchmark en el ESP32) se borró de `main` el
+2026-11-16 y está completo en el tag `lmg-final-2026-11-13`. "LMG" se usa
 solo para el dataset público `lmg_wavelength`, los experimentos ya publicados
 y el código archivado.
 

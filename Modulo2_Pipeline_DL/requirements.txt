@@ -3,7 +3,7 @@
 # Entrenamiento, validacion, estadistica y conversion a TFLite INT8, todo con
 # TensorFlow 2.21.0 y Keras 2 (tf_keras 2.21.0). Keras 2 porque con Keras 3
 # la LSTM no se convierte en la operacion nativa de TFLite y la
-# cuantizacion INT8 falla (archivo/claude/viabilidad-tflite-micro.md).
+# cuantizacion INT8 falla (claude/viabilidad-tflite-micro.md, tag lmg-final-2026-11-13).
 #
 # Versiones EXACTAS del entorno con el que se verifico, tomadas de pip
 # freeze. WSL Ubuntu, Python 3.12.14, GeForce RTX 4060 con driver 616.64.

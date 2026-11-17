@@ -33,14 +33,14 @@ directamente sin instalar nada ni fijar `PYTHONPATH`.
 
 `ablacion_fases/`, `lmg_wavelength/` y `validacion_preliminar_emg/` son de la
 etapa LMG y están publicados: no se tocan sus resultados.
-`optica_espaciador/` se archivó (`archivo/`).
+`optica_espaciador/` se borró: está en el tag `lmg-final-2026-11-13`.
 
 ## Entorno
 
 **Un solo entorno para todo** (A29): entrenamiento, validación, estadística y
 conversión INT8, con TensorFlow 2.21.0 y Keras 2 (`tf_keras` 2.21.0), con GPU.
 Keras 2 porque con Keras 3 la LSTM no se convierte en la operación nativa de
-TFLite y la cuantización INT8 falla (`archivo/claude/viabilidad-tflite-micro.md`).
+TFLite y la cuantización INT8 falla (`claude/viabilidad-tflite-micro.md` en el tag `lmg-final-2026-11-13`).
 
 WSL2 con Ubuntu, Python 3.12 y una GPU NVIDIA con controladores recientes.
 

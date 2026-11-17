@@ -7,6 +7,10 @@ repositorio antes de migrar y las decisiones que guían cada bloque.
 `e4193a0`, la última versión LMG (OPT101 con ADS1115, 5 canales, Módulo 3
 con control). Para volver: `git checkout lmg-final-2026-11-13`.
 
+> **Actualización 2026-11-16:** `archivo/` y `Benchmark_Inferencia/` se
+> borraron de `main` para dejar el repositorio simple. Todo lo que aquí dice
+> "archivar" está completo en el tag `lmg-final-2026-11-13`.
+
 ## Qué cambia
 
 | | Antes (LMG) | Ahora (OMG) |

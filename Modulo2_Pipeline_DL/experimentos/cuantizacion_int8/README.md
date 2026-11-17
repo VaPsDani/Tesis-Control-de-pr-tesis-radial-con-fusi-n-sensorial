@@ -1,6 +1,6 @@
 # Pérdida de la cuantización INT8 con datos reales (NinaPro DB5)
 
-> **Etapa LMG/NinaPro (2026-11-13).** Resultado ya publicado, se conserva tal cual. Con el cambio a QRE1113/OMG, la cuantización INT8 se mide solo fuera de línea, con `produccion/perdida_cuantizacion.py`, y no hay despliegue en el ESP32. Ver `archivo/README.md`.
+> **Etapa LMG/NinaPro (2026-11-13).** Resultado ya publicado, se conserva tal cual. Con el cambio a QRE1113/OMG, la cuantización INT8 se mide solo fuera de línea, con `produccion/perdida_cuantizacion.py`, y no hay despliegue en el ESP32. Lo de la etapa LMG está en el tag `lmg-final-2026-11-13`.
 
 **Pregunta que responde:** ¿cuánta exactitud se pierde al convertir el modelo a INT8 para el ESP32?
 Se mide con datos reales antes de tener datos propios.
