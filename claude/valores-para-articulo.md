@@ -8,9 +8,8 @@ el tag `lmg-final-2026-11-13`.
 Rutas abreviadas: `M1` es `Modulo1_Adquisicion_Datos` y `M2` es
 `Modulo2_Pipeline_DL`.
 
-**Hoy el repositorio está en `NUM_OPT = 4`** (pruebas con 4 módulos, 4 y 7
-canales, 76 165 y 76 741 parámetros). Las cifras de 8 y 11 canales de este
-documento son las del diseño final.
+**Hoy el repositorio está en `NUM_OPT = 8`**, el diseño final (8 y 11
+canales). Las pruebas iniciales usaron 4.
 
 **Pendiente de medir** marca lo que solo se sabe con la placa armada. Esos
 valores no se inventan: se llenan con la salida de `T`, `C` y `X`.
@@ -29,7 +28,7 @@ valores no se inventan: se llenan con la salida de `T`, `C` y `X`.
 | Orden de la trama | 1. LED apagados, espera T_OFF_US, lee los 8 (V_apag). 2. LED encendidos a la vez, espera T_ON_US, lee los 8 (V_enc), apaga. 3. IMU | `M1/optica_omg.cpp:44-64` | Código listo |
 | Señal óptica | v = V_apag − V_enc en mV, positiva y mayor con más luz. amb = V_apag | `M1/Modulo1_Adquisicion_Datos.ino:72, 77` | Código listo |
 | T_ON_US y T_OFF_US | 1000 µs provisionales, a fijar en t99 + 20 % con `C` | `M1/config.h:132-133` | **Pendiente de medir** |
-| Capacidad de salida de los LED | GPIO_DRIVE_CAP_2, la misma en los 8, fijada a mano | `M1/config.h:107`, `M1/optica_omg.cpp:25` | Código listo |
+| Capacidad de salida de los LED | GPIO_DRIVE_CAP_0, la misma en los 8, fijada a mano. Con 2 y 1 el LED saturaba el fototransistor sobre la piel con carcasa (V_enc 237 y 221 mV), con 0 V_enc = 490 mV (módulo 1, `T`, 2026-11-24) | `M1/config.h`, `M1/optica_omg.cpp:25` | Medido en 1 módulo |
 | Enlace serie | 921 600 baudios. Línea de ~182 bytes en el peor caso, 18 200 B/s, ~20 % del enlace | `M1/config.h:32-42` | Calculado |
 
 ## 2. Formato del CSV

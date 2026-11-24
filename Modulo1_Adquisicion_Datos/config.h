@@ -61,8 +61,8 @@
 // NUMERO DE MODULOS CONECTADOS: el interruptor. Se usan los modulos 1 a
 // NUM_OPT de la tabla de abajo. TIENE QUE SER IGUAL a NUM_OPT de
 // Modulo2_Pipeline_DL/common/canales.py: si no, la captura descarta todas
-// las lineas. Hoy 4 (pruebas con 4 modulos). El diseno final es 8.
-#define NUM_OPT            4
+// las lineas. Hoy 8, el diseno final (4 se uso en las pruebas iniciales).
+#define NUM_OPT            8
 #define NUM_OPT_MAX        8            // filas de la tabla de pines
 static_assert(NUM_OPT >= 1 && NUM_OPT <= NUM_OPT_MAX,
               "NUM_OPT va de 1 a 8, las filas de la tabla de pines.");
@@ -112,8 +112,9 @@ static const char *const CANAL_ADC[NUM_OPT_MAX] = {
 // Capacidad de salida del GPIO, la misma en los 8 y fijada a mano (no se
 // deja la de fabrica). 0 a 3 = GPIO_DRIVE_CAP_0 a GPIO_DRIVE_CAP_3. La
 // cambia 'D' para la prueba de saturacion, sin guardarla: al reiniciar
-// vuelve a la de aqui.
-#define DRIVE_CAP_DEFECTO  2
+// vuelve a la de aqui. 0 desde 2026-11-24: sobre la piel con carcasa, 2 y 1
+// saturaban (V_enc 237 y 221 mV) y 0 dio V_enc 490 mV (modulo 1, T).
+#define DRIVE_CAP_DEFECTO  0
 
 // Modo de encendido en la fase iluminada.
 //   SIMULTANEO  los 8 a la vez, una espera, se leen los 8. Por defecto.

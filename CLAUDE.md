@@ -69,7 +69,7 @@ INT8 cuando sí existía.
 - **Una sola fuente de verdad para los canales:** `common/canales.py`. Nada
   de `v1..v8` escrito a mano en otro archivo.
 - **Número de módulos:** `NUM_OPT` en `Modulo1_Adquisicion_Datos/config.h` y
-  en `common/canales.py`, iguales. Hoy 4, para las pruebas con 4 módulos. El
-  diseño final es 8. Los tests pasan con cualquiera de los dos.
+  en `common/canales.py`, iguales. Hoy 8, el diseño final (4 se usó en las
+  pruebas iniciales). Los tests pasan con cualquiera de los dos.
 - Si algo que pide el usuario no coincide con el código real, decírselo en
   vez de improvisar.

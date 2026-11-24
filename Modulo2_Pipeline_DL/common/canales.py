@@ -12,9 +12,9 @@ orden del CSV del firmware).
 """
 
 # NUMERO DE MODULOS CONECTADOS: el interruptor. Tiene que ser igual a
-# NUM_OPT de Modulo1_Adquisicion_Datos/config.h. Hoy 4 (pruebas con 4
-# modulos). El diseno final es 8. Todo lo demas sale de aqui.
-NUM_OPT = 4
+# NUM_OPT de Modulo1_Adquisicion_Datos/config.h. Hoy 8, el diseno final
+# (4 se uso en las pruebas iniciales). Todo lo demas sale de aqui.
+NUM_OPT = 8
 
 CANALES_OPT = [f"v{i}" for i in range(1, NUM_OPT + 1)]       # senal: V_apag - V_enc
 CANALES_ACC = ["ax", "ay", "az"]

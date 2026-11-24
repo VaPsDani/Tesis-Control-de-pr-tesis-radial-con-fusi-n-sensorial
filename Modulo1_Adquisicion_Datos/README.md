@@ -39,8 +39,8 @@ núcleo ESP32.
 
 ## Número de módulos: el interruptor
 
-Se usan los módulos 1 a `NUM_OPT` de la tabla de arriba. **Hoy `NUM_OPT = 4`**,
-para las pruebas con 4 módulos: sus 4 OUT quedan en ADC1. El diseño final es 8.
+Se usan los módulos 1 a `NUM_OPT` de la tabla de arriba. **Hoy `NUM_OPT = 8`**,
+el diseño final. Con 4, en las pruebas iniciales, los 4 OUT quedaban en ADC1.
 
 Para cambiarlo hay que tocar **dos números y nada más**, y tienen que ser
 iguales:
@@ -75,7 +75,8 @@ Cada ciclo de 10 ms:
 Cada lectura promedia `N_MUESTRAS` (4, provisional) lecturas calibradas
 (`analogReadMilliVolts`), descartando la primera tras cambiar de canal. La
 capacidad de salida de los 8 GPIO de los LED se fija a mano
-(`GPIO_DRIVE_CAP_2`) y se imprime al arrancar.
+(`GPIO_DRIVE_CAP_0`: con 2 y 1 el LED saturaba el
+fototransistor sobre la piel) y se imprime al arrancar.
 
 **Valores provisionales hasta medirlos con la placa:** `T_ON_US` y `T_OFF_US`
 (1000 µs), `N_MUESTRAS` y los umbrales de las banderas del autotest.
